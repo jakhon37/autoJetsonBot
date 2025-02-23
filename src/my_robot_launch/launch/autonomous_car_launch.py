@@ -36,7 +36,7 @@ def generate_launch_description():
     # print(f'web gui path: {web_gui_path}')
     # Launch an HTTP server to serve the web GUI on port 8000
     webserver = ExecuteProcess(
-        cmd=['python3', '-m', 'http.server', '8000'],
+        cmd=['python3', '-m', 'http.server', '8001'],
         cwd=web_gui_path,
         output='screen'
     )

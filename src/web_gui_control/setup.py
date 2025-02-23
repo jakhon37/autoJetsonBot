@@ -1,6 +1,8 @@
 from setuptools import find_packages, setup
+from glob import glob  
+import os
 
-package_name = 'motor_control'
+package_name = 'web_gui_control'
 
 setup(
     name=package_name,
@@ -10,18 +12,17 @@ setup(
         ('share/ament_index/resource_index/packages',
             ['resource/' + package_name]),
         ('share/' + package_name, ['package.xml']),
+        ('share/' + package_name + '/launch_web_gui', glob('launch_web_gui/*')),
     ],
     install_requires=['setuptools'],
     zip_safe=True,
-    maintainer='ubuntu',
-    maintainer_email='ubuntu@todo.todo',
+    maintainer='jakhon37',
+    maintainer_email='jakhon37@gmail.com',
     description='TODO: Package description',
     license='TODO: License declaration',
     tests_require=['pytest'],
     entry_points={
         'console_scripts': [
-            'motor_controller = motor_control.motor_controller:main',
         ],
     },
-
 )

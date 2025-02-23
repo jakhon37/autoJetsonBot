@@ -15,11 +15,6 @@ AIN2_PIN  = 18 #24    # AIN2: Directi
 
 
 
-
-
-
-on control 2
-
 # Motor B (Right Motor) Pins
 PWM_B_PIN = 33 #13    # PWMB: PWM signal for speed control
 BIN1_PIN  = 22 #19    # BIN1: Direction control 1

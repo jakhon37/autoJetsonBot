@@ -1,50 +1,93 @@
 #!/usr/bin/env python3
 """
 autonomous_car_launch.py
-Launches the motor control, MPU6050, and includes the RPLIDAR A1 launch file.
+Launches the nodes required to run the autonomous car system.
+This includes the following nodes:
+- camera_go: Camera node that captures images from the camera
+- object_detection_node: Object detection node that processes the images and detects objects
+- dual_motor_controller: Dual motor controller node that controls the motors
+- dual_encoder_node: Dual encoder node that reads the encoder values
+- mpu6050_node: MPU6050 IMU node that reads the IMU values
+- rplidar_composition: RPLidar A1 node that reads the LIDAR values
+- slam_toolbox: SLAM Toolbox node that performs SLAM
+- web_gui: Web GUI node that serves the web interface
+- rosbridge: ROS Bridge node that connects the web interface to ROS
+- micro_ros_agent: Micro-ROS Agent node that connects the microcontroller to ROS
+Author: Jakhongir Nodirov
+Date: 2025-02-25
 """
-# /home/ubuntu/ros2_ws/install/sllidar_ros2/share/sllidar_ros2/launch/sllidar_a1_lauch_headless.py
-# /home/ubuntu/ros2_ws/src/sllidar_ros2/launch/sllidar_a1_lauch_headless.py
-# /home/ubuntu/ros2_ws/install/sllidar_ros2/share/sllidar_ros2/launch/sllidar_a1_lauch_headless.py
+
 import os
 
 from ament_index_python.packages import get_package_share_directory
 from launch import LaunchDescription
-from launch.actions import IncludeLaunchDescription
+from launch.actions import IncludeLaunchDescription, ExecuteProcess
 from launch.launch_description_sources import PythonLaunchDescriptionSource
 from launch_ros.actions import Node
 
 def generate_launch_description():
-    # Get the path to the sllidar_ros2 package's launch file
-    # sllidar_launch_path = os.path.join(
-    #     get_package_share_directory('sllidar_ros2'),
-    #     'launch',
-    #     'sllidar_a1_lauch_headless.py'
-    # )
-    # pkg_share = get_package_share_directory('my_robot_slam')
-    # config_file = os.path.join(pkg_share, 'config', 'slam_toolbox_config.yaml')
-    config_file = os.path.join(
-        get_package_share_directory('slam_launch'),
-        'config',
-        'slam_toolbox_config.yaml'
+
+    
+    # -------------------------
+    # WEB GUI CONTROLLER LAUNCH
+    # Get the path to the web_gui package
+    web_gui_pkg = get_package_share_directory('web_gui_control')
+    web_gui_path = os.path.join(web_gui_pkg, 'launch_web_gui')
+    # print(f'web gui path: {web_gui_path}')
+    # Launch an HTTP server to serve the web GUI on port 8000
+    webserver = ExecuteProcess(
+        cmd=['python3', '-m', 'http.server', '8000'],
+        cwd=web_gui_path,
+        output='screen'
     )
+    print(f'wevserver succesfully run: {1}')
+    # -------------------------
+    
+    
+    # -------------------------
+    # ROS BRIDGE LAUNCH
+    # Launch the rosbridge server (runs rosbridge_websocket on port 9090)
+    # sudo apt install ros-jazzy-rosbridge-server
+    rosbridge = ExecuteProcess(
+        cmd=['ros2', 'run', 'rosbridge_server', 'rosbridge_websocket'],
+        output='screen'
+    )
+    print(f'rosbridge succesfully run')
+    # -------------------------     
+    
+    # -------------------------
+    # MICRO-ROS MOTOR CONTROL & ENCODER LAUNCH
+    micro_ros_agent = ExecuteProcess(
+        cmd=['ros2', 'run', 'micro_ros_agent', 'micro_ros_agent', 
+             'serial', 
+             '--dev', 
+             '/dev/ttyACM0'],
+        output='screen'
+    )
+    print(f'micro_ros_agent succesfully run')
+    # -------------------------
+    
+    
+    # -------------------------
+    # other nodes
+    # camera Node
+    #...
+    # -------------------------
     
     return LaunchDescription([
-        # # Motor Controller Node
-        # Node(
-        #     package='motor_control',
-        #     executable='motor_controller',
-        #     name='motor_controller',
-        #     output='screen'
-        # ),
-        
-        # encMotor Controller Node
-        # Node(
-        #     package='enc_motor_control',
-        #     executable='enc_motor_controller',
-        #     name='enc_motor_controller',
-        #     output='screen'
-        # ),
+        webserver,
+        rosbridge,
+        micro_ros_agent
+    ])  
+    
+
+    
+    
+if __name__ == '__main__':
+    generate_launch_description()
+    
+    # return LaunchDescription([
+
 
 
         # camera Node
@@ -64,12 +107,12 @@ def generate_launch_description():
         # ),        
         
         # dual Motor Controller Node
-        Node(
-            package='dual_motor',
-            executable='dual_motor_controller',
-            name='dual_motor_controller',
-            output='screen'
-        ),
+        # Node(
+        #     package='dual_motor',
+        #     executable='dual_motor_controller',
+        #     name='dual_motor_controller',
+        #     output='screen'
+        # ),
         
         # # Encoder Controller Node
         # Node(
@@ -102,7 +145,20 @@ def generate_launch_description():
         #     }]
         # ),
         
-        
+            # Get the path to the sllidar_ros2 package's launch file
+        # sllidar_launch_path = os.path.join(
+        #     get_package_share_directory('sllidar_ros2'),
+        #     'launch',
+        #     'sllidar_a1_lauch_headless.py'
+        # )
+        # pkg_share = get_package_share_directory('my_robot_slam')
+        # config_file = os.path.join(pkg_share, 'config', 'slam_toolbox_config.yaml')
+        # config_file = os.path.join(
+        #     get_package_share_directory('slam_launch'),
+        #     'config',
+        #     'slam_toolbox_config.yaml'
+        # )
+    
         # Node(
         #     package='slam_toolbox',
         #     executable='sync_slam_toolbox_node',  # Alternatively, use 'async_slam_toolbox_node' if desired
@@ -127,7 +183,7 @@ def generate_launch_description():
         # )
                 
                 
-    ])
+    # ])
 
 if __name__ == '__main__':
     generate_launch_description()

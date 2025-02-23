@@ -57,6 +57,15 @@ def generate_launch_description():
     
     # -------------------------
     # MICRO-ROS MOTOR CONTROL & ENCODER LAUNCH
+    # git clone --branch foxy https://github.com/micro-ROS/micro_ros_setup.git 
+    # cd ..
+    # calcon install --packages-select micro_ros_setup
+    # source /install/setup.bash
+    # ros2 run micro_ros_setup create_agent_ws.sh
+    # ros2 run micro_ros_setup build_agent.sh
+    # source install/local_setup.sh
+    # ros2 run micro_ros_agent micro_ros_agent [parameters]
+    
     micro_ros_agent = ExecuteProcess(
         cmd=['ros2', 'run', 'micro_ros_agent', 'micro_ros_agent', 
              'serial', 

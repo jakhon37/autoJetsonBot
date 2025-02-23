@@ -81,11 +81,30 @@ def generate_launch_description():
     # -------------------------
     # MICRO-ROS MOTOR CONTROL & ENCODER LAUNCH OVER WIFI
     # ros2 run micro_ros_agent micro_ros_agent udp4 --port 8888
+    # Example: If your agent supports these flags:
+    # ros2 run micro_ros_agent micro_ros_agent udp4 --port 8888 -v6 \
+    #   --max-input-buffer-length 65536 \
+    #   --max-output-buffer-length 65536 \
+    #   --max-participants 10 \
+    #   --max-datawriters 20 \
+    #   --max-datareaders 20
+
     micro_ros_agent = ExecuteProcess( 
         cmd=['ros2', 'run', 'micro_ros_agent', 'micro_ros_agent', 
              'udp4', 
              '--port', 
-             '8888'],
+             '8888',
+             '-v6',
+             '--max-input-buffer-length',
+             '65536',
+             '--max-output-buffer-length',
+             '65536',
+             '--max-participants',
+             '10',
+             '--max-datawriters',
+             '20',
+             '--max-datareaders',
+             '20'],
         output='screen'
     )
     print(f'micro_ros_agent_WIFI succesfully run')  

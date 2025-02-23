@@ -66,15 +66,34 @@ def generate_launch_description():
     # source install/local_setup.sh
     # ros2 run micro_ros_agent micro_ros_agent [parameters]
     
-    micro_ros_agent = ExecuteProcess(
+    # micro_ros_agentusb = ExecuteProcess(
+    #     cmd=['ros2', 'run', 'micro_ros_agent', 'micro_ros_agent', 
+    #          'serial', 
+    #          '--dev', 
+    #          '/dev/ttyACM0'],
+    #     output='screen'
+    # )
+    # print(f'micro_ros_agent succesfully run')
+    # -------------------------
+    
+    
+    
+    # -------------------------
+    # MICRO-ROS MOTOR CONTROL & ENCODER LAUNCH OVER WIFI
+    # ros2 run micro_ros_agent micro_ros_agent udp4 --port 8888
+    micro_ros_agent = ExecuteProcess( 
         cmd=['ros2', 'run', 'micro_ros_agent', 'micro_ros_agent', 
-             'serial', 
-             '--dev', 
-             '/dev/ttyACM0'],
+             'udp4', 
+             '--port', 
+             '8888'],
         output='screen'
     )
-    print(f'micro_ros_agent succesfully run')
+    print(f'micro_ros_agent_WIFI succesfully run')  
     # -------------------------
+    
+    
+    
+    
     
     
     # -------------------------
@@ -86,7 +105,8 @@ def generate_launch_description():
     return LaunchDescription([
         webserver,
         rosbridge,
-        micro_ros_agent
+        micro_ros_agent,
+        #micro_ros_agent_WIFI
     ])  
     
 

@@ -12,7 +12,7 @@
 // WiFi and micro-ROS agent configuration
 char ssid[] = "REMOVED";
 char password[] = "REMOVED";
-char agent_ip[] = "192.168.1.102";
+char agent_ip[] = "192.168.219.107";
 const uint16_t agent_port = 8888;
 
 // -----------------------------

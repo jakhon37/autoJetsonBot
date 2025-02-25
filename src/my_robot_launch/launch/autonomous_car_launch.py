@@ -108,7 +108,7 @@ def generate_launch_description():
     #          '20'],
     #     output='screen'
     # )
-    print(f'micro_ros_agent_WIFI succesfully run')  
+    # print(f'micro_ros_agent_WIFI succesfully run')  
     # -------------------------
     
     

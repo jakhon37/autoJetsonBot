@@ -67,16 +67,26 @@ def generate_launch_description():
     # ros2 run micro_ros_agent micro_ros_agent [parameters]
     # ros2 run micro_ros_agent micro_ros_agent serial --dev /dev/ttyACM1
     
+    # micro_ros_agent = ExecuteProcess(
+    #     cmd=['ros2', 'run', 'micro_ros_agent', 'micro_ros_agent', 
+    #          'serial', 
+    #          '--dev', 
+    #          '/dev/ttyACM0'],
+    #     output='screen'
+    # )
+    # print(f'micro_ros_agent succesfully run')
+    # # -------------------------
+    
+    
+    # -------------------------
+    # MICRO-ROS MOTOR CONTROL & ENCODER LAUNCH WITH DOCKER
+    # docker run -it --rm -v /dev:/dev -v /dev/shm:/dev/shm --privileged --net=host microros/micro-ros-agent:$ROS_DISTRO serial --dev /dev/ttyACM0 -v6
     micro_ros_agent = ExecuteProcess(
-        cmd=['ros2', 'run', 'micro_ros_agent', 'micro_ros_agent', 
-             'serial', 
-             '--dev', 
-             '/dev/ttyACM0'],
+        cmd=['docker', 'run', '-it', '--rm', '-v', '/dev:/dev', '-v', '/dev/shm:/dev/shm', '--privileged', '--net=host', 'microros/micro-ros-agent:jazzy', 'serial', '--dev', '/dev/ttyACM0', '-v6'],
         output='screen'
     )
-    print(f'micro_ros_agent succesfully run')
+    print(f'micro_ros_agent succesfully run ON DOCKER') 
     # -------------------------
-    
     
     
     # -------------------------

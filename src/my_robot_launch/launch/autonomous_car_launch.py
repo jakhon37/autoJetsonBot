@@ -65,15 +65,16 @@ def generate_launch_description():
     # ros2 run micro_ros_setup build_agent.sh
     # source install/local_setup.sh
     # ros2 run micro_ros_agent micro_ros_agent [parameters]
+    # ros2 run micro_ros_agent micro_ros_agent serial --dev /dev/ttyACM1
     
-    # micro_ros_agentusb = ExecuteProcess(
-    #     cmd=['ros2', 'run', 'micro_ros_agent', 'micro_ros_agent', 
-    #          'serial', 
-    #          '--dev', 
-    #          '/dev/ttyACM0'],
-    #     output='screen'
-    # )
-    # print(f'micro_ros_agent succesfully run')
+    micro_ros_agent = ExecuteProcess(
+        cmd=['ros2', 'run', 'micro_ros_agent', 'micro_ros_agent', 
+             'serial', 
+             '--dev', 
+             '/dev/ttyACM0'],
+        output='screen'
+    )
+    print(f'micro_ros_agent succesfully run')
     # -------------------------
     
     
@@ -89,24 +90,24 @@ def generate_launch_description():
     #   --max-datawriters 20 \
     #   --max-datareaders 20
 
-    micro_ros_agent = ExecuteProcess( 
-        cmd=['ros2', 'run', 'micro_ros_agent', 'micro_ros_agent', 
-             'udp4', 
-             '--port', 
-             '8888',
-             '-v6',
-             '--max-input-buffer-length',
-             '65536',
-             '--max-output-buffer-length',
-             '65536',
-             '--max-participants',
-             '10',
-             '--max-datawriters',
-             '20',
-             '--max-datareaders',
-             '20'],
-        output='screen'
-    )
+    # micro_ros_agent = ExecuteProcess( 
+    #     cmd=['ros2', 'run', 'micro_ros_agent', 'micro_ros_agent', 
+    #          'udp4', 
+    #          '--port', 
+    #          '8888',
+    #          '-v6',
+    #          '--max-input-buffer-length',
+    #          '65536',
+    #          '--max-output-buffer-length',
+    #          '65536',
+    #          '--max-participants',
+    #          '10',
+    #          '--max-datawriters',
+    #          '20',
+    #          '--max-datareaders',
+    #          '20'],
+    #     output='screen'
+    # )
     print(f'micro_ros_agent_WIFI succesfully run')  
     # -------------------------
     

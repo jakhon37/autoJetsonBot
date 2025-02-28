@@ -2,8 +2,8 @@
 
 # Add a flag to rebuild the image if needed
 REBUILD=false
-IMAGE_N="autonomous_ros_project3:latest"
-CONTAINER_N="auto_ros3"
+IMAGE_N="auto_ros:02" #latest"
+CONTAINER_N="auto_ros02"
 WORK_SPACE_N="autonomous_ROS"
 
 # Parse command-line arguments
@@ -30,6 +30,7 @@ if ! docker ps -a | grep -q "$CONTAINER_N"; then
         -v "$(pwd)":/$WORK_SPACE_N \
         -e DISPLAY="$DISPLAY" \
         -v /tmp/.X11-unix:/tmp/.X11-unix \
+        --device=/dev/ttyACM0:/dev/ttyACM0 \
         "$IMAGE_N" /bin/bash
 else
     echo "Starting the existing Docker container..."

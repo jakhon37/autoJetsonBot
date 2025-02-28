@@ -1,26 +1,47 @@
 
-# version: "3"
+# version: "3.9"
 services:
-  autonomous_ros:
-    # build:
-    #   context: .
-    #   dockerfile: Dockerfile  
-    image: autonomous_ros_project3
-    # container_name: auto_ros3
-    network_mode: "host"
-    restart: always
-    # command: bash -c '. /opt/ros/humble/setup.bash && \
-    #   . /autonomous_ROS/install/setup.bash && \
-    #   ros2 launch my_robot_launch launchpr.py'
-
-    # command: ros2 launch my_robot_launch launchpr.py
-
-
+  ros2:
+    build: .
+    network_mode: host
+    ipc: host
+    volumes:
+      - /home/kev/ros:/home/ros
+      - /home/kev/cubie-1:/ros2
+    # devices:
+    #   - /dev/ttyUSB0:/dev/ttyUSB0
+    privileged: true
+    tty: true
+    environment:
+      - DISPLAY
 
 
+
+
+
+# # version: "3"
 # services:
-#     autonomous_ros:
-#         image: autonomous_ros_project
-#         container_name: autonomous_ros_project
-#         network_mode: "host"
-#         restart: always
+#   autonomous_ros:
+#     # build:
+#     #   context: .
+#     #   dockerfile: Dockerfile  
+#     image: autonomous_ros_project3
+#     # container_name: auto_ros3
+#     network_mode: "host"
+#     restart: always
+#     # command: bash -c '. /opt/ros/humble/setup.bash && \
+#     #   . /autonomous_ROS/install/setup.bash && \
+#     #   ros2 launch my_robot_launch launchpr.py'
+
+#     # command: ros2 launch my_robot_launch launchpr.py
+
+
+
+
+# # services:
+# #     autonomous_ros:
+# #         image: autonomous_ros_project
+# #         container_name: autonomous_ros_project
+# #         network_mode: "host"
+# #         restart: always
+

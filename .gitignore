@@ -1,6 +1,7 @@
 /build
 /install 
 /log 
+/src/.arch
 /src/ament_cmake
 /src/rosbridge_suite
 /src/uros

@@ -2,8 +2,8 @@
 
 # Add a flag to rebuild the image if needed
 REBUILD=false
-IMAGE_N="auto_ros:02" #latest"
-CONTAINER_N="auto_ros02"
+IMAGE_N="microros/micro-ros-agent:jazzy" #latest"
+CONTAINER_N="micro-ros-agent"
 WORK_SPACE_N="autonomous_ROS"
 
 # Parse command-line arguments

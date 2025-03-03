@@ -37,7 +37,7 @@ def generate_launch_description():
     # print(f'web gui path: {web_gui_path}')
     # Launch an HTTP server to serve the web GUI on port 8000
     webserver = ExecuteProcess(
-        cmd=['python3', '-m', 'http.server', '8001'],
+        cmd=['python3', '-m', 'http.server', '8000'],
         cwd=web_gui_path,
         output='screen'
     )
@@ -89,29 +89,39 @@ def generate_launch_description():
     #   --max-datawriters 20 \
     #   --max-datareaders 20
 
-    # micro_ros_agent = ExecuteProcess( 
-    #     cmd=['ros2', 'run', 'micro_ros_agent', 'micro_ros_agent', 
-    #          'udp4', 
-    #          '--port', 
-    #          '8888',
-    #          '-v6',
-    #          '--max-input-buffer-length',
-    #          '65536',
-    #          '--max-output-buffer-length',
-    #          '65536',
-    #          '--max-participants',
-    #          '10',
-    #          '--max-datawriters',
-    #          '20',
-    #          '--max-datareaders',
-    #          '20'],
-    #     output='screen'
-    # )
-    # print(f'micro_ros_agent_WIFI succesfully run')  
+    micro_ros_agent = ExecuteProcess( 
+        cmd=['ros2', 'run', 'micro_ros_agent', 'micro_ros_agent', 
+             'udp4', 
+             '--port', 
+             '8888',
+            #  '-v6',
+            #  '--max-input-buffer-length',
+            #  '65536',
+            #  '--max-output-buffer-length',
+            #  '65536',
+            #  '--max-participants',
+            #  '10',
+            #  '--max-datawriters',
+            #  '20',
+            #  '--max-datareaders',
+            #  '20'
+             ],
+        output='screen'
+    )
+    print(f'micro_ros_agent_WIFI succesfully run')  
     # -------------------------
     
     
-    
+    # -------------------------
+    # serial motor Node
+    serail_motor = Node(
+        package='motor_usbserial',
+        executable='motor_usbserial_node',
+        name='motor_usbserial',
+        output='screen'
+    )       
+    # -------------------------
+   
     
     
     
@@ -124,8 +134,9 @@ def generate_launch_description():
     return LaunchDescription([
         webserver,
         rosbridge,
-     #   micro_ros_agent,
+        # micro_ros_agent,
         #micro_ros_agent_WIFI
+        serail_motor
     ])  
     
 

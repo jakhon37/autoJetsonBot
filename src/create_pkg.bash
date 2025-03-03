@@ -12,4 +12,4 @@ ros2 pkg create --build-type ament_python my_robot_slam --dependencies rclpy sen
 ros2 pkg create --build-type ament_python my_robot_launch --dependencies rclpy launch launch_ros ament_index_python
 
 
-ros2 pkg create --build-type ament_python webGuiControl --dependencies rclpy launch launch_ros ament_index_python
+ros2 pkg create --build-type ament_python motor_usbserial --dependencies rclpy launch launch_ros ament_index_python

@@ -2,8 +2,8 @@
 
 # Add a flag to rebuild the image if needed
 REBUILD=false
-IMAGE_N="auto_ros:02" #latest"
-CONTAINER_N="auto_ros02"
+IMAGE_N="auto_ros:humble" #latest"
+CONTAINER_N="auto_ros_humble"
 WORK_SPACE_N="autonomous_ROS"
 
 # Parse command-line arguments
@@ -31,6 +31,7 @@ if ! docker ps -a | grep -q "$CONTAINER_N"; then
         -e DISPLAY="$DISPLAY" \
         -v /tmp/.X11-unix:/tmp/.X11-unix \
         --device=/dev/ttyACM0:/dev/ttyACM0 \
+        --device=/dev/ttyUSB0:/dev/ttyUSB0 \
         "$IMAGE_N" /bin/bash
 else
     echo "Starting the existing Docker container..."
@@ -40,4 +41,4 @@ fi
         # --gpus all 
         # -p 8001:8001 -p 7860:7860 \
         # --network=host \
-# 
+# export ROS_DOMAIN_ID=0

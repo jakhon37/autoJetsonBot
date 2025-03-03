@@ -1,4 +1,5 @@
 from setuptools import find_packages, setup
+from glob import glob
 
 package_name = 'slam_launch'
 
@@ -12,6 +13,11 @@ setup(
         ('share/' + package_name, ['package.xml']),
         # ('share/' + package_name + '/config', ['src/slam_launch/config/slam_toolbox_config.yaml']),
         ('share/' + package_name , ['config/slam_toolbox_config.yaml']),
+        ('share/' + package_name + '/config', glob('config/*.yaml')),
+        # ('share/' + package_name + '/config/slam_toolbox_config.yaml', glob('launch/*')),
+
+        # ('share/' + package_name + '/launch', glob('launch/*.py')),
+        # ('share/' + package_name + '/launch/web_gui', glob('launch/web_gui/*')),
 
     ],
     install_requires=['setuptools'],

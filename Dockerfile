@@ -41,3 +41,4 @@ RUN echo "source /opt/ros/humble/setup.bash" >> /root/.bashrc
 
 #sudo apt-get install ros-${ROS_DISTRO}-ros-gz
 # ros-humble-xacro \
+# pip install pyserial

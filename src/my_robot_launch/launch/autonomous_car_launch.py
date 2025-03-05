@@ -2,22 +2,20 @@
 """
 autonomous_car_launch.py
 
-Launches the nodes required to run the autonomous car system.
-This includes:
-- Web GUI: Serves the web interface.
-- ROS Bridge: Connects the web interface to ROS.
-- Micro-ROS Agents: 
-    - Serial connection to a microcontroller.
-    - UDP connection over Wi-Fi.
-- Serial Motor Controller: Controls the motors via USB-serial.
-- RPLidar Node: Reads LIDAR values.
-- SLAM Toolbox Node: Performs SLAM.
+Launches nodes required to run the autonomous car system including:
+- Web GUI
+- ROS Bridge
+- Serial Motor Controller
+- RPLidar Node
+- SLAM Toolbox Node
+- Robot State Publisher (for robot description)
 
 Author: Jakhongir Nodirov
 Date: 2025-02-25
 """
 
 import os
+import xacro
 from ament_index_python.packages import get_package_share_directory
 from launch import LaunchDescription
 from launch.actions import ExecuteProcess
@@ -26,12 +24,11 @@ from launch_ros.actions import Node
 def generate_launch_description():
     # -------------------------
     # Web GUI Controller Launch
-    # Launch an HTTP server to serve the web GUI on port 8000.
     web_gui_pkg = get_package_share_directory('web_gui_control')
     web_gui_path = os.path.join(web_gui_pkg, 'launch_web_gui')
     port_web = '8081'
     webserver = ExecuteProcess(
-        cmd=['python3', '-m', 'http.server', port_web ],
+        cmd=['python3', '-m', 'http.server', port_web],
         cwd=web_gui_path,
         output='screen'
     )
@@ -39,32 +36,11 @@ def generate_launch_description():
 
     # -------------------------
     # ROS Bridge Launch
-    # Launch the rosbridge server (runs rosbridge_websocket on port 9090).
     rosbridge = ExecuteProcess(
-        # cmd=['ros2', 'run', 'rosbridge_server', 'rosbridge_websocket'],
         cmd=['ros2', 'run', 'rosbridge_server', 'rosbridge_websocket', '--port', '9090'],
-
         output='screen'
     )
     print('Rosbridge server successfully started.')
-
-    # -------------------------
-    # Micro-ROS Agent Launch (Serial)
-    # micro_ros_agent_serial = ExecuteProcess(
-    #     cmd=['ros2', 'run', 'micro_ros_agent', 'micro_ros_agent',
-    #          'serial', '--dev', '/dev/ttyACM0'],
-    #     output='screen'
-    # )
-    # print('Micro-ROS agent (Serial) successfully started.')
-
-    # -------------------------
-    # # Micro-ROS Agent Launch (UDP over Wi-Fi)
-    # micro_ros_agent_udp = ExecuteProcess(
-    #     cmd=['ros2', 'run', 'micro_ros_agent', 'micro_ros_agent',
-    #          'udp4', '--port', '8888'],
-    #     output='screen'
-    # )
-    # print('Micro-ROS agent (UDP) successfully started.')
 
     # -------------------------
     # Serial Motor Controller Node
@@ -105,18 +81,35 @@ def generate_launch_description():
     )
 
     # -------------------------
-    # (Optional) Additional nodes such as camera, object detection, etc. can be added here.
-    # -------------------------
+    # Robot Description Node (Robot State Publisher)
+    # Locate your robot description file (URDF or XACRO)
+    robot_description_pkg = get_package_share_directory('robot_description')
+    robot_description_file = os.path.join(robot_description_pkg, 'urdf', 'robot.urdf.xacro')
+    
+    # Process the xacro file to produce a valid URDF XML string
+    doc = xacro.process_file(robot_description_file)
+    robot_description_xml = doc.toxml()
 
+    # Create the robot_state_publisher node and load the robot description
+    robot_state_publisher_node = Node(
+        package='robot_state_publisher',
+        executable='robot_state_publisher',
+        name='robot_state_publisher',
+        output='screen',
+        parameters=[{'robot_description': robot_description_xml}]
+    )
+
+    # -------------------------
+    # Return the complete LaunchDescription with all nodes
     return LaunchDescription([
         webserver,
         rosbridge,
-        # micro_ros_agent_serial,
-        # micro_ros_agent_udp,
         serial_motor,
         rplidar,
         slam_node,
+        robot_state_publisher_node,
     ])
 
 if __name__ == '__main__':
     generate_launch_description()
+

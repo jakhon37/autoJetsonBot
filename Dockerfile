@@ -14,7 +14,9 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
  && rm -rf /var/lib/apt/lists/*
 
 # Enable the Universe repository
-RUN add-apt-repository universe && apt-get update
+RUN add-apt-repository universe && \
+    rm -rf /var/lib/apt/lists/* && \
+    apt-get update
 
 # Bootstrap rosdep
 RUN rosdep init && rosdep update --rosdistro $ROS_DISTRO
@@ -26,14 +28,17 @@ RUN colcon mixin add default https://raw.githubusercontent.com/colcon/colcon-mix
  && colcon metadata update
 
 # Install ROS2 packages (desktop, navigation, Gazebo integration) and nano
-RUN apt-get update && apt-get install -y --no-install-recommends \
-    ros-humble-desktop* \
+RUN  rm -rf /var/lib/apt/lists/* && \
+    apt-get update && apt-get install -y --no-install-recommends \
+    ros-humble-desktop-full* \
     ros-humble-navigation2 \
     ros-humble-nav2-bringup \
     ros-humble-ros-gz \
     ros-humble-rosbridge-server \
     nano \
- && rm -rf /var/lib/apt/lists/*
+    && rm -rf /var/lib/apt/lists/*
+
+#  ros-humble-ros-gz \
 
 # Add ROS setup to bashrc
 RUN echo "source /opt/ros/humble/setup.bash" >> /root/.bashrc

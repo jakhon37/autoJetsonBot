@@ -2,8 +2,9 @@
 
 # Add a flag to rebuild the image if needed
 REBUILD=false
-IMAGE_N="auto_ros:humble" #latest"
-CONTAINER_N="auto_ros_humble"
+DISTRO="foxy"
+IMAGE_N="auto_ros:$DISTRO" #humble" #latest"
+CONTAINER_N="auto_ros_$DISTRO"
 WORK_SPACE_N="autonomous_ROS"
 
 # Parse command-line arguments

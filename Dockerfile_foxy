@@ -1,4 +1,4 @@
-FROM ros:humble-ros-core-jammy
+FROM ros:foxy-ros-core-focal
 
 # Install essential tools including add-apt-repository utility
 RUN apt-get update && apt-get install -y --no-install-recommends \
@@ -9,8 +9,8 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     python3-colcon-mixin \
     python3-rosdep \
     python3-vcstool \
-    python3-pip\
-    python3-pymongo\
+    python3-pip \
+    python3-pymongo \
  && rm -rf /var/lib/apt/lists/*
 
 # Enable the Universe repository
@@ -27,23 +27,20 @@ RUN colcon mixin add default https://raw.githubusercontent.com/colcon/colcon-mix
  && colcon metadata add default https://raw.githubusercontent.com/colcon/colcon-metadata-repository/master/index.yaml \
  && colcon metadata update
 
-# Install ROS2 packages (desktop, navigation, Gazebo integration) and nano
-RUN  rm -rf /var/lib/apt/lists/* && \
+# Install ROS2 packages (desktop, navigation, Gazebo integration, and rosbridge) and nano
+RUN rm -rf /var/lib/apt/lists/* && \
     apt-get update && apt-get install -y --no-install-recommends \
-    ros-humble-desktop-full* \
-    ros-humble-navigation2 \
-    ros-humble-nav2-bringup \
-    ros-humble-ros-gz \
-    ros-humble-rosbridge-server \
+    ros-foxy-desktop \
+    ros-foxy-navigation2 \
+    ros-foxy-nav2-bringup \
+    ros-foxy-gazebo-ros-pkgs \
+    ros-foxy-rosbridge-server \
+    ros-foxy-xacro \
+    ros-foxy-joint-state-publisher-gui \
     nano \
-    && rm -rf /var/lib/apt/lists/*
-
-#  ros-humble-ros-gz \
+ && rm -rf /var/lib/apt/lists/*
 
 # Add ROS setup to bashrc
-RUN echo "source /opt/ros/humble/setup.bash" >> /root/.bashrc
+RUN echo "source /opt/ros/foxy/setup.bash" >> /root/.bashrc
 
-
-#sudo apt-get install ros-${ROS_DISTRO}-ros-gz
-# ros-humble-xacro \
-# pip install pyserial
+# sudo apt install ros-foxy-xacro ros-foxy-joint-state-publisher-gui

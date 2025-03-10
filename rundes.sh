@@ -4,9 +4,7 @@ colcon build --packages-select robot_body
 source install/setup.bash
 
 
-ros2 launch robot_body robot_body_launch_sim.py
-
-
+ros2 launch robot_body robot_body_launch_sim.py  world:=./src/robot_body/urdf/lab.world
 
 
 # ros2 run gazebo_ros spawn_entity.py -topic /robot_body -entity my_robot 
@@ -17,6 +15,24 @@ ros2 launch robot_body robot_body_launch_sim.py
 
 
 # ros2 run joint_state_publisher_gui joint_state_publisher_gui 
+
+# ros2 run teleop_twist_keyboard teleop_twist_keyboard 
+
+
+# LIDAR 
+
+# ros2 run rplidar_ros rplidar_composition --ros-args -p serial_port:=/dev/ttyUSB0 -p frame_id:=laser_frame -p angle_compensate:=true -p scan_mode:=Standard'
+
+# CAMERA 
+
+# ros2 run image_transport republish compressed raw --ros-args -r in/compressed:=/camera/image_raw/compressed -r out:=/camera/image_raw/uncompressed
+
+# sudo apt install libraspberrypi-bin v4l-utils ros-foxy-v4l2-camera
+# sudo usermod -a -G video $USER
+#  vcgencmd get_camera ?
+# raspistill -k  ?
+# v4l2-ctl --list-devices
+#  ros2 run v4l2_camera v4l2_camera_node --ros-args -p image_size:="[640,480]" -p camera_frame_id:=camera_optical_link 
 
 
 
@@ -43,5 +59,3 @@ ros2 launch robot_body robot_body_launch_sim.py
 # sudo apt-get install ignition-fortress
 
 
-
-# ros2 run teleop_twist_keyboard teleop_twist_keyboard 

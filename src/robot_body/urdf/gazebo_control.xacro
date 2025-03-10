@@ -1,18 +1,23 @@
 <?xml version="1.0"?>
 <robot xmlns:xacro="http://www.ros.org/wiki/xacro" >
     <gazebo>
-        <plugin name="diff_drive" filename="libgazebo_ros_diffdrive.so">
+        <plugin name="diff_drive" filename="libgazebo_ros_diff_drive.so">
             <!-- <robotNamespace>/autoJetsonBot</robotNamespace> -->
+            <ros>
+                <namespace>/</namespace>
+                <remapping>cmd_vel:=/cmd_vel</remapping>
+            </ros>
             <!-- wheel info -->
             <left_joint>left_wheel_joint</left_joint>
             <right_joint>right_wheel_joint</right_joint>
             <caster_wheel_joint>caster_wheel_joint</caster_wheel_joint>
             <wheel_separation>0.15</wheel_separation>
+            <wheel_diameter>0.07</wheel_diameter>
             <wheel_radius>0.035</wheel_radius>
 
             <!-- limits -->
-            <max_wheel_torque>50.0</max_wheel_torque>
-            <max_wheel_acceleration>5</max_wheel_acceleration>
+            <max_wheel_torque>250.0</max_wheel_torque>
+            <max_wheel_acceleration>25</max_wheel_acceleration>
 
             <!-- output -->
             <odametry_frame>odom</odametry_frame>

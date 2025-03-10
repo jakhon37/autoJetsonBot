@@ -1,7 +1,7 @@
 <?xml version="1.0"?>
 <robot xmlns:xacro="http://www.ros.org/wiki/xacro" >
 
-<xacro:property name="pi" value="3.14159265359"/>   
+<!-- <xacro:property name="pi" value="3.14159265359"/>    -->
 <xacro:include filename="inertial_macros.xacro" />
 
     <!-- COLORS FOR ROBOT PARTS -->
@@ -167,14 +167,15 @@
 
     <!-- ROBOT LIDAR -->
     <joint name="lidar_joint" type="fixed">
-        <origin xyz="0.035 0 0.07" rpy="0 0 0"/>
-        <parent link="base_link"/>
+        <origin xyz="0.07 0 0.07" rpy="0 0 0"/>
+        <parent link="chassis"/>
         <child link="lidar"/>
     </joint>
 
     <link name="lidar">
         <visual>
             <origin xyz="0 0 0" rpy="0 0 0"/>
+
             <geometry>
                 <cylinder radius="0.035" length="0.065"/>
             </geometry>
@@ -182,6 +183,7 @@
         </visual>
         <collision>
             <origin xyz="0 0 0" rpy="0 0 0"/>
+
             <geometry>
                 <cylinder radius="0.035" length="0.065"/>
             </geometry>

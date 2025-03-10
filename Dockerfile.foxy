@@ -37,6 +37,10 @@ RUN rm -rf /var/lib/apt/lists/* && \
     ros-foxy-rosbridge-server \
     ros-foxy-xacro \
     ros-foxy-joint-state-publisher-gui \
+    ros-foxy-rplidar-ros \
+    ros-foxy-image-transport-plugins \
+    ros-foxy-rqt-image-view \
+    ros-foxy-teleop-twist-keyboard \
     nano \
  && rm -rf /var/lib/apt/lists/*
 

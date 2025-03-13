@@ -28,6 +28,7 @@ RUN colcon mixin add default https://raw.githubusercontent.com/colcon/colcon-mix
  && colcon metadata update
 
 # Install ROS2 packages (desktop, navigation, Gazebo integration, and rosbridge) and nano
+# apt install ros-foxy-ros2-control ros-foxy-ros2-controllers ros-foxy-gazebo-ros2-control
 RUN rm -rf /var/lib/apt/lists/* && \
     apt-get update && apt-get install -y --no-install-recommends \
     ros-foxy-desktop \
@@ -41,6 +42,13 @@ RUN rm -rf /var/lib/apt/lists/* && \
     ros-foxy-image-transport-plugins \
     ros-foxy-rqt-image-view \
     ros-foxy-teleop-twist-keyboard \
+    ros-foxy-ros2-control \
+    ros-foxy-ros2-controllers \
+    ros-foxy-ros2-control-toolbox \
+    ros-foxy-ros2-controllers-msgs \
+    ros-foxy-ros2-controllers-interface \
+    ros-foxy-gazebo-ros2-control \
+    ros-foxy-gazebo-ros2-plugins \
     nano \
  && rm -rf /var/lib/apt/lists/*
 

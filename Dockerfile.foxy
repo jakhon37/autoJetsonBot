@@ -44,14 +44,15 @@ RUN rm -rf /var/lib/apt/lists/* && \
     ros-foxy-teleop-twist-keyboard \
     ros-foxy-ros2-control \
     ros-foxy-ros2-controllers \
-    ros-foxy-ros2-control-toolbox \
-    ros-foxy-ros2-controllers-msgs \
-    ros-foxy-ros2-controllers-interface \
     ros-foxy-gazebo-ros2-control \
-    ros-foxy-gazebo-ros2-plugins \
     nano \
  && rm -rf /var/lib/apt/lists/*
 
+#  ros-foxy-gazebo-ros2-plugins \
+
+#  ros-foxy-ros2-control-toolbox \
+#  ros-foxy-ros2-controllers-msgs \
+#  ros-foxy-ros2-controllers-interface \
 # Add ROS setup to bashrc
 RUN echo "source /opt/ros/foxy/setup.bash" >> /root/.bashrc
 

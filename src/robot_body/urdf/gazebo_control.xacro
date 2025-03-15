@@ -16,8 +16,8 @@
             <wheel_radius>0.035</wheel_radius>
 
             <!-- limits -->
-            <max_wheel_torque>250.0</max_wheel_torque>
-            <max_wheel_acceleration>25</max_wheel_acceleration>
+            <max_wheel_torque>450.0</max_wheel_torque>
+            <max_wheel_acceleration>45</max_wheel_acceleration>
 
             <!-- output -->
             <odametry_frame>odom</odametry_frame>

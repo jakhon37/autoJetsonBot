@@ -26,7 +26,7 @@ def generate_launch_description():
     # Web GUI Controller Launch
     web_gui_pkg = get_package_share_directory('web_gui_control')
     web_gui_path = os.path.join(web_gui_pkg, 'launch_web_gui')
-    port_web = '8081'
+    port_web = '8080'
     webserver = ExecuteProcess(
         cmd=['python3', '-m', 'http.server', port_web],
         cwd=web_gui_path,
@@ -83,21 +83,21 @@ def generate_launch_description():
     # -------------------------
     # Robot Description Node (Robot State Publisher)
     # Locate your robot description file (URDF or XACRO)
-    robot_description_pkg = get_package_share_directory('robot_description')
-    robot_description_file = os.path.join(robot_description_pkg, 'urdf', 'robot.urdf.xacro')
+    # robot_description_pkg = get_package_share_directory('robot_description')
+    # robot_description_file = os.path.join(robot_description_pkg, 'urdf', 'robot.urdf.xacro')
     
-    # Process the xacro file to produce a valid URDF XML string
-    doc = xacro.process_file(robot_description_file)
-    robot_description_xml = doc.toxml()
+    # # Process the xacro file to produce a valid URDF XML string
+    # doc = xacro.process_file(robot_description_file)
+    # robot_description_xml = doc.toxml()
 
-    # Create the robot_state_publisher node and load the robot description
-    robot_state_publisher_node = Node(
-        package='robot_state_publisher',
-        executable='robot_state_publisher',
-        name='robot_state_publisher',
-        output='screen',
-        parameters=[{'robot_description': robot_description_xml}]
-    )
+    # # Create the robot_state_publisher node and load the robot description
+    # robot_state_publisher_node = Node(
+    #     package='robot_state_publisher',
+    #     executable='robot_state_publisher',
+    #     name='robot_state_publisher',
+    #     output='screen',
+    #     parameters=[{'robot_description': robot_description_xml}]
+    # )
 
     # -------------------------
     # Return the complete LaunchDescription with all nodes
@@ -105,9 +105,9 @@ def generate_launch_description():
         webserver,
         rosbridge,
         serial_motor,
-        rplidar,
+        # rplidar,
         slam_node,
-        robot_state_publisher_node,
+        # robot_state_publisher_node,
     ])
 
 if __name__ == '__main__':

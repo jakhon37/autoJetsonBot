@@ -1,6 +1,9 @@
 
 
 #!/bin/bash
+
+colcon build --symlink-install
+
 # Source ROS 2 and workspace environments
 # source /opt/ros/foxy/setup.bash
 # source /home/ubuntu/my_space/autonomous_ROS/install/setup.bash
@@ -18,7 +21,7 @@ ros2 launch my_robot_launch autonomous_car_launch.py
 
 
 
-docker run -it --rm -v /dev:/dev -v /dev/shm:/dev/shm --privileged --net=host microros/micro-ros-agent:$ROS_DISTRO serial --dev /dev/ttyACM0 -v6
+# docker run -it --rm -v /dev:/dev -v /dev/shm:/dev/shm --privileged --net=host microros/micro-ros-agent:$ROS_DISTRO serial --dev /dev/ttyACM0 -v6
 
 
 

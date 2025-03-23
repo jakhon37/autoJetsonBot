@@ -5,12 +5,13 @@ from rclpy.logging import LoggingSeverity
 from std_msgs.msg import Float32
 from geometry_msgs.msg import Twist
 import serial
+# pip3 install pyserial
 
 class MotorBridge(Node):
     def __init__(self):
         super().__init__('motor_bridge')
         
-        self.get_logger().set_level(LoggingSeverity.INFO) #WARN
+        self.get_logger().set_level(LoggingSeverity.INFO) #WARN or DEBUG or INFO
         # Open the serial port (update '/dev/ttyACM0' if needed)
         try:
             self.ser = serial.Serial('/dev/ttyACM0', 115200, timeout=0.1)

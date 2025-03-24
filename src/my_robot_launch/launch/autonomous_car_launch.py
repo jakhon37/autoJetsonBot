@@ -105,7 +105,7 @@ def generate_launch_description():
         webserver,
         rosbridge,
         serial_motor,
-        # rplidar,
+        rplidar,
         slam_node,
         # robot_state_publisher_node,
     ])

@@ -1,3 +1,6 @@
+
+# autoJetsonBot/src/robot_body/launch/robot_body_launch_robot.py
+
 import os
 
 from ament_index_python.packages import get_package_share_directory
@@ -62,11 +65,20 @@ def generate_launch_description():
     )
     
     delayed_diff_drive_spawner = RegisterEventHandler(
-        event_handlers=OnProcessStart(
+        event_handler=OnProcessStart(
             target_action=controller_manager,
             on_start=[diff_drive_spawner]
         )
     )
+
+
+    delayed_joint_broad_spawner = RegisterEventHandler(
+    event_handler=OnProcessStart(
+        target_action=controller_manager,
+        on_start=[joint_broad_spawner]
+    )
+    )
+
     
     joint_broad_spawner = Node(
         package="controller_manager",
@@ -81,6 +93,22 @@ def generate_launch_description():
         )
     )
 
+
+
+    bridge_node = Node(
+    package='robot_body',
+    executable='serial_bridge',
+    name='serial_bridge',
+    parameters=[{
+        'serial_port': '/dev/ttyUSB0',
+        'baudrate': 115200,
+        'wheel_separation': 0.297,
+        'wheel_radius': 0.033,
+        'max_wheel_linear': 0.5
+    }]
+    )
+
+
     # Launch them all!
     return LaunchDescription([
         rsp,
@@ -90,5 +118,6 @@ def generate_launch_description():
         delayed_diff_drive_spawner,
         delayed_joint_broad_spawner,
         # diff_drive_spawner,
-        # joint_broad_spawner
+        # joint_broad_spawner,
+        bridge_node
     ])

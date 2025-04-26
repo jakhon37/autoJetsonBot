@@ -1,3 +1,5 @@
+# autoJetsonBot/src/robot_body/setup.py
+
 from setuptools import setup
 from glob import glob
 
@@ -24,6 +26,8 @@ setup(
     tests_require=['pytest'],
     entry_points={
         'console_scripts': [
+            'serial_bridge = robot_body.serial_bridge:main',
+
             # 'robot_body_node = robot_body.robot_body_node:main',
             ],
     },

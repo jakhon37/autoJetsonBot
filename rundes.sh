@@ -4,7 +4,8 @@ colcon build --packages-select robot_body
 source install/setup.bash
 
 
-ros2 launch robot_body robot_body_launch_sim.py  world:=./src/robot_body/urdf/lab.world
+ros2 launch robot_body robot_body_launch_robot.py
+# ros2 launch robot_body robot_body_launch_sim.py  world:=./src/robot_body/urdf/lab.world
 
 
 # ros2 run gazebo_ros spawn_entity.py -topic /robot_body -entity my_robot 

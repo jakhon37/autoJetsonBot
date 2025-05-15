@@ -1,10 +1,14 @@
 
 
-colcon build --packages-select robot_body
+colcon build --packages-select my_robot_launch
+colcon build --packages-select web_gui_control
+colcon build --packages-select slam_launch
 source install/setup.bash
 
 
-ros2 launch robot_body robot_body_launch_robot.py
+ros2 launch my_robot_launch robot_body_launch_robot.py
+# ros2 launch robot_body robot_body_launch_robot.py
+# ros2 launch robot_body robot_body_launch_robot.py sim_mode:=true
 # ros2 launch robot_body robot_body_launch_sim.py  world:=./src/robot_body/urdf/lab.world
 
 

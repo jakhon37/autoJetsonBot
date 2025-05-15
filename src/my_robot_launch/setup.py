@@ -12,9 +12,16 @@ setup(
             ['resource/' + package_name]),
         ('share/' + package_name, ['package.xml']),
         # Install launch files and directories
+        ('share/' + package_name + '/urdf', glob('urdf/*.xacro')),
         ('share/' + package_name + '/launch', glob('launch/*.py')),
-        ('share/' + package_name + '/launch/web_gui', glob('launch/web_gui/*')),
+        ('share/' + package_name + '/config', glob('config/*.yaml')),
+        ('share/' + package_name + '/launch', glob('launch/robot_body_launch_sim.py')),
+        
+        
+        # ('share/' + package_name + '/launch/web_gui', glob('launch/web_gui/*')),
     ],
+    
+        
     install_requires=['setuptools'],
     zip_safe=True,
     maintainer='ubuntu',

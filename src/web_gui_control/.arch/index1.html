@@ -1,0 +1,88 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <title>Robot Teleop GUI</title>
+  <!-- You can include CSS frameworks like Bootstrap if desired -->
+  <!-- <script src="https://static.robotwebtools.org/roslibjs/current/roslib.min.js"></script>
+     <script src="roslib.min.js"></script>
+ -->
+ <script src="roslib.min.js"></script>
+
+</head>
+<body>
+  <h1>Robot Teleoperation</h1>
+  
+  <!-- Speed Control Slider -->
+  <label for="speedSlider">Speed:</label>
+  <input type="range" id="speedSlider" min="-1" max="1" step="0.1" value="0">
+  <span id="speedValue">0</span>
+  <br><br>
+  
+  <!-- Steering Buttons -->
+  <button onclick="sendSteering(0.995)">Turn Left</button>
+  <button onclick="sendSteering(0)">Straight</button>
+  <button onclick="sendSteering(-0.995)">Turn Right</button>
+  <br><br>
+  
+  <button onclick="publishCmd()">Publish Command</button>
+  
+  <script>
+    // Connect to rosbridge (replace YOUR_ROBOT_IP with the IP address of your robot)
+    var ros = new ROSLIB.Ros({
+      url: 'ws://192.168.219.100:9090'
+    });
+
+    ros.on('connection', function() {
+      console.log('Connected to rosbridge!');
+    });
+    ros.on('error', function(error) {
+      console.log('Error connecting to rosbridge: ', error);
+    });
+    ros.on('close', function() {
+      console.log('Connection closed.');
+    });
+
+    // Define the cmd_vel topic
+    var cmdVel = new ROSLIB.Topic({
+      ros: ros,
+      name: '/cmd_vel',
+      messageType: 'geometry_msgs/Twist'
+    });
+
+    // Global variable for steering and speed
+    var currentSpeed = 0.0;
+    var currentAngular = 0.0;
+
+    // Update speed display when slider changes
+    document.getElementById('speedSlider').addEventListener('input', function() {
+      currentSpeed = parseFloat(this.value);
+      document.getElementById('speedValue').textContent = currentSpeed.toFixed(2);
+    });
+
+    // Function to update steering command
+    function sendSteering(angularValue) {
+      currentAngular = angularValue;
+      console.log('Steering set to: ' + currentAngular);
+    }
+
+    // Function to publish the command
+    function publishCmd() {
+      var twist = new ROSLIB.Message({
+        linear: {
+          x: currentSpeed,
+          y: 0.0,
+          z: 0.0
+        },
+        angular: {
+          x: 0.0,
+          y: 0.0,
+          z: currentAngular
+        }
+      });
+      cmdVel.publish(twist);
+      console.log('Published command:', twist);
+    }
+  </script>
+</body>
+</html>

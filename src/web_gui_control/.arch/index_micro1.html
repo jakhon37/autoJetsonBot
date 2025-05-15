@@ -1,0 +1,189 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Dual Motor Control and Encoder Display</title>
+  <script src="roslib.min.js"></script>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      margin: 10px;
+      text-align: center;
+      background-color: #f7f7f7;
+    }
+    h1 {
+      font-size: 1.8em;
+      margin-bottom: 20px;
+    }
+    .control-container {
+      margin: 15px 0;
+    }
+    label {
+      font-size: 1.2em;
+    }
+    input[type=range] {
+      width: 80%;
+      max-width: 300px;
+      margin: 10px 0;
+    }
+    button {
+      padding: 15px;
+      font-size: 1.2em;
+      margin: 5px;
+      width: 40%;
+      max-width: 200px;
+      border: none;
+      border-radius: 5px;
+      background-color: #4285f4;
+      color: #fff;
+    }
+    button:hover {
+      background-color: #357ae8;
+      cursor: pointer;
+    }
+    button.stop {
+      background-color: #ea4335;
+    }
+    button.stop:hover {
+      background-color: #d93025;
+    }
+  </style>
+</head>
+<body>
+  <h1>Dual Motor Control and Encoder Display</h1>
+  
+  <!-- Left Motor Speed Slider -->
+  <div class="control-container">
+    <label for="leftSlider">Left Motor Speed:</label><br>
+    <input type="range" id="leftSlider" min="-1" max="1" step="0.1" value="0">
+    <div id="leftValue">0</div>
+  </div>
+  
+  <!-- Right Motor Speed Slider -->
+  <div class="control-container">
+    <label for="rightSlider">Right Motor Speed:</label><br>
+    <input type="range" id="rightSlider" min="-1" max="1" step="0.1" value="0">
+    <div id="rightValue">0</div>
+  </div>
+  
+  <!-- Stop Button -->
+  <div class="control-container">
+    <button class="stop" onclick="stopMotors()">Stop</button>
+  </div>
+  
+  <!-- Encoder Count Displays -->
+  <div class="control-container">
+    <label>Left Encoder Count:</label><br>
+    <div id="leftEncoderDisplay">0</div>
+  </div>
+  
+  <div class="control-container">
+    <label>Right Encoder Count:</label><br>
+    <div id="rightEncoderDisplay">0</div>
+  </div>
+  
+  <script>
+    // Connect to rosbridge – replace with your Jetson Nano's IP
+    var ros = new ROSLIB.Ros({
+      url : 'ws://192.168.219.107:9090'  // Adjust IP as needed
+    });
+    
+    ros.on('connection', function() {
+      console.log('Connected to rosbridge!');
+    });
+    ros.on('error', function(error) {
+      console.log('Error connecting to rosbridge: ', error);
+    });
+    ros.on('close', function() {
+      console.log('Connection to rosbridge closed.');
+    });
+    
+    // Publishers for motor commands
+    var leftCmd = new ROSLIB.Topic({
+      ros : ros,
+      name : '/motor_left_cmd',
+      messageType : 'std_msgs/Int16'
+    });
+    
+    var rightCmd = new ROSLIB.Topic({
+      ros : ros,
+      name : '/motor_right_cmd',
+      messageType : 'std_msgs/Int16'
+    });
+    
+    // Global variables for motor speeds
+    var currentLeftSpeed = 0;
+    var currentRightSpeed = 0;
+    
+    // Function to publish motor commands
+    function publishCmd() {
+      var leftMsg = new ROSLIB.Message({
+        data: currentLeftSpeed
+      });
+      var rightMsg = new ROSLIB.Message({
+        data: currentRightSpeed
+      });
+      leftCmd.publish(leftMsg);
+      rightCmd.publish(rightMsg);
+      console.log('Published left_cmd:', leftMsg.data, 'right_cmd:', rightMsg.data);
+    }
+    
+    // Left slider handling
+    var leftSlider = document.getElementById('leftSlider');
+    var leftValue = document.getElementById('leftValue');
+    leftSlider.addEventListener('input', function() {
+      var sliderValue = parseFloat(this.value);
+      currentLeftSpeed = Math.round(sliderValue * 255); // Map -1..1 to -255..255
+      leftValue.textContent = currentLeftSpeed;
+      publishCmd();
+    });
+    
+    // Right slider handling
+    var rightSlider = document.getElementById('rightSlider');
+    var rightValue = document.getElementById('rightValue');
+    rightSlider.addEventListener('input', function() {
+      var sliderValue = parseFloat(this.value);
+      currentRightSpeed = Math.round(sliderValue * 255); // Map -1..1 to -255..255
+      rightValue.textContent = currentRightSpeed;
+      publishCmd();
+    });
+    
+    // Stop function: resets both speeds to zero
+    function stopMotors() {
+      currentLeftSpeed = 0;
+      currentRightSpeed = 0;
+      leftSlider.value = 0;
+      rightSlider.value = 0;
+      leftValue.textContent = "0";
+      rightValue.textContent = "0";
+      publishCmd();
+    }
+    
+    // Subscriber for left encoder count
+    var leftEncoderTopic = new ROSLIB.Topic({
+      ros : ros,
+      name : '/motor_left_encoder',
+      messageType : 'std_msgs/Int32'
+    });
+    
+    leftEncoderTopic.subscribe(function(message) {
+      document.getElementById('leftEncoderDisplay').textContent = message.data;
+      console.log('Received left encoder:', message.data);
+    });
+    
+    // Subscriber for right encoder count
+    var rightEncoderTopic = new ROSLIB.Topic({
+      ros : ros,
+      name : '/motor_right_encoder',
+      messageType : 'std_msgs/Int32'
+    });
+    
+    rightEncoderTopic.subscribe(function(message) {
+      document.getElementById('rightEncoderDisplay').textContent = message.data;
+      console.log('Received right encoder:', message.data);
+    });
+    
+  </script>
+</body>
+</html>

@@ -1,0 +1,190 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <!-- Make the page responsive on mobile devices -->
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Dual Motor Control and Encoder Display</title>
+  <!-- Include your locally hosted ROSLIB (ensure roslib.min.js is in the same folder) -->
+  <script src="roslib.min.js"></script>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      margin: 10px;
+      text-align: center;
+      background-color: #f7f7f7;
+    }
+    h1 {
+      font-size: 1.8em;
+      margin-bottom: 20px;
+    }
+    .control-container {
+      margin: 15px 0;
+    }
+    label {
+      font-size: 1.2em;
+    }
+    input[type=range] {
+      width: 80%;
+      max-width: 300px;
+      margin: 10px 0;
+    }
+    button {
+      padding: 15px;
+      font-size: 1.2em;
+      margin: 5px;
+      width: 40%;
+      max-width: 200px;
+      border: none;
+      border-radius: 5px;
+      background-color: #4285f4;
+      color: #fff;
+    }
+    button:hover {
+      background-color: #357ae8;
+      cursor: pointer;
+    }
+    button.stop {
+      background-color: #ea4335;
+    }
+    button.stop:hover {
+      background-color: #d93025;
+    }
+  </style>
+</head>
+<body>
+  <h1>Dual Motor Control and Encoder Display</h1>
+  
+  <!-- Linear Speed Control Slider -->
+  <div class="control-container">
+    <label for="linearSlider">Linear Speed:</label><br>
+    <!-- The slider sends values from -1 to 1 -->
+    <input type="range" id="linearSlider" min="-1" max="1" step="0.1" value="0">
+    <div id="linearValue">0.00</div>
+  </div>
+  
+  <!-- Angular Speed Control Slider -->
+  <div class="control-container">
+    <label for="angularSlider">Angular Speed:</label><br>
+    <!-- The slider sends values from -1 to 1 -->
+    <input type="range" id="angularSlider" min="-1" max="1" step="0.1" value="0">
+    <div id="angularValue">0.00</div>
+  </div>
+  
+  <!-- Stop Button -->
+  <div class="control-container">
+    <button class="stop" onclick="stopRobot()">Stop</button>
+  </div>
+  
+  <!-- Encoder RPM Displays -->
+  <div class="control-container">
+    <label>Left Motor RPM:</label><br>
+    <div id="leftRpmDisplay">0.00</div>
+  </div>
+  
+  <div class="control-container">
+    <label>Right Motor RPM:</label><br>
+    <div id="rightRpmDisplay">0.00</div>
+  </div>
+  
+  <script>
+    // Connect to rosbridge – replace the IP address with your robot's IP
+    var ros = new ROSLIB.Ros({
+      url : 'ws://192.168.219.100:9090'
+    });
+    
+    ros.on('connection', function() {
+      console.log('Connected to rosbridge!');
+    });
+    ros.on('error', function(error) {
+      console.log('Error connecting to rosbridge: ', error);
+    });
+    ros.on('close', function() {
+      console.log('Connection to rosbridge closed.');
+    });
+    
+    // Publisher for motor commands on /cmd_vel (geometry_msgs/Twist)
+    var cmdVel = new ROSLIB.Topic({
+      ros : ros,
+      name : '/cmd_vel',
+      messageType : 'geometry_msgs/Twist'
+    });
+    
+    // Global variables for linear and angular speeds
+    var currentLinear = 0.0;
+    var currentAngular = 0.0;
+    
+    // Function to publish Twist messages based on slider values
+    function publishCmd() {
+      var twist = new ROSLIB.Message({
+        linear: {
+          x: currentLinear,
+          y: 0.0,
+          z: 0.0
+        },
+        angular: {
+          x: 0.0,
+          y: 0.0,
+          z: currentAngular
+        }
+      });
+      cmdVel.publish(twist);
+      console.log('Published cmd_vel:', twist);
+    }
+    
+    // Linear slider handling
+    var linearSlider = document.getElementById('linearSlider');
+    var linearValue = document.getElementById('linearValue');
+    linearSlider.addEventListener('input', function() {
+      currentLinear = parseFloat(this.value);
+      linearValue.textContent = currentLinear.toFixed(2);
+      publishCmd();
+    });
+    
+    // Angular slider handling
+    var angularSlider = document.getElementById('angularSlider');
+    var angularValue = document.getElementById('angularValue');
+    angularSlider.addEventListener('input', function() {
+      currentAngular = parseFloat(this.value);
+      angularValue.textContent = currentAngular.toFixed(2);
+      publishCmd();
+    });
+    
+    // Stop function: resets both linear and angular speeds to zero
+    function stopRobot() {
+      currentLinear = 0.0;
+      currentAngular = 0.0;
+      linearSlider.value = 0;
+      angularSlider.value = 0;
+      linearValue.textContent = "0.00";
+      angularValue.textContent = "0.00";
+      publishCmd();
+    }
+    
+    // Subscriber for left motor RPM (std_msgs/Float32)
+    var leftRpmTopic = new ROSLIB.Topic({
+      ros : ros,
+      name : '/left_motor_rpm',
+      messageType : 'std_msgs/Float32'
+    });
+    
+    leftRpmTopic.subscribe(function(message) {
+      document.getElementById('leftRpmDisplay').textContent = message.data.toFixed(2);
+      console.log('Received left motor RPM:', message.data);
+    });
+    
+    // Subscriber for right motor RPM (std_msgs/Float32)
+    var rightRpmTopic = new ROSLIB.Topic({
+      ros : ros,
+      name : '/right_motor_rpm',
+      messageType : 'std_msgs/Float32'
+    });
+    
+    rightRpmTopic.subscribe(function(message) {
+      document.getElementById('rightRpmDisplay').textContent = message.data.toFixed(2);
+      console.log('Received right motor RPM:', message.data);
+    });
+    
+  </script>
+</body>
+</html>

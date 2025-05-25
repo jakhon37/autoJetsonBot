@@ -1,8 +1,8 @@
 
 
 colcon build --packages-select my_robot_launch
-colcon build --packages-select web_gui_control
-colcon build --packages-select slam_launch
+# colcon build --packages-select web_gui_control
+# colcon build --packages-select slam_launch
 source install/setup.bash
 
 
@@ -11,6 +11,9 @@ ros2 launch my_robot_launch robot_body_launch_robot.py
 # ros2 launch robot_body robot_body_launch_robot.py sim_mode:=true
 # ros2 launch robot_body robot_body_launch_sim.py  world:=./src/robot_body/urdf/lab.world
 
+# ros2 launch slam_toolbox online_async_launch.py params_file:=./src/slam_launch/config/mapper_params_online_async.yaml 
+
+ 
 
 # ros2 run gazebo_ros spawn_entity.py -topic /robot_body -entity my_robot 
 

@@ -131,11 +131,12 @@ def generate_launch_description():
     # -------------------------
     # slam toolbox 
     slam_pkg = get_package_share_directory('slam_launch')
-    slam_config_file = os.path.join(slam_pkg, 'config/slam_toolbox_config.yaml')
+    # slam_config_file = os.path.join(slam_pkg, 'config/slam_toolbox_config.yaml') #mapper_params_online_async
+    slam_config_file = os.path.join(slam_pkg, 'config/mapper_params_online_async.yaml') #mapper_params_online_async
 
     slam_node =  Node(
             package='slam_toolbox',
-            executable='sync_slam_toolbox_node',  # Alternatively, use 'async_slam_toolbox_node' if desired
+            executable='async_slam_toolbox_node',  # Alternatively, use 'async_slam_toolbox_node' sync_slam_toolbox_node if desired
             name='slam_toolbox',
             output='screen',
             arguments=['--ros-args', '--log-level', 'warn'],  # Set log level to warn
@@ -161,7 +162,7 @@ def generate_launch_description():
         webserver,
         rosbridge,
         rplidar,
-        slam_node,
+        # slam_node,
         # serail_motor
         # other nodes
         # camera Node

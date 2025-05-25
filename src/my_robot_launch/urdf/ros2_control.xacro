@@ -1,5 +1,5 @@
 <?xml version="1.0"?>
-<!-- autoJetsonBot/src/robot_body/urdf/ros2_control.xacro -->
+<!-- autoJetsonBot/src/my_robot_launch/urdf/ros2_control.xacro -->
 <robot xmlns:xacro="http://www.ros.org/wiki/xacro">
     <xacro:unless value="$(arg sim_mode)">
         <ros2_control name="RealRobot" type="system">
@@ -56,8 +56,8 @@
         </ros2_control>
         <gazebo>
             <plugin name="gazebo_ros2_control" filename="libgazebo_ros2_control.so">
-                <parameters>$(find robot_body)/config/my_controllers.yaml</parameters>
-                <parameters>$(find robot_body)/config/gaz_ros2_ctl_use_sim.yaml</parameters>
+                <parameters>$(find my_robot_launch)/config/my_controllers.yaml</parameters>
+                <parameters>$(find my_robot_launch)/config/gaz_ros2_ctl_use_sim.yaml</parameters>
             </plugin>
         </gazebo>
     </xacro:if>

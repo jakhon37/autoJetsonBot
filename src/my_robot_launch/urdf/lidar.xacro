@@ -58,7 +58,8 @@
                 <ros>
                     <!-- <argument>~/out:=/scan</argument> -->
                     <!-- <argument> remapping:=/scan:=/scan</argument>    -->
-                    <argument>scan:=/scan</argument>
+                    <!-- <argument>scan:=/scan</argument> -->
+                    <argument>--ros-args --remap scan:=/scan</argument>
                 </ros>
                 <!-- <topicName>scan</topicName> -->
                 <frameName>laser_frame</frameName>

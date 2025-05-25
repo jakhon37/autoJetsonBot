@@ -14,7 +14,7 @@ import xacro
 
 def generate_launch_description():
     # Include the robot_state_publisher launch file, provided by our own package. Force sim time to be enabled
-    package_name='robot_body'
+    package_name='my_robot_launch'
 
     # Get URDF via xacro
     use_ros2_control = 'true'

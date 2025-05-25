@@ -6,7 +6,7 @@ colcon build --packages-select my_robot_launch
 source install/setup.bash
 
 
-ros2 launch my_robot_launch robot_body_launch_robot.py
+ros2 launch my_robot_launch robot_body_launch_robot.py sim_mode:=true
 # ros2 launch robot_body robot_body_launch_robot.py
 # ros2 launch robot_body robot_body_launch_robot.py sim_mode:=true
 # ros2 launch robot_body robot_body_launch_sim.py  world:=./src/robot_body/urdf/lab.world
@@ -25,6 +25,7 @@ ros2 launch my_robot_launch robot_body_launch_robot.py
 # ros2 run joint_state_publisher_gui joint_state_publisher_gui 
 
 # ros2 run teleop_twist_keyboard teleop_twist_keyboard 
+# ros2 run teleop_twist_keyboard  teleop_twist_keyboard --ros-args -r /cmd_vel:=/diff_cont/cmd_vel_unstamped
 
 
 # LIDAR 

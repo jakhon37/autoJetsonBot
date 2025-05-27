@@ -1,3 +1,6 @@
+
+
+# /home/jetson/myspace/autoJetsonBot/src/my_robot_launch/launch/robot_body_launch_sim.py
 import os
 from ament_index_python.packages import get_package_share_directory
 from launch import LaunchDescription
@@ -6,7 +9,7 @@ from launch_ros.actions import Node
 from launch.actions import IncludeLaunchDescription, ExecuteProcess, RegisterEventHandler, TimerAction
 
 def generate_launch_description():
-    use_ros2_control = 'true'
+    use_ros2_control = 'false'
     use_sim_time = 'true'
     package_name = 'my_robot_launch'
 
@@ -53,7 +56,29 @@ def generate_launch_description():
     print(f'rosbridge succesfully run')
     # -------------------------     
     
-    
+        # -------------------------
+    # slam toolbox 
+    slam_pkg = get_package_share_directory('slam_launch')
+    # slam_config_file = os.path.join(slam_pkg, 'config/slam_toolbox_config.yaml') #mapper_params_online_async
+    slam_config_file = os.path.join(slam_pkg, 'config/mapper_params_online_async-sim.yaml') #mapper_params_online_async
+
+    slam_node =  Node(
+            package='slam_toolbox',
+            executable='async_slam_toolbox_node',  # Alternatively, use 'async_slam_toolbox_node' sync_slam_toolbox_node if desired
+            name='slam_toolbox',
+            output='screen',
+            arguments=['--ros-args', '--log-level', 'warn'],  # Set log level to warn
+            parameters=[
+                {'use_sim_time': True},  # disable simulation time
+                # Use the configuration file below (adjust the file path as needed)
+                slam_config_file
+            ],
+            # Remap the scan topic to match your sensor (if necessary)
+            remappings=[('scan', '/scan')]
+        )
+
+
+    # -------------------------
     
     spawn_entity = Node(
         package='gazebo_ros', 
@@ -76,12 +101,15 @@ def generate_launch_description():
         output='screen'
     )
 
+
+    pr = 15.0
     return LaunchDescription([
         rsp,
         gazebo,
         spawn_entity,
-        TimerAction(period=10.0, actions=[diff_drive_spawner]),  # Delay by 5 seconds
-        TimerAction(period=10.0, actions=[joint_broad_spawner]),  # Delay by 5 seconds
+        TimerAction(period=pr, actions=[diff_drive_spawner]),  # Delay by 5 seconds
+        TimerAction(period=pr, actions=[joint_broad_spawner]),  # Delay by 5 seconds
         rosbridge,
-        webserver
+        webserver,
+        slam_node
     ])

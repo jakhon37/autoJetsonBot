@@ -1,6 +1,23 @@
 
 
 
+    """ my robot dimensions:
+
+        base: 
+            - center point between the wheels: 0 0 0
+
+        chassis:
+            - length: 195 mm
+            - width: 180 mm
+            - height: 100  mm
+
+            - chassis origin point: -35 0 0 mm (behind the center point between the wheels)
+            
+         
+    """
+    
+
+
 
     """ my robot dimensions:
 

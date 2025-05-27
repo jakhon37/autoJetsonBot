@@ -162,7 +162,7 @@ def generate_launch_description():
         webserver,
         rosbridge,
         rplidar,
-        # slam_node,
+        slam_node,
         # serail_motor
         # other nodes
         # camera Node

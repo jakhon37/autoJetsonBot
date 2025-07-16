@@ -1,0 +1,12 @@
+
+# /home/jetson/myspace/autoJetsonBot/src/robot_body/config/diffbot_hardware.yaml
+
+diffdrive_arduino:
+  ros__parameters:
+    left_wheel_name: left_wheel_joint
+    right_wheel_name: right_wheel_joint
+    loop_rate: 30.0
+    device: /dev/ttyACM0
+    baud_rate: 115200
+    timeout: 2000
+    enc_counts_per_rev: 1920

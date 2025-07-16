@@ -1,88 +1,145 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
   <meta charset="UTF-8">
-  <title>Robot Teleop GUI</title>
-  <!-- You can include CSS frameworks like Bootstrap if desired -->
-  <!-- <script src="https://static.robotwebtools.org/roslibjs/current/roslib.min.js"></script>
-     <script src="roslib.min.js"></script>
- -->
- <script src="roslib.min.js"></script>
-
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>autoJetsonBot Controller</title>
+  <!-- Tailwind CSS CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- ROSLIB.js CDN (fallback to local if needed) -->
+  <script src="https://cdn.jsdelivr.net/npm/roslib@1.4.1/build/roslib.min.js"></script>
+  <!-- <script src="roslib.min.js"></script> --> <!-- Uncomment if using local -->
+  <style>
+    body {
+      background-color: #155f34;
+    }
+  </style>
 </head>
-<body>
-  <h1>Robot Teleoperation</h1>
-  
-  <!-- Speed Control Slider -->
-  <label for="speedSlider">Speed:</label>
-  <input type="range" id="speedSlider" min="-1" max="1" step="0.1" value="0">
-  <span id="speedValue">0</span>
-  <br><br>
-  
-  <!-- Steering Buttons -->
-  <button onclick="sendSteering(0.995)">Turn Left</button>
-  <button onclick="sendSteering(0)">Straight</button>
-  <button onclick="sendSteering(-0.995)">Turn Right</button>
-  <br><br>
-  
-  <button onclick="publishCmd()">Publish Command</button>
-  
+<body class="flex flex-col items-center justify-center min-h-screen p-4">
+  <h1 class="text-2xl font-bold mb-6">autoJetsonBot Controller</h1>
+
+  <!-- Connection Status -->
+  <div id="connectionStatus" class="mb-4 text-lg">
+    Connecting to ROS...
+  </div>
+
+  <!-- Linear Speed Control -->
+  <div class="w-full max-w-md mb-4">
+    <label for="linearSlider" class="block text-lg font-medium">Linear Speed</label>
+    <input type="range" id="linearSlider" min="-1" max="1" step="0.1" value="0" class="w-full">
+    <div id="linearValue" class="text-center text-gray-700">0.00</div>
+  </div>
+
+  <!-- Angular Speed Control -->
+  <div class="w-full max-w-md mb-4">
+    <label for="angularSlider" class="block text-lg font-medium">Angular Speed</label>
+    <input type="range" id="angularSlider" min="-1" max="1" step="0.1" value="0" class="w-full">
+    <div id="angularValue" class="text-center text-gray-700">0.00</div>
+  </div>
+
+  <!-- Stop Button -->
+  <button onclick="stopRobot()" class="bg-red-500 hover:bg-red-600 text-white font-bold py-2 px-4 rounded w-full max-w-md mb-4">
+    Stop Robot
+  </button>
+
+  <!-- RPM Displays -->
+  <div class="w-full max-w-md mb-4">
+    <label class="block text-lg font-medium">Left Motor RPM</label>
+    <div id="leftRpmDisplay" class="text-center text-gray-700">0.00</div>
+  </div>
+  <div class="w-full max-w-md">
+    <label class="block text-lg font-medium">Right Motor RPM</label>
+    <div id="rightRpmDisplay" class="text-center text-gray-700">0.00</div>
+  </div>
+
   <script>
-    // Connect to rosbridge (replace YOUR_ROBOT_IP with the IP address of your robot)
-    var ros = new ROSLIB.Ros({
-      url: 'ws://192.168.219.100:9090'
+    // ROS connection
+    const ros = new ROSLIB.Ros({
+      url: 'ws://192.168.219.141:9090'
     });
 
-    ros.on('connection', function() {
-      console.log('Connected to rosbridge!');
+    const statusDiv = document.getElementById('connectionStatus');
+    ros.on('connection', () => {
+      statusDiv.textContent = 'Connected to ROS';
+      statusDiv.classList.add('text-green-600');
     });
-    ros.on('error', function(error) {
-      console.log('Error connecting to rosbridge: ', error);
+    ros.on('error', (error) => {
+      statusDiv.textContent = 'ROS Connection Error';
+      statusDiv.classList.add('text-red-600');
+      console.error('ROS error:', error);
     });
-    ros.on('close', function() {
-      console.log('Connection closed.');
+    ros.on('close', () => {
+      statusDiv.textContent = 'ROS Connection Closed';
+      statusDiv.classList.add('text-yellow-600');
     });
 
-    // Define the cmd_vel topic
-    var cmdVel = new ROSLIB.Topic({
+    // Publisher for /diff_cont/cmd_vel_unstamped
+    const cmdVel = new ROSLIB.Topic({
       ros: ros,
-      name: '/cmd_vel',
+      name: '/diff_cont/cmd_vel_unstamped',
       messageType: 'geometry_msgs/Twist'
     });
 
-    // Global variable for steering and speed
-    var currentSpeed = 0.0;
-    var currentAngular = 0.0;
+    let currentLinear = 0.0;
+    let currentAngular = 0.0;
 
-    // Update speed display when slider changes
-    document.getElementById('speedSlider').addEventListener('input', function() {
-      currentSpeed = parseFloat(this.value);
-      document.getElementById('speedValue').textContent = currentSpeed.toFixed(2);
-    });
-
-    // Function to update steering command
-    function sendSteering(angularValue) {
-      currentAngular = angularValue;
-      console.log('Steering set to: ' + currentAngular);
-    }
-
-    // Function to publish the command
     function publishCmd() {
-      var twist = new ROSLIB.Message({
-        linear: {
-          x: currentSpeed,
-          y: 0.0,
-          z: 0.0
-        },
-        angular: {
-          x: 0.0,
-          y: 0.0,
-          z: currentAngular
-        }
+      const twist = new ROSLIB.Message({
+        linear: { x: currentLinear, y: 0.0, z: 0.0 },
+        angular: { x: 0.0, y: 0.0, z: currentAngular }
       });
       cmdVel.publish(twist);
-      console.log('Published command:', twist);
+      console.log('Published:', twist);
     }
+
+    // Slider handling
+    const linearSlider = document.getElementById('linearSlider');
+    const linearValue = document.getElementById('linearValue');
+    linearSlider.addEventListener('input', () => {
+      currentLinear = parseFloat(linearSlider.value);
+      linearValue.textContent = currentLinear.toFixed(2);
+      publishCmd();
+    });
+
+    const angularSlider = document.getElementById('angularSlider');
+    const angularValue = document.getElementById('angularValue');
+    angularSlider.addEventListener('input', () => {
+      currentAngular = parseFloat(angularSlider.value);
+      angularValue.textContent = currentAngular.toFixed(2);
+      publishCmd();
+    });
+
+    // Stop robot
+    function stopRobot() {
+      currentLinear = 0.0;
+      currentAngular = 0.0;
+      linearSlider.value = 0;
+      angularSlider.value = 0;
+      linearValue.textContent = '0.00';
+      angularValue.textContent = '0.00';
+      publishCmd();
+    }
+
+    // Subscriber for /joint_states to calculate RPM
+    const jointStatesTopic = new ROSLIB.Topic({
+      ros: ros,
+      name: '/joint_states',
+      messageType: 'sensor_msgs/JointState'
+    });
+
+    const ENC_COUNTS_PER_REV = 3436; // From your hardware config
+    jointStatesTopic.subscribe((message) => {
+      const leftIdx = message.name.indexOf('left_wheel_joint');
+      const rightIdx = message.name.indexOf('right_wheel_joint');
+      if (leftIdx !== -1 && rightIdx !== -1) {
+        // Convert rad/s to RPM: (rad/s * 60) / (2 * π)
+        const leftRpm = (message.velocity[leftIdx] * 60) / (2 * Math.PI);
+        const rightRpm = (message.velocity[rightIdx] * 60) / (2 * Math.PI);
+        document.getElementById('leftRpmDisplay').textContent = leftRpm.toFixed(2);
+        document.getElementById('rightRpmDisplay').textContent = rightRpm.toFixed(2);
+        console.log('Left RPM:', leftRpm, 'Right RPM:', rightRpm);
+      }
+    });
   </script>
 </body>
 </html>

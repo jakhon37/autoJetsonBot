@@ -1,5 +1,5 @@
 #!/bin/sh
-
+xhost +local:docker
 # Add a flag to rebuild the image if needed
 REBUILD=false
 DISTRO="foxy"
@@ -56,3 +56,5 @@ fi
         # -p 8001:8001 -p 7860:7860 \
         # --network=host \
 # export ROS_DOMAIN_ID=0
+# xhost +local:docker
+# 

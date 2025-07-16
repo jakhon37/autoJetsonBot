@@ -14,6 +14,8 @@ setup(
         # ('share/' + package_name + '/config', ['src/slam_launch/config/slam_toolbox_config.yaml']),
         ('share/' + package_name , ['config/slam_toolbox_config.yaml']),
         ('share/' + package_name + '/config', glob('config/*.yaml')),
+        ('share/' + package_name + '/config', glob('config/*.world')),
+        ('share/' + package_name + '/config', glob('config/*.rviz')),
         # ('share/' + package_name + '/config/slam_toolbox_config.yaml', glob('launch/*')),
 
         # ('share/' + package_name + '/launch', glob('launch/*.py')),

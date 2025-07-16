@@ -1,0 +1,144 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <!-- Make the page responsive on mobile devices -->
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Motor Control and Encoder Display</title>
+  <!-- Include your locally hosted ROSLIB (ensure roslib.min.js is in the same folder) -->
+  <script src="roslib.min.js"></script>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      margin: 10px;
+      text-align: center;
+      background-color: #f7f7f7;
+    }
+    h1 {
+      font-size: 1.8em;
+      margin-bottom: 20px;
+    }
+    .control-container {
+      margin: 15px 0;
+    }
+    label {
+      font-size: 1.2em;
+    }
+    input[type=range] {
+      width: 80%;
+      max-width: 300px;
+      margin: 10px 0;
+    }
+    button {
+      padding: 15px;
+      font-size: 1.2em;
+      margin: 5px;
+      width: 40%;
+      max-width: 200px;
+      border: none;
+      border-radius: 5px;
+      background-color: #4285f4;
+      color: #fff;
+    }
+    button:hover {
+      background-color: #357ae8;
+      cursor: pointer;
+    }
+    button.stop {
+      background-color: #ea4335;
+    }
+    button.stop:hover {
+      background-color: #d93025;
+    }
+  </style>
+</head>
+<body>
+  <h1>Motor Control and Encoder Display</h1>
+  
+  <!-- Motor Speed Control Slider -->
+  <div class="control-container">
+    <label for="speedSlider">Motor Speed:</label><br>
+    <!-- The slider sends values from -1 to 1 -->
+    <input type="range" id="speedSlider" min="-1" max="1" step="0.1" value="0">
+    <div id="speedValue">0.00</div>
+  </div>
+  
+  <!-- Stop Button -->
+  <div class="control-container">
+    <button class="stop" onclick="stopMotor()">Stop Motor</button>
+  </div>
+  
+  <!-- Encoder RPM Display -->
+  <div class="control-container">
+    <label>Encoder RPM:</label><br>
+    <div id="rpmDisplay">0.00</div>
+  </div>
+  
+  <script>
+    // Connect to rosbridge – replace the IP address with your robot's IP
+    var ros = new ROSLIB.Ros({
+      url : 'ws://192.168.219.100:9090'
+    });
+    
+    ros.on('connection', function() {
+      console.log('Connected to rosbridge!');
+    });
+    ros.on('error', function(error) {
+      console.log('Error connecting to rosbridge: ', error);
+    });
+    ros.on('close', function() {
+      console.log('Connection to rosbridge closed.');
+    });
+    
+    // Publisher for motor command on /cmd_vel_motor (std_msgs/Float32)
+    var motorCmd = new ROSLIB.Topic({
+      ros : ros,
+      name : '/cmd_vel',
+      messageType : 'std_msgs/Float32'
+    });
+    
+    // Global variable for current speed
+    var currentSpeed = 0.0;
+    
+    // Publish motor command when the slider value changes
+    function publishMotorCmd() {
+      var cmdMsg = new ROSLIB.Message({
+        data: currentSpeed
+      });
+      motorCmd.publish(cmdMsg);
+      console.log('Published motor command:', cmdMsg);
+    }
+    
+    // Handle slider input for motor speed
+    var speedSlider = document.getElementById('speedSlider');
+    var speedValue = document.getElementById('speedValue');
+    
+    speedSlider.addEventListener('input', function() {
+      currentSpeed = parseFloat(this.value);
+      speedValue.textContent = currentSpeed.toFixed(2);
+      publishMotorCmd();
+    });
+    
+    // Stop motor function: set speed to 0 and publish
+    function stopMotor() {
+      currentSpeed = 0.0;
+      speedSlider.value = 0;
+      speedValue.textContent = "0.00";
+      publishMotorCmd();
+    }
+    
+    // Subscriber for encoder RPM on /motor_rpm (std_msgs/Float32)
+    var motorRpmTopic = new ROSLIB.Topic({
+      ros : ros,
+      name : '/motor_rpm',
+      messageType : 'std_msgs/Float32'
+    });
+    
+    // Update the RPM display when a new message is received
+    motorRpmTopic.subscribe(function(message) {
+      document.getElementById('rpmDisplay').textContent = message.data.toFixed(2);
+      console.log('Received motor RPM:', message.data);
+    });
+  </script>
+</body>
+</html>

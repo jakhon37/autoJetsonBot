@@ -9,7 +9,7 @@ from launch_ros.actions import Node
 from launch.actions import IncludeLaunchDescription, ExecuteProcess, RegisterEventHandler, TimerAction
 
 def generate_launch_description():
-    use_ros2_control = 'false'
+    use_ros2_control = 'true'
     use_sim_time = 'true'
     package_name = 'my_robot_launch'
 

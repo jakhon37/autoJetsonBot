@@ -7,4 +7,12 @@
 /src/uros
 *.arch 
 .arch 
-.arch/src_c/.arch/1diffdrive_arduino1
+.arch/src_c/.arch/1diffdrive_arduino1core
+*.core
+core
+*.core
+*.dump
+*.log
+*.bag
+__pycache__/
+*.pyc

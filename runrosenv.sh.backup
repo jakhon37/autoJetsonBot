@@ -36,7 +36,7 @@ fi
 # Check if the container already exists
 if ! docker ps -a | grep -q "$CONTAINER_N"; then
     echo "Creating and starting the Docker container..."
-    docker run -it --privileged -p 8000:8000 -p 9090:9090 \
+    docker run -it --privileged \
         --hostname $(hostname) \
         --network "$NETWORK_N" \
         --name "$CONTAINER_N" \

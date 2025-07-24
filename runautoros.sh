@@ -27,4 +27,4 @@ ros2 launch my_robot_launch autonomous_car_launch.py
 
 
 #  xhost local:root
-# sudo docker exec -it autojetsonbot-ros2-1 bash
+# sudo docker exec -it auto_ros_foxy bash

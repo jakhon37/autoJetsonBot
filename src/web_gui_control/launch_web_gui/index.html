@@ -3,242 +3,374 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>autoJetsonBot Game Controller</title>
-  <!-- Tailwind CSS CDN -->
-  <script src="https://cdn.tailwindcss.com"></script>
-  <!-- ROSLIB.js CDN -->
+  <title>🤖 Autonomous Jetson Robot Controller</title>
+  
+  <!-- External Dependencies -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
   <script src="https://cdn.jsdelivr.net/npm/roslib@1.4.1/build/roslib.min.js"></script>
-  <!-- <script src="roslib.min.js"></script> --> <!-- Uncomment for local -->
-  <style>
-    body {
-      background-color: #1f2937;
-      color: #e5e7eb;
-    }
-    .controller {
-      max-width: 800px;
-      display: flex;
-      flex-wrap: wrap;
-      gap: 1rem;
-      background: #374151;
-      padding: 1.5rem;
-      border-radius: 1rem;
-      box-shadow: 0 4px 6px rgba(0, 0, 0, 0.3);
-    }
-    .side {
-      flex: 1;
-      min-width: 300px;
-    }
-    .dpad-button {
-      width: 80px;
-      height: 80px;
-      border-radius: 0.5rem;
-      background: #4b5563;
-      transition: background 0.2s;
-      touch-action: none;
-      user-select: none;
-      -webkit-user-select: none;
-      -moz-user-select: none;
-      -ms-user-select: none;
-    }
-    .dpad-button:active, .dpad-button.touched {
-      background: #60a5fa;
-    }
-  </style>
+  
+  <!-- Custom Styles -->
+  <link rel="stylesheet" href="css/modern-style.css">
 </head>
-<body class="flex flex-col items-center justify-center min-h-screen p-4">
-  <h1 class="text-3xl font-bold mb-6">autoJetsonBot Game Controller</h1>
 
-  <!-- Connection Status -->
-  <div id="connectionStatus" class="mb-4 text-lg font-medium">
-    Connecting to ROS...
+<body>
+  <div class="app-container">
+    
+    <!-- Header -->
+    <header class="header">
+      <div class="logo">
+        <span>🤖</span>
+        <span>Autonomous Jetson Robot</span>
+      </div>
+      
+      <div class="connection-status">
+        <div class="status-indicator status-disconnected"></div>
+        <span id="connectionStatusText">Disconnected</span>
+      </div>
+    </header>
+
+    <!-- Sidebar - Configuration & Settings -->
+    <aside class="sidebar">
+      
+      <!-- Connection Settings -->
+      <div class="sidebar-section">
+        <h3 class="sidebar-title">🔗 Connection</h3>
+        
+        <div class="config-group">
+          <label class="config-label" for="rosbridgeUrl">ROSBridge URL</label>
+          <input type="text" id="rosbridgeUrl" class="config-input" 
+                 value="ws://localhost:9090" placeholder="ws://hostname:9090">
+        </div>
+        
+        <div class="config-group">
+          <button id="connectBtn" class="btn btn-primary" style="width: 100%; margin-bottom: 0.5rem;">
+            Connect to Robot
+          </button>
+          <button id="disconnectBtn" class="btn btn-danger" style="width: 100%; display: none;">
+            Disconnect
+          </button>
+        </div>
+      </div>
+
+      <!-- Robot Settings -->
+      <div class="sidebar-section">
+        <h3 class="sidebar-title">⚙️ Robot Settings</h3>
+        
+        <div class="config-group">
+          <label class="config-label" for="maxLinearVel">Max Linear Velocity (m/s)</label>
+          <input type="number" id="maxLinearVel" class="config-input" 
+                 value="1.0" min="0.1" max="3.0" step="0.1">
+        </div>
+        
+        <div class="config-group">
+          <label class="config-label" for="maxAngularVel">Max Angular Velocity (rad/s)</label>
+          <input type="number" id="maxAngularVel" class="config-input" 
+                 value="2.0" min="0.1" max="5.0" step="0.1">
+        </div>
+        
+        <div class="config-group">
+          <label class="config-label" for="publishRate">Publish Rate (Hz)</label>
+          <input type="number" id="publishRate" class="config-input" 
+                 value="10" min="1" max="50" step="1">
+        </div>
+      </div>
+
+      <!-- Topic Configuration -->
+      <div class="sidebar-section">
+        <h3 class="sidebar-title">📡 Topics</h3>
+        
+        <div class="config-group">
+          <label class="config-label" for="cmdVelTopic">Command Velocity</label>
+          <input type="text" id="cmdVelTopic" class="config-input" 
+                 value="/diff_cont/cmd_vel_unstamped">
+        </div>
+        
+        <div class="config-group">
+          <label class="config-label" for="jointStatesTopic">Joint States</label>
+          <input type="text" id="jointStatesTopic" class="config-input" 
+                 value="/joint_states">
+        </div>
+        
+        <div class="config-group">
+          <label class="config-label" for="scanTopic">Laser Scan</label>
+          <input type="text" id="scanTopic" class="config-input" 
+                 value="/scan">
+        </div>
+      </div>
+
+      <!-- Quick Actions -->
+      <div class="sidebar-section">
+        <h3 class="sidebar-title">🚨 Quick Actions</h3>
+        
+        <button id="emergencyStop" class="btn btn-danger" style="width: 100%; margin-bottom: 0.5rem;">
+          🛑 Emergency Stop
+        </button>
+        
+        <button id="resetOdometry" class="btn btn-primary" style="width: 100%; margin-bottom: 0.5rem;">
+          🔄 Reset Odometry
+        </button>
+        
+        <button id="saveMap" class="btn btn-success" style="width: 100%;">
+          💾 Save Map
+        </button>
+      </div>
+
+    </aside>
+
+    <!-- Main Control Area -->
+    <main class="main-control">
+      
+      <h1 class="control-title">🎮 Robot Control</h1>
+      
+      <!-- Speed Controls -->
+      <div class="speed-controls">
+        <div class="speed-control">
+          <div class="speed-label">
+            <span>🏃 Linear Speed</span>
+            <span class="speed-value" id="linearValue">0.50</span>
+          </div>
+          <input type="range" id="linearScale" class="speed-slider" 
+                 min="0" max="1" step="0.01" value="0.5">
+        </div>
+        
+        <div class="speed-control">
+          <div class="speed-label">
+            <span>🔄 Angular Speed</span>
+            <span class="speed-value" id="angularValue">0.50</span>
+          </div>
+          <input type="range" id="angularScale" class="speed-slider" 
+                 min="0" max="1" step="0.01" value="0.5">
+        </div>
+      </div>
+
+      <!-- D-Pad Controller -->
+      <div class="dpad-container">
+        <div></div>
+        <button id="upButton" class="dpad-button" title="Forward (W)">
+          ⬆️
+        </button>
+        <div></div>
+        
+        <button id="leftButton" class="dpad-button" title="Turn Left (A)">
+          ⬅️
+        </button>
+        <div class="dpad-center">
+          🎮
+        </div>
+        <button id="rightButton" class="dpad-button" title="Turn Right (D)">
+          ➡️
+        </button>
+        
+        <div></div>
+        <button id="downButton" class="dpad-button" title="Backward (S)">
+          ⬇️
+        </button>
+        <div></div>
+      </div>
+
+      <!-- Control Instructions -->
+      <div style="text-align: center; margin-top: 1rem; color: var(--secondary-text);">
+        <p><strong>Keyboard Controls:</strong> WASD or Arrow Keys | <strong>Emergency:</strong> Spacebar</p>
+        <p><strong>Touch/Mouse:</strong> Press and hold direction buttons</p>
+      </div>
+
+    </main>
+
+    <!-- Status Panel -->
+    <aside class="status-panel">
+      
+      <!-- Robot Metrics -->
+      <div class="status-section">
+        <h3 class="status-title">📊 Robot Metrics</h3>
+        
+        <div class="metric-grid">
+          <div class="metric-card">
+            <div class="metric-label">Left Wheel</div>
+            <div class="metric-value" id="leftRpm">0.0</div>
+            <div class="metric-unit">RPM</div>
+          </div>
+          
+          <div class="metric-card">
+            <div class="metric-label">Right Wheel</div>
+            <div class="metric-value" id="rightRpm">0.0</div>
+            <div class="metric-unit">RPM</div>
+          </div>
+          
+          <div class="metric-card">
+            <div class="metric-label">Linear Velocity</div>
+            <div class="metric-value" id="linearVel">0.00</div>
+            <div class="metric-unit">m/s</div>
+          </div>
+          
+          <div class="metric-card">
+            <div class="metric-label">Angular Velocity</div>
+            <div class="metric-value" id="angularVel">0.00</div>
+            <div class="metric-unit">rad/s</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- System Status -->
+      <div class="status-section">
+        <h3 class="status-title">💻 System Status</h3>
+        
+        <div class="metric-grid">
+          <div class="metric-card">
+            <div class="metric-label">Battery</div>
+            <div class="metric-value" id="batteryLevel">100</div>
+            <div class="metric-unit">%</div>
+          </div>
+          
+          <div class="metric-card">
+            <div class="metric-label">CPU Usage</div>
+            <div class="metric-value" id="cpuUsage">0.0</div>
+            <div class="metric-unit">%</div>
+          </div>
+          
+          <div class="metric-card">
+            <div class="metric-label">Memory</div>
+            <div class="metric-value" id="memoryUsage">0.0</div>
+            <div class="metric-unit">%</div>
+          </div>
+          
+          <div class="metric-card">
+            <div class="metric-label">Temperature</div>
+            <div class="metric-value" id="temperature">25</div>
+            <div class="metric-unit">°C</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Activity Log -->
+      <div class="status-section">
+        <h3 class="status-title">📝 Activity Log</h3>
+        <div class="log-container" id="logContainer">
+          <div class="log-entry log-info">
+            <span style="color: #64748b;">[System]</span> Robot Controller initialized
+          </div>
+        </div>
+      </div>
+
+      <!-- Camera Feed (Future Feature) -->
+      <div class="status-section" style="display: none;">
+        <h3 class="status-title">📹 Camera Feed</h3>
+        <div style="background: var(--accent-bg); border-radius: 8px; padding: 2rem; text-align: center; color: var(--secondary-text);">
+          <p>📷</p>
+          <p>Camera feed will appear here</p>
+        </div>
+      </div>
+
+    </aside>
+
   </div>
 
-  <!-- Controller Layout -->
-  <div class="controller">
-    <!-- Left Side: Sliders -->
-    <div class="side flex flex-col gap-4">
-      <div>
-        <label for="linearScale" class="block text-lg font-medium">Linear Power</label>
-        <input type="range" id="linearScale" min="0" max="1" step="0.1" value="0.5" class="w-full">
-        <div id="linearScaleValue" class="text-center">0.50</div>
-      </div>
-      <div>
-        <label for="angularScale" class="block text-lg font-medium">Angular Power</label>
-        <input type="range" id="angularScale" min="0" max="1" step="0.1" value="0.5" class="w-full">
-        <div id="angularScaleValue" class="text-center">0.50</div>
-      </div>
-      <!-- RPM Displays -->
-      <div>
-        <label class="block text-lg font-medium">Left Motor RPM</label>
-        <div id="leftRpmDisplay" class="text-center text-xl">0.00</div>
-      </div>
-      <div>
-        <label class="block text-lg font-medium">Right Motor RPM</label>
-        <div id="rightRpmDisplay" class="text-center text-xl">0.00</div>
-      </div>
-    </div>
-
-    <!-- Right Side: D-Pad Buttons -->
-    <div class="side flex justify-center items-center">
-      <div class="grid grid-cols-3 gap-2">
-        <div></div>
-        <button id="upButton" class="dpad-button flex items-center justify-center"
-                ontouchstart="startDirection(event, 'up')" ontouchend="stopDirection(event)"
-                onmousedown="startDirection(event, 'up')" onmouseup="stopDirection(event)"
-                onselectstart="return false">
-          ↑
-        </button>
-        <div></div>
-        <button id="leftButton" class="dpad-button flex items-center justify-center"
-                ontouchstart="startDirection(event, 'left')" ontouchend="stopDirection(event)"
-                onmousedown="startDirection(event, 'left')" onmouseup="stopDirection(event)"
-                onselectstart="return false">
-          ←
-        </button>
-        <div></div>
-        <button id="rightButton" class="dpad-button flex items-center justify-center"
-                ontouchstart="startDirection(event, 'right')" ontouchend="stopDirection(event)"
-                onmousedown="startDirection(event, 'right')" onmouseup="stopDirection(event)"
-                onselectstart="return false">
-          →
-        </button>
-        <div></div>
-        <button id="downButton" class="dpad-button flex items-center justify-center"
-                ontouchstart="startDirection(event, 'down')" ontouchend="stopDirection(event)"
-                onmousedown="startDirection(event, 'down')" onmouseup="stopDirection(event)"
-                onselectstart="return false">
-          ↓
-        </button>
-        <div></div>
-      </div>
-    </div>
-  </div>
-
+  <!-- Custom JavaScript -->
+  <script src="js/robot-controller.js"></script>
+  
+  <!-- Additional Features Script -->
   <script>
-    // ROS connection
-    const ros = new ROSLIB.Ros({
-      url: 'ws://192.168.219.141:9090'
-    });
-
-    const statusDiv = document.getElementById('connectionStatus');
-    ros.on('connection', () => {
-      statusDiv.textContent = 'Connected to ROS';
-      statusDiv.classList.add('text-green-500');
-    });
-    ros.on('error', (error) => {
-      statusDiv.textContent = 'ROS Connection Error';
-      statusDiv.classList.add('text-red-500');
-      console.error('ROS error:', error);
-    });
-    ros.on('close', () => {
-      statusDiv.textContent = 'ROS Connection Closed';
-      statusDiv.classList.add('text-yellow-500');
-    });
-
-    // Publisher for /diff_cont/cmd_vel_unstamped
-    const cmdVel = new ROSLIB.Topic({
-      ros: ros,
-      name: '/diff_cont/cmd_vel_unstamped',
-      messageType: 'geometry_msgs/Twist'
-    });
-
-    // Power scales and state
-    let linearScale = 0.5;
-    let angularScale = 0.5;
-    let currentLinear = 0.0;
-    let currentAngular = 0.0;
-    let isButtonPressed = false;
-    let publishInterval = null;
-
-    // Publish Twist message
-    function publishCmd() {
-      const twist = new ROSLIB.Message({
-        linear: { x: currentLinear * linearScale, y: 0.0, z: 0.0 },
-        angular: { x: 0.0, y: 0.0, z: currentAngular * angularScale }
+    // Additional features and enhancements
+    document.addEventListener('DOMContentLoaded', () => {
+      
+      // Add keyboard shortcut indicators
+      const shortcuts = {
+        'KeyW': 'upButton',
+        'KeyS': 'downButton', 
+        'KeyA': 'leftButton',
+        'KeyD': 'rightButton'
+      };
+      
+      // Visual feedback for keyboard presses
+      document.addEventListener('keydown', (e) => {
+        const buttonId = shortcuts[e.code];
+        if (buttonId) {
+          document.getElementById(buttonId).style.transform = 'scale(0.95)';
+        }
       });
-      cmdVel.publish(twist);
-      console.log('Published:', twist);
-    }
-
-    // Start continuous publishing
-    function startDirection(event, direction) {
-      event.preventDefault();
-      if (isButtonPressed) return; // Prevent multiple intervals
-      isButtonPressed = true;
-
-      switch (direction) {
-        case 'up':
-          currentLinear = 1.0;
-          currentAngular = 0.0;
-          break;
-        case 'down':
-          currentLinear = -1.0;
-          currentAngular = 0.0;
-          break;
-        case 'left':
-          currentLinear = 0.0;
-          currentAngular = 1.0;
-          break;
-        case 'right':
-          currentLinear = 0.0;
-          currentAngular = -1.0;
-          break;
-      }
-
-      // Start publishing every 100ms
-      publishInterval = setInterval(publishCmd, 100);
-      document.getElementById(`${direction}Button`).classList.add('touched');
-    }
-
-    // Stop publishing
-    function stopDirection(event) {
-      event.preventDefault();
-      isButtonPressed = false;
-      clearInterval(publishInterval);
-      currentLinear = 0.0;
-      currentAngular = 0.0;
-      publishCmd(); // Send stop command
-      ['up', 'down', 'left', 'right'].forEach(dir => {
-        document.getElementById(`${dir}Button`).classList.remove('touched');
+      
+      document.addEventListener('keyup', (e) => {
+        const buttonId = shortcuts[e.code];
+        if (buttonId) {
+          document.getElementById(buttonId).style.transform = '';
+        }
       });
-    }
-
-    // Slider handling
-    const linearScaleSlider = document.getElementById('linearScale');
-    const linearScaleValue = document.getElementById('linearScaleValue');
-    linearScaleSlider.addEventListener('input', () => {
-      linearScale = parseFloat(linearScaleSlider.value);
-      linearScaleValue.textContent = linearScale.toFixed(2);
-      if (isButtonPressed) publishCmd();
-    });
-
-    const angularScaleSlider = document.getElementById('angularScale');
-    const angularScaleValue = document.getElementById('angularScaleValue');
-    angularScaleSlider.addEventListener('input', () => {
-      angularScale = parseFloat(angularScaleSlider.value);
-      angularScaleValue.textContent = angularScale.toFixed(2);
-      if (isButtonPressed) publishCmd();
-    });
-
-    // Subscriber for /joint_states to calculate RPM
-    const jointStatesTopic = new ROSLIB.Topic({
-      ros: ros,
-      name: '/joint_states',
-      messageType: 'sensor_msgs/JointState'
-    });
-
-    const ENC_COUNTS_PER_REV = 3436;
-    jointStatesTopic.subscribe((message) => {
-      const leftIdx = message.name.indexOf('left_wheel_joint');
-      const rightIdx = message.name.indexOf('right_wheel_joint');
-      if (leftIdx !== -1 && rightIdx !== -1) {
-        const leftRpm = (message.velocity[leftIdx] * 60) / (2 * Math.PI);
-        const rightRpm = (message.velocity[rightIdx] * 60) / (2 * Math.PI);
-        document.getElementById('leftRpmDisplay').textContent = leftRpm.toFixed(2);
-        document.getElementById('rightRpmDisplay').textContent = rightRpm.toFixed(2);
-        console.log('Left RPM:', leftRpm, 'Right RPM:', rightRpm);
-      }
+      
+      // Auto-save settings to localStorage
+      const saveSettings = () => {
+        const settings = {
+          rosbridgeUrl: document.getElementById('rosbridgeUrl').value,
+          maxLinearVel: document.getElementById('maxLinearVel').value,
+          maxAngularVel: document.getElementById('maxAngularVel').value,
+          publishRate: document.getElementById('publishRate').value,
+          cmdVelTopic: document.getElementById('cmdVelTopic').value,
+          jointStatesTopic: document.getElementById('jointStatesTopic').value,
+          scanTopic: document.getElementById('scanTopic').value
+        };
+        localStorage.setItem('robotControllerSettings', JSON.stringify(settings));
+      };
+      
+      // Load settings from localStorage
+      const loadSettings = () => {
+        const saved = localStorage.getItem('robotControllerSettings');
+        if (saved) {
+          const settings = JSON.parse(saved);
+          Object.keys(settings).forEach(key => {
+            const element = document.getElementById(key);
+            if (element) element.value = settings[key];
+          });
+        }
+      };
+      
+      // Save settings on change
+      ['rosbridgeUrl', 'maxLinearVel', 'maxAngularVel', 'publishRate', 
+       'cmdVelTopic', 'jointStatesTopic', 'scanTopic'].forEach(id => {
+        document.getElementById(id).addEventListener('change', saveSettings);
+      });
+      
+      // Load settings on startup
+      loadSettings();
+      
+      // Add fullscreen toggle
+      document.addEventListener('keydown', (e) => {
+        if (e.key === 'F11') {
+          e.preventDefault();
+          if (!document.fullscreenElement) {
+            document.documentElement.requestFullscreen();
+          } else {
+            document.exitFullscreen();
+          }
+        }
+      });
+      
+      // Add theme toggle (future feature)
+      const addThemeToggle = () => {
+        const themeBtn = document.createElement('button');
+        themeBtn.innerHTML = '🌙';
+        themeBtn.style.cssText = `
+          position: fixed;
+          top: 1rem;
+          right: 1rem;
+          background: var(--accent-bg);
+          border: none;
+          border-radius: 50%;
+          width: 40px;
+          height: 40px;
+          cursor: pointer;
+          font-size: 1.2rem;
+          z-index: 1000;
+        `;
+        themeBtn.title = 'Toggle theme (coming soon)';
+        document.body.appendChild(themeBtn);
+      };
+      
+      // Initialize additional features
+      addThemeToggle();
+      
+      console.log('🤖 Modern Robot Controller loaded successfully!');
     });
   </script>
+
 </body>
 </html>

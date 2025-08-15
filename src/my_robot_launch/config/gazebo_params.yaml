@@ -2,7 +2,6 @@ gazebo:
   ros__parameters:
     use_sim_time: true
     publish_rate: 400.0
-    world: $(find my_robot_launch)/config/lab.world
     physics:
       max_step_size: 0.01
       real_time_factor: 1.0

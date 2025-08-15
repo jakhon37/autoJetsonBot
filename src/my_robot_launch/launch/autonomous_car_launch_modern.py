@@ -55,13 +55,6 @@ def generate_launch_description():
         description='Gazebo world file for simulation'
     )
     
-    declare_slam_mode = DeclareLaunchArgument(
-        'slam_mode',
-        default_value='mapping',
-        description='SLAM mode: mapping (create new maps) or localization (use existing maps)',
-        choices=['mapping', 'localization']
-    )
-    
     # =============================================================================
     # CONFIGURATION VARIABLES
     # =============================================================================
@@ -69,7 +62,6 @@ def generate_launch_description():
     use_sim = LaunchConfiguration('use_sim')
     robot_name = LaunchConfiguration('robot_name')
     world_file = LaunchConfiguration('world_file')
-    slam_mode = LaunchConfiguration('slam_mode')
     
     # Package directories
     pkg_my_robot_launch = FindPackageShare('my_robot_launch')
@@ -175,17 +167,14 @@ def generate_launch_description():
     # Controller Spawners
     diff_drive_spawner = Node(
         package="controller_manager",
-        executable="spawner.py",
+        executable="spawner",
         arguments=["diff_cont"],
-        output='screen',
-        remappings=[
-            ('/diff_cont/cmd_vel_unstamped', '/cmd_vel'),
-        ]
+        output='screen'
     )
     
     joint_broad_spawner = Node(
         package="controller_manager", 
-        executable="spawner.py",
+        executable="spawner",
         arguments=["joint_broad"],
         output='screen'
     )
@@ -237,14 +226,14 @@ def generate_launch_description():
     # SLAM INTEGRATION
     # =============================================================================
     
-    # SLAM Configuration Selection - Use existing configs for now
-    slam_config_mapping = os.path.join(
+    # SLAM Configuration Selection
+    slam_config_real = os.path.join(
         get_package_share_directory('slam_launch'),
         'config',
         'mapper_params_online_async.yaml'
     )
     
-    slam_config_localization = os.path.join(
+    slam_config_sim = os.path.join(
         get_package_share_directory('slam_launch'),
         'config', 
         'mapper_params_online_async-sim.yaml'
@@ -258,7 +247,7 @@ def generate_launch_description():
         parameters=[
             {'use_sim_time': use_sim},
             PythonExpression([
-                "'", slam_config_localization, "' if '", slam_mode, "' == 'localization' else '", slam_config_mapping, "'"
+                "'", slam_config_sim, "' if '", use_sim, "' == 'true' else '", slam_config_real, "'"
             ])
         ],
         remappings=[('scan', '/scan')]
@@ -290,12 +279,12 @@ def generate_launch_description():
     # LAUNCH DESCRIPTION ASSEMBLY
     # =============================================================================
     
-    # Simulation Group - Controller manager is handled by Gazebo
+    # Simulation Group
     simulation_group = GroupAction([
         gazebo,
         spawn_entity,
-        TimerAction(period=15.0, actions=[diff_drive_spawner]),
-        TimerAction(period=15.0, actions=[joint_broad_spawner]),
+        TimerAction(period=5.0, actions=[diff_drive_spawner]),
+        TimerAction(period=5.0, actions=[joint_broad_spawner]),
     ], condition=IfCondition(use_sim))
     
     # Real Hardware Group
@@ -331,7 +320,6 @@ def generate_launch_description():
         declare_use_sim,
         declare_robot_name,
         declare_world_file,
-        declare_slam_mode,
         
         # Launch Groups
         simulation_group,

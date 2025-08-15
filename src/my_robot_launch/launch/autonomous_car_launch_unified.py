@@ -1,14 +1,17 @@
 #!/usr/bin/env python3
 """
-autonomous_car_launch_modern.py - Modern unified launch file
-Supports both real robot and Gazebo simulation with a simple flag
-Author: RovoDev Assistant - Updated Version
+autonomous_car_launch_unified.py - Unified launch file for both sim and real robot
+Combines working simulation and real robot configurations with a single flag
+Author: RovoDev Assistant - Unified Version
 """
 
 import os
 from ament_index_python.packages import get_package_share_directory
 from launch import LaunchDescription
 from launch.actions import (
+    # =============================================================================
+    # WEB INTERFACE & COMMUNICATION (Common for both)
+    # =============================================================================
     DeclareLaunchArgument, 
     IncludeLaunchDescription,
     ExecuteProcess,
@@ -17,7 +20,7 @@ from launch.actions import (
     GroupAction
 )
 from launch.conditions import IfCondition, UnlessCondition
-from launch.substitutions import LaunchConfiguration, Command, PythonExpression
+from launch.substitutions import LaunchConfiguration, Command
 from launch.launch_description_sources import PythonLaunchDescriptionSource
 from launch.event_handlers import OnProcessStart
 from launch_ros.actions import Node
@@ -25,11 +28,10 @@ from launch_ros.substitutions import FindPackageShare
 
 def generate_launch_description():
     """
-    Modern unified launch description
+    Unified launch description for both simulation and real robot
     Usage:
-      ros2 launch my_robot_launch autonomous_car_launch_modern.py
-      ros2 launch my_robot_launch autonomous_car_launch_modern.py use_sim:=true
-      ros2 launch my_robot_launch autonomous_car_launch_modern.py use_sim:=false
+      ros2 launch my_robot_launch autonomous_car_launch_unified.py use_sim:=true   # For simulation
+      ros2 launch my_robot_launch autonomous_car_launch_unified.py use_sim:=false  # For real robot
     """
     
     # =============================================================================
@@ -45,21 +47,8 @@ def generate_launch_description():
     
     declare_robot_name = DeclareLaunchArgument(
         'robot_name',
-        default_value='jetson_bot',
+        default_value='my_bot',
         description='Name of the robot'
-    )
-    
-    declare_world_file = DeclareLaunchArgument(
-        'world_file',
-        default_value='lab.world',
-        description='Gazebo world file for simulation'
-    )
-    
-    declare_slam_mode = DeclareLaunchArgument(
-        'slam_mode',
-        default_value='mapping',
-        description='SLAM mode: mapping (create new maps) or localization (use existing maps)',
-        choices=['mapping', 'localization']
     )
     
     # =============================================================================
@@ -68,63 +57,45 @@ def generate_launch_description():
     
     use_sim = LaunchConfiguration('use_sim')
     robot_name = LaunchConfiguration('robot_name')
-    world_file = LaunchConfiguration('world_file')
-    slam_mode = LaunchConfiguration('slam_mode')
-    
-    # Package directories
-    pkg_my_robot_launch = FindPackageShare('my_robot_launch')
-    pkg_web_gui_control = FindPackageShare('web_gui_control')
-    pkg_slam_launch = FindPackageShare('slam_launch')
+    package_name = 'my_robot_launch'
     
     # =============================================================================
-    # ROBOT DESCRIPTION
+    # ROBOT DESCRIPTION (Common for both sim and real)
     # =============================================================================
     
-    xacro_file = os.path.join(
-        get_package_share_directory('my_robot_launch'),
-        'urdf',
-        'robot.xacro'
+    # Robot State Publisher (using working approach from both files)
+    rsp_sim = IncludeLaunchDescription(
+        PythonLaunchDescriptionSource([os.path.join(
+            get_package_share_directory(package_name), 'launch', 'robot_body_launch.py'
+        )]), 
+        launch_arguments={'use_sim_time': 'true', 'use_ros2_control': 'true'}.items(),
+        condition=IfCondition(use_sim)
     )
     
-    robot_description_content = Command([
-        'xacro ', xacro_file,
-        ' use_ros2_control:=true',
-        ' sim_mode:=', use_sim
-    ])
-    
-    # Robot State Publisher
-    robot_state_publisher = Node(
-        package='robot_state_publisher',
-        executable='robot_state_publisher',
-        name='robot_state_publisher',
-        output='screen',
-        parameters=[{
-            'robot_description': robot_description_content,
-            'use_sim_time': use_sim
-        }]
+    rsp_real = IncludeLaunchDescription(
+        PythonLaunchDescriptionSource([os.path.join(
+            get_package_share_directory(package_name), 'launch', 'robot_body_launch.py'
+        )]), 
+        launch_arguments={'use_sim_time': 'false', 'use_ros2_control': 'true'}.items(),
+        condition=UnlessCondition(use_sim)
     )
     
     # =============================================================================
-    # GAZEBO SIMULATION (Conditional)
+    # GAZEBO SIMULATION (Only when use_sim:=true)
     # =============================================================================
     
-    # Gazebo Launch
     gazebo_params_file = os.path.join(
-        get_package_share_directory('my_robot_launch'),
-        'config',
+        get_package_share_directory(package_name), 
+        'config', 
         'gazebo_params.yaml'
     )
     
-    world_path = os.path.join(
-        get_package_share_directory('my_robot_launch'),
-        'config',
-        'lab.world'
-    )
+    # Use the specific world file path you provided
+    world_path = '/home/jakhon37/myspace/robotics/autoJetsonBot/src/my_robot_launch/config/lab.world'
     
     gazebo = IncludeLaunchDescription(
-        PythonLaunchDescriptionSource([
-            os.path.join(get_package_share_directory('gazebo_ros'), 'launch', 'gazebo.launch.py')
-        ]),
+        PythonLaunchDescriptionSource([os.path.join(
+            get_package_share_directory('gazebo_ros'), 'launch', 'gazebo.launch.py')]),
         launch_arguments={
             'world': world_path,
             'extra_gazebo_args': '--ros-args --params-file ' + gazebo_params_file
@@ -132,9 +103,8 @@ def generate_launch_description():
         condition=IfCondition(use_sim)
     )
     
-    # Spawn Robot in Gazebo
     spawn_entity = Node(
-        package='gazebo_ros',
+        package='gazebo_ros', 
         executable='spawn_entity.py',
         arguments=['-topic', 'robot_description', '-entity', robot_name],
         output='screen',
@@ -142,59 +112,80 @@ def generate_launch_description():
     )
     
     # =============================================================================
-    # ROS2 CONTROL (Both Sim and Real)
+    # CONTROLLERS (Different approach for sim vs real)
     # =============================================================================
     
-    # Controller configuration files
-    controller_config_real = os.path.join(
-        get_package_share_directory('my_robot_launch'),
-        'config',
-        'my_controllers.yaml'
-    )
-    
-    controller_config_sim = os.path.join(
-        get_package_share_directory('my_robot_launch'),
-        'config',
-        'my_controllers_use_sim.yaml'
-    )
-    
-    # Controller Manager (Real Hardware)
-    controller_manager_real = Node(
-        package="controller_manager",
-        executable="ros2_control_node",
-        name="controller_manager",
-        output='screen',
-        parameters=[
-            {'robot_description': robot_description_content},
-            controller_config_real,
-            {'use_sim_time': False}
-        ],
-        condition=UnlessCondition(use_sim)
-    )
-    
-    # Controller Spawners
-    diff_drive_spawner = Node(
+    # === SIMULATION CONTROLLERS ===
+    diff_drive_spawner_sim = Node(
         package="controller_manager",
         executable="spawner.py",
         arguments=["diff_cont"],
         output='screen',
         remappings=[
             ('/diff_cont/cmd_vel_unstamped', '/cmd_vel'),
-        ]
+        ],
+        condition=IfCondition(use_sim)
     )
-    
-    joint_broad_spawner = Node(
-        package="controller_manager", 
+
+    joint_broad_spawner_sim = Node(
+        package="controller_manager",
         executable="spawner.py",
         arguments=["joint_broad"],
-        output='screen'
+        output='screen',
+        condition=IfCondition(use_sim)
+    )
+    
+    # === REAL ROBOT CONTROLLERS ===
+    # Get robot description for real robot controller manager
+    pkg_path = os.path.join(get_package_share_directory(package_name))
+    xacro_file = os.path.join(pkg_path, 'urdf', 'robot.xacro')
+    robot_description_content = Command([
+        'xacro ', xacro_file, 
+        ' use_ros2_control:=true', 
+        ' sim_mode:=false'
+    ])
+    
+    controller_params_file = os.path.join(
+        get_package_share_directory(package_name),
+        'config',
+        'my_controllers.yaml'
+    )
+    hardware_yaml = os.path.join(
+        get_package_share_directory(package_name),
+        'config',
+        'diffbot_hardware.yaml'
+    )
+    
+    controller_manager_real = Node(
+        package="controller_manager",
+        executable="ros2_control_node",
+        parameters=[
+            {'robot_description': robot_description_content},
+            hardware_yaml,
+            controller_params_file
+        ],
+        output='screen',
+        condition=UnlessCondition(use_sim)
+    )
+
+    diff_drive_spawner_real = Node(
+        package="controller_manager",
+        executable="spawner.py",
+        arguments=["diff_cont"],
+        condition=UnlessCondition(use_sim)
+    )
+
+    joint_broad_spawner_real = Node(
+        package="controller_manager",
+        executable="spawner.py",
+        arguments=["joint_broad"],
+        condition=UnlessCondition(use_sim)
     )
     
     # =============================================================================
     # SENSORS (Real Hardware Only)
     # =============================================================================
     
-    # RPLidar
     rplidar_node = Node(
         package='rplidar_ros',
         executable='rplidar_composition',
@@ -206,67 +197,59 @@ def generate_launch_description():
             'frame_id': 'laser_frame',
             'angle_compensate': True,
             'scan_mode': 'Standard',
-            'use_sim_time': False
         }],
         condition=UnlessCondition(use_sim)
     )
     
-    # IMU Node
-    imu_node = Node(
-        package='mpu6050_imu',
-        executable='mpu6050_node',
-        name='mpu6050_node',
-        output='screen',
-        parameters=[{
-            'publish_rate': 50,
-            'use_sim_time': False
-        }],
-        condition=UnlessCondition(use_sim)
-    )
-    
-    # Motor USB Serial (Real Hardware)
-    motor_usbserial_node = Node(
-        package='motor_usbserial',
-        executable='motor_usbserial_node',
-        name='motor_usbserial',
-        output='screen',
-        condition=UnlessCondition(use_sim)
-    )
-    
     # =============================================================================
-    # SLAM INTEGRATION
+    # SLAM TOOLBOX (Different configs for sim vs real)
     # =============================================================================
     
-    # SLAM Configuration Selection - Use existing configs for now
-    slam_config_mapping = os.path.join(
-        get_package_share_directory('slam_launch'),
-        'config',
-        'mapper_params_online_async.yaml'
-    )
-    
-    slam_config_localization = os.path.join(
-        get_package_share_directory('slam_launch'),
-        'config', 
-        'mapper_params_online_async-sim.yaml'
-    )
-    
-    slam_node = Node(
+    slam_pkg = get_package_share_directory('slam_launch')
+    slam_config_real = os.path.join(slam_pkg, 'config', 'mapper_params_online_async.yaml')
+    slam_config_sim = os.path.join(slam_pkg, 'config', 'mapper_params_online_async-sim.yaml')
+
+    slam_node_sim = Node(
         package='slam_toolbox',
         executable='async_slam_toolbox_node',
         name='slam_toolbox',
         output='screen',
+        arguments=['--ros-args', '--log-level', 'warn'],
         parameters=[
-            {'use_sim_time': use_sim},
-            PythonExpression([
-                "'", slam_config_localization, "' if '", slam_mode, "' == 'localization' else '", slam_config_mapping, "'"
-            ])
+            {'use_sim_time': True},
+            slam_config_sim
         ],
-        remappings=[('scan', '/scan')]
+        remappings=[('scan', '/scan')],
+        condition=IfCondition(use_sim)
+    )
+    
+    slam_node_real = Node(
+        package='slam_toolbox',
+        executable='async_slam_toolbox_node',
+        name='slam_toolbox',
+        output='screen',
+        arguments=['--ros-args', '--log-level', 'warn'],
+        parameters=[
+            {'use_sim_time': False},
+            slam_config_real
+        ],
+        remappings=[('scan', '/scan')],
+        condition=UnlessCondition(use_sim)
     )
     
     # =============================================================================
-    # WEB INTERFACE & COMMUNICATION
+    # DEBUGGING & DIAGNOSTICS
     # =============================================================================
+    
+    # Scan topic monitor (for debugging scan data issues)
+    scan_monitor = Node(
+        package='ros2',
+        executable='topic',
+        arguments=['echo', '/scan', '--field', 'header'],
+        output='screen',
+        condition=IfCondition(use_sim),
+        # Comment out this node after debugging
+    )
     
     # ROSBridge WebSocket Server
     rosbridge_server = ExecuteProcess(
@@ -275,10 +258,8 @@ def generate_launch_description():
     )
     
     # Web GUI HTTP Server
-    web_gui_path = os.path.join(
-        get_package_share_directory('web_gui_control'),
-        'launch_web_gui'
-    )
+    web_gui_pkg = get_package_share_directory('web_gui_control')
+    web_gui_path = os.path.join(web_gui_pkg, 'launch_web_gui')
     
     web_server = ExecuteProcess(
         cmd=['python3', '-m', 'http.server', '8000'],
@@ -287,55 +268,53 @@ def generate_launch_description():
     )
     
     # =============================================================================
-    # LAUNCH DESCRIPTION ASSEMBLY
+    # LAUNCH GROUPS WITH PROPER TIMING
     # =============================================================================
     
-    # Simulation Group - Controller manager is handled by Gazebo
+    # Simulation Group (based on working robot_body_launch_sim.py)
     simulation_group = GroupAction([
+        rsp_sim,
         gazebo,
         spawn_entity,
-        TimerAction(period=15.0, actions=[diff_drive_spawner]),
-        TimerAction(period=15.0, actions=[joint_broad_spawner]),
+        TimerAction(period=15.0, actions=[diff_drive_spawner_sim]),
+        TimerAction(period=15.0, actions=[joint_broad_spawner_sim]),
+        TimerAction(period=20.0, actions=[slam_node_sim]),  # Start SLAM after everything else
     ], condition=IfCondition(use_sim))
     
-    # Real Hardware Group
-    real_hardware_group = GroupAction([
-        controller_manager_real,
+    # Real Robot Group (based on working robot_body_launch_robot.py)
+    real_robot_group = GroupAction([
+        rsp_real,
+        TimerAction(period=5.0, actions=[controller_manager_real]),
         RegisterEventHandler(
             event_handler=OnProcessStart(
                 target_action=controller_manager_real,
-                on_start=[TimerAction(period=3.0, actions=[diff_drive_spawner])]
+                on_start=[diff_drive_spawner_real],
             )
         ),
         RegisterEventHandler(
             event_handler=OnProcessStart(
                 target_action=controller_manager_real,
-                on_start=[TimerAction(period=4.0, actions=[joint_broad_spawner])]
+                on_start=[joint_broad_spawner_real],
             )
         ),
         rplidar_node,
-        imu_node,
-        motor_usbserial_node,
+        slam_node_real,
     ], condition=UnlessCondition(use_sim))
     
-    # Common Services Group
+    # Common Services (for both sim and real)
     common_services_group = GroupAction([
-        robot_state_publisher,
         rosbridge_server,
         web_server,
-        slam_node,
     ])
     
     return LaunchDescription([
         # Launch Arguments
         declare_use_sim,
         declare_robot_name,
-        declare_world_file,
-        declare_slam_mode,
         
         # Launch Groups
         simulation_group,
-        real_hardware_group,
+        real_robot_group,
         common_services_group,
     ])
 

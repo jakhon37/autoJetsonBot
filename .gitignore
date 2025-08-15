@@ -16,3 +16,4 @@ core
 *.bag
 __pycache__/
 *.pyc
+*tmp*

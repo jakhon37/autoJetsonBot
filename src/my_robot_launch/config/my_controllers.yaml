@@ -84,9 +84,3 @@ joint_broad:
 
 # joint_broad:
 #   ros__parameters:
-# Add topic remapping for cmd_vel
-diff_cont:
-  ros__parameters:
-    # ... existing parameters ...
-    # Remap cmd_vel to the standard topic
-    cmd_vel_topic: /cmd_vel

@@ -1,0 +1,314 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>autoJetsonBot Game Controller</title>
+  <!-- Tailwind CSS CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- ROSLIB.js CDN -->
+  <script src="https://cdn.jsdelivr.net/npm/roslib@1.4.1/build/roslib.min.js"></script>
+  <style>
+    body {
+      background-color: #1f2937;
+      color: #e5e7eb;
+    }
+    .controller {
+      max-width: 800px;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 1rem;
+      background: #374151;
+      padding: 2rem;
+      border-radius: 1rem;
+      box-shadow: 0 10px 25px rgba(0, 0, 0, 0.3);
+    }
+    .dpad-button {
+      width: 80px;
+      height: 80px;
+      background: linear-gradient(145deg, #4b5563, #374151);
+      border: none;
+      border-radius: 12px;
+      color: #e5e7eb;
+      font-size: 24px;
+      font-weight: bold;
+      cursor: pointer;
+      transition: all 0.2s;
+      box-shadow: 5px 5px 10px #1f2937, -5px -5px 10px #4b5563;
+    }
+    .dpad-button:hover {
+      background: linear-gradient(145deg, #6b7280, #4b5563);
+      transform: translateY(-2px);
+    }
+    .dpad-button:active, .dpad-button.touched {
+      background: linear-gradient(145deg, #ef4444, #dc2626);
+      transform: translateY(0);
+      box-shadow: inset 3px 3px 6px #1f2937;
+    }
+    .config-section {
+      background: #374151;
+      padding: 1rem;
+      border-radius: 0.5rem;
+      margin-bottom: 1rem;
+    }
+  </style>
+</head>
+
+<body class="flex flex-col items-center justify-center min-h-screen p-4">
+  
+  <!-- Configuration Section -->
+  <div class="config-section w-full max-w-md mb-4">
+    <h3 class="text-lg font-bold mb-2">🔧 Connection Settings</h3>
+    <div class="mb-2">
+      <label class="block text-sm font-medium mb-1">ROSBridge URL:</label>
+      <input type="text" id="rosbridgeUrl" value="ws://localhost:9090" 
+             class="w-full px-3 py-2 bg-gray-600 border border-gray-500 rounded text-white">
+    </div>
+    <button onclick="connectToROS()" 
+            class="w-full bg-blue-600 hover:bg-blue-700 px-4 py-2 rounded text-white font-medium">
+      Connect to Robot
+    </button>
+    <div id="connectionStatus" class="mt-2 text-sm">Not connected</div>
+  </div>
+
+  <!-- Robot Controller -->
+  <div class="controller">
+    <!-- Status Display -->
+    <div class="w-full mb-4">
+      <h1 class="text-3xl font-bold text-center mb-2">🤖 autoJetsonBot Controller</h1>
+      <div class="flex justify-between text-sm">
+        <span>Connection: <span id="statusIndicator" class="text-red-500">●</span></span>
+        <span>Left RPM: <span id="leftRpmDisplay">0.00</span></span>
+        <span>Right RPM: <span id="rightRpmDisplay">0.00</span></span>
+      </div>
+    </div>
+
+    <!-- Control Sliders -->
+    <div class="w-full mb-4">
+      <div class="grid grid-cols-2 gap-4">
+        <div>
+          <label class="block text-sm font-medium mb-1">Linear Speed: <span id="linearScaleValue">0.50</span></label>
+          <input type="range" id="linearScale" min="0" max="1" step="0.01" value="0.5" 
+                 class="w-full h-2 bg-gray-600 rounded-lg appearance-none cursor-pointer">
+        </div>
+        <div>
+          <label class="block text-sm font-medium mb-1">Angular Speed: <span id="angularScaleValue">0.50</span></label>
+          <input type="range" id="angularScale" min="0" max="1" step="0.01" value="0.5" 
+                 class="w-full h-2 bg-gray-600 rounded-lg appearance-none cursor-pointer">
+        </div>
+      </div>
+    </div>
+
+    <!-- D-Pad Controller -->
+    <div class="grid grid-cols-3 gap-2 mx-auto">
+      <div></div>
+      <button id="upButton" class="dpad-button flex items-center justify-center"
+              ontouchstart="startDirection(event, 'up')" ontouchend="stopDirection(event)"
+              onmousedown="startDirection(event, 'up')" onmouseup="stopDirection(event)"
+              onselectstart="return false">
+        ↑
+      </button>
+      <div></div>
+      <button id="leftButton" class="dpad-button flex items-center justify-center"
+              ontouchstart="startDirection(event, 'left')" ontouchend="stopDirection(event)"
+              onmousedown="startDirection(event, 'left')" onmouseup="stopDirection(event)"
+              onselectstart="return false">
+        ←
+      </button>
+      <div class="w-20 h-20 bg-gray-700 rounded-full flex items-center justify-center">
+        <span class="text-2xl">🎮</span>
+      </div>
+      <button id="rightButton" class="dpad-button flex items-center justify-center"
+              ontouchstart="startDirection(event, 'right')" ontouchend="stopDirection(event)"
+              onmousedown="startDirection(event, 'right')" onmouseup="stopDirection(event)"
+              onselectstart="return false">
+        →
+      </button>
+      <div></div>
+      <button id="downButton" class="dpad-button flex items-center justify-center"
+              ontouchstart="startDirection(event, 'down')" ontouchend="stopDirection(event)"
+              onmousedown="startDirection(event, 'down')" onmouseup="stopDirection(event)"
+              onselectstart="return false">
+        ↓
+      </button>
+      <div></div>
+    </div>
+  </div>
+
+  <script>
+    // Global ROS connection variable
+    let ros = null;
+    let cmdVel = null;
+    let jointStatesTopic = null;
+
+    // Power scales and state
+    let linearScale = 0.5;
+    let angularScale = 0.5;
+    let currentLinear = 0.0;
+    let currentAngular = 0.0;
+    let isButtonPressed = false;
+    let publishInterval = null;
+
+    // Auto-detect ROSBridge URL
+    function autoDetectROSBridge() {
+      const hostname = window.location.hostname;
+      const port = '9090';
+      
+      // Try different possible URLs
+      const possibleUrls = [
+        `ws://${hostname}:${port}`,
+        'ws://localhost:9090',
+        'ws://127.0.0.1:9090',
+        'ws://192.168.219.150:9090',
+        'ws://192.168.219.151:9090'
+      ];
+      
+      document.getElementById('rosbridgeUrl').value = possibleUrls[0];
+      return possibleUrls[0];
+    }
+
+    // Connect to ROS
+    function connectToROS() {
+      const url = document.getElementById('rosbridgeUrl').value;
+      const statusDiv = document.getElementById('connectionStatus');
+      const statusIndicator = document.getElementById('statusIndicator');
+      
+      statusDiv.textContent = 'Connecting...';
+      statusIndicator.className = 'text-yellow-500';
+      
+      // Close existing connection
+      if (ros) {
+        ros.close();
+      }
+      
+      // Create new connection
+      ros = new ROSLIB.Ros({
+        url: url
+      });
+
+      ros.on('connection', () => {
+        statusDiv.textContent = 'Connected to Robot';
+        statusIndicator.className = 'text-green-500';
+        setupROSTopics();
+      });
+      
+      ros.on('error', (error) => {
+        statusDiv.textContent = 'Connection Error';
+        statusIndicator.className = 'text-red-500';
+        console.error('ROS error:', error);
+      });
+      
+      ros.on('close', () => {
+        statusDiv.textContent = 'Connection Closed';
+        statusIndicator.className = 'text-red-500';
+      });
+    }
+
+    // Setup ROS topics after connection
+    function setupROSTopics() {
+      // Publisher for /diff_cont/cmd_vel_unstamped
+      cmdVel = new ROSLIB.Topic({
+        ros: ros,
+        name: '/diff_cont/cmd_vel_unstamped',
+        messageType: 'geometry_msgs/Twist'
+      });
+
+      // Subscriber for /joint_states to calculate RPM
+      jointStatesTopic = new ROSLIB.Topic({
+        ros: ros,
+        name: '/joint_states',
+        messageType: 'sensor_msgs/JointState'
+      });
+
+      jointStatesTopic.subscribe((message) => {
+        const leftIdx = message.name.indexOf('left_wheel_joint');
+        const rightIdx = message.name.indexOf('right_wheel_joint');
+        if (leftIdx !== -1 && rightIdx !== -1) {
+          const leftRpm = (message.velocity[leftIdx] * 60) / (2 * Math.PI);
+          const rightRpm = (message.velocity[rightIdx] * 60) / (2 * Math.PI);
+          document.getElementById('leftRpmDisplay').textContent = leftRpm.toFixed(2);
+          document.getElementById('rightRpmDisplay').textContent = rightRpm.toFixed(2);
+        }
+      });
+    }
+
+    // Publish Twist message
+    function publishCmd() {
+      if (!cmdVel) return;
+      
+      const twist = new ROSLIB.Message({
+        linear: { x: currentLinear * linearScale, y: 0.0, z: 0.0 },
+        angular: { x: 0.0, y: 0.0, z: currentAngular * angularScale }
+      });
+      cmdVel.publish(twist);
+      console.log('Published:', twist);
+    }
+
+    // Start continuous publishing
+    function startDirection(event, direction) {
+      event.preventDefault();
+      if (isButtonPressed) return;
+      isButtonPressed = true;
+
+      switch (direction) {
+        case 'up':
+          currentLinear = 1.0;
+          currentAngular = 0.0;
+          break;
+        case 'down':
+          currentLinear = -1.0;
+          currentAngular = 0.0;
+          break;
+        case 'left':
+          currentLinear = 0.0;
+          currentAngular = 1.0;
+          break;
+        case 'right':
+          currentLinear = 0.0;
+          currentAngular = -1.0;
+          break;
+      }
+
+      publishInterval = setInterval(publishCmd, 100);
+      document.getElementById(`${direction}Button`).classList.add('touched');
+    }
+
+    // Stop publishing
+    function stopDirection(event) {
+      event.preventDefault();
+      isButtonPressed = false;
+      clearInterval(publishInterval);
+      currentLinear = 0.0;
+      currentAngular = 0.0;
+      publishCmd();
+      ['up', 'down', 'left', 'right'].forEach(dir => {
+        document.getElementById(`${dir}Button`).classList.remove('touched');
+      });
+    }
+
+    // Slider handling
+    const linearScaleSlider = document.getElementById('linearScale');
+    const linearScaleValue = document.getElementById('linearScaleValue');
+    linearScaleSlider.addEventListener('input', () => {
+      linearScale = parseFloat(linearScaleSlider.value);
+      linearScaleValue.textContent = linearScale.toFixed(2);
+      if (isButtonPressed) publishCmd();
+    });
+
+    const angularScaleSlider = document.getElementById('angularScale');
+    const angularScaleValue = document.getElementById('angularScaleValue');
+    angularScaleSlider.addEventListener('input', () => {
+      angularScale = parseFloat(angularScaleSlider.value);
+      angularScaleValue.textContent = angularScale.toFixed(2);
+      if (isButtonPressed) publishCmd();
+    });
+
+    // Initialize on page load
+    window.onload = function() {
+      autoDetectROSBridge();
+      // Auto-connect after 1 second
+      setTimeout(connectToROS, 1000);
+    };
+  </script>
+</body>
+</html>

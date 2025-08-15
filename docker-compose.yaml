@@ -8,6 +8,7 @@ services:
     volumes:
       - /home/kev/ros:/home/ros
       - /home/kev/cubie-1:/ros2
+      - ./maps:/ros2/maps
     # devices:
     #   - /dev/ttyUSB0:/dev/ttyUSB0
     privileged: true

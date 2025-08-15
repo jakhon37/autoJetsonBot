@@ -9,4 +9,4 @@ diffdrive_arduino:
     device: /dev/ttyACM0
     baud_rate: 115200
     timeout: 2000
-    enc_counts_per_rev: 1920
+    enc_counts_per_rev: 3436  # STANDARDIZED - Phase 1 Migration

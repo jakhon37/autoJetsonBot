@@ -1,0 +1,37 @@
+# Quick unified configuration for immediate testing
+robot:
+  name: "jetson_bot"
+  mode: "simulation"
+
+# Basic controller configuration
+controller_manager:
+  ros__parameters:
+    update_rate: 100
+    use_sim_time: true
+    
+    diff_cont:
+      type: diff_drive_controller/DiffDriveController
+      
+    joint_broad:
+      type: joint_state_broadcaster/JointStateBroadcaster
+
+# Differential drive controller
+diff_cont:
+  ros__parameters:
+    left_wheel_names: ['left_wheel_joint']
+    right_wheel_names: ['right_wheel_joint']
+    wheel_separation: 0.18
+    wheel_radius: 0.035
+    publish_rate: 50.0
+    base_frame_id: "base_link"
+    odom_frame_id: "odom"
+    enable_odom_tf: true
+    use_stamped_vel: false
+
+# Joint state broadcaster
+joint_broad:
+  ros__parameters:
+    joints:
+      - left_wheel_joint
+      - right_wheel_joint
+      - caster_wheel_joint

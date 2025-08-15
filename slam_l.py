@@ -22,3 +22,5 @@ def generate_launch_description():
             }]
         ),
     ])
+    
+    # ros2 topic pub /diff_cont/cmd_vel_unstamped geometry_msgs/Twist '{linear: {x:  0.1}, angular: {z: 0.0}}' 

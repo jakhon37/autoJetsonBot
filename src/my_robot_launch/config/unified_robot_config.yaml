@@ -1,0 +1,337 @@
+# unified_robot_config.yaml - Centralized Configuration Management
+# Long-term solution for consistent parameter management across sim/real environments
+
+# =============================================================================
+# GLOBAL ROBOT PARAMETERS
+# =============================================================================
+robot:
+  name: "jetson_bot"
+  description: "Autonomous Jetson Robot with diffdrive_arduino"
+  version: "2.0.0"
+  
+  # Physical Specifications
+  physical:
+    wheel_separation: 0.18      # meters
+    wheel_radius: 0.035         # meters  
+    wheel_base: 0.145          # meters
+    robot_width: 0.140         # meters
+    robot_height: 0.070        # meters
+    max_linear_velocity: 1.0   # m/s
+    max_angular_velocity: 2.0  # rad/s
+    
+  # Encoder Specifications (STANDARDIZED)
+  encoders:
+    counts_per_revolution: 3436  # High precision encoders
+    gear_ratio: 1.0
+    direction_multiplier: 1      # 1 or -1 for direction correction
+
+# =============================================================================
+# HARDWARE INTERFACE CONFIGURATION
+# =============================================================================
+hardware_interface:
+  # Real Hardware Configuration
+  real:
+    type: "diffdrive_arduino"
+    plugin: "diffdrive_arduino/DiffDriveArduino"
+    
+    # Communication Settings
+    communication:
+      device: "/dev/ttyACM0"
+      baud_rate: 115200
+      timeout: 1000
+      loop_rate: 60
+      
+    # Motor Configuration
+    motors:
+      left_wheel_name: "left_wheel_joint"
+      right_wheel_name: "right_wheel_joint"
+      enc_counts_per_rev: 3436
+      
+    # Safety Limits
+    limits:
+      velocity:
+        min: -10.0
+        max: 50.0
+      acceleration:
+        max: 5.0
+      jerk:
+        max: 10.0
+        
+  # Simulation Configuration  
+  simulation:
+    type: "gazebo_system"
+    plugin: "gazebo_ros2_control/GazeboSystem"
+    
+    # Physics Parameters
+    physics:
+      friction_coefficient: 0.8
+      restitution: 0.1
+      contact_stiffness: 1000.0
+      contact_damping: 100.0
+
+# =============================================================================
+# CONTROLLER CONFIGURATION
+# =============================================================================
+controller_manager:
+  ros__parameters:
+    update_rate: 100  # Hz - Optimized for performance
+    
+    # Controller Definitions
+    diff_cont:
+      type: diff_drive_controller/DiffDriveController
+      
+    joint_broad:
+      type: joint_state_broadcaster/JointStateBroadcaster
+
+# Differential Drive Controller Parameters
+diff_cont:
+  ros__parameters:
+    # Wheel Configuration
+    left_wheel_names: ['left_wheel_joint']
+    right_wheel_names: ['right_wheel_joint'] 
+    wheel_separation: 0.18
+    wheel_radius: 0.035
+    
+    # Control Parameters
+    publish_rate: 50.0
+    base_frame_id: "base_link"
+    odom_frame_id: "odom"
+    
+    # Odometry Configuration
+    enable_odom_tf: true
+    pose_covariance_diagonal: [0.001, 0.001, 0.001, 0.001, 0.001, 0.01]
+    twist_covariance_diagonal: [0.001, 0.001, 0.001, 0.001, 0.001, 0.01]
+    
+    # Command Interface
+    use_stamped_vel: false
+    cmd_vel_timeout: 0.5
+    publish_limited_velocity: true
+    velocity_rolling_window_size: 10
+    
+    # Velocity Limits
+    linear:
+      x:
+        has_velocity_limits: true
+        has_acceleration_limits: true
+        has_jerk_limits: true
+        max_velocity: 1.0
+        min_velocity: -1.0
+        max_acceleration: 2.0
+        min_acceleration: -2.0
+        max_jerk: 5.0
+        min_jerk: -5.0
+        
+    angular:
+      z:
+        has_velocity_limits: true
+        has_acceleration_limits: true
+        has_jerk_limits: true
+        max_velocity: 2.0
+        min_velocity: -2.0
+        max_acceleration: 3.0
+        min_acceleration: -3.0
+        max_jerk: 10.0
+        min_jerk: -10.0
+
+# Joint State Broadcaster
+joint_broad:
+  ros__parameters:
+    joints:
+      - left_wheel_joint
+      - right_wheel_joint
+      - caster_wheel_joint
+
+# =============================================================================
+# SENSOR CONFIGURATION
+# =============================================================================
+sensors:
+  # RPLidar Configuration
+  rplidar:
+    serial_port: "/dev/ttyUSB0"
+    serial_baudrate: 115200
+    frame_id: "laser_frame"
+    angle_compensate: true
+    scan_mode: "Standard"
+    inverted: false
+    
+    # Performance Settings
+    scan_frequency: 10.0  # Hz
+    max_distance: 12.0    # meters
+    min_distance: 0.15    # meters
+    
+  # IMU Configuration (MPU6050)
+  imu:
+    device_address: 0x68
+    i2c_bus: 1
+    frame_id: "imu_link"
+    publish_rate: 50      # Hz
+    
+    # Calibration Parameters
+    gyro_scale: 131.0     # LSB/(°/s) for ±250°/s
+    accel_scale: 16384.0  # LSB/g for ±2g
+    
+    # Noise Parameters
+    gyro_noise: 0.01
+    accel_noise: 0.01
+    
+  # Camera Configuration
+  camera:
+    device: "/dev/video0"
+    frame_id: "camera_link"
+    image_width: 640
+    image_height: 480
+    fps: 30
+    
+    # Object Detection
+    object_detection:
+      model_path: "/path/to/MobileNetSSD_deploy.caffemodel"
+      config_path: "/path/to/MobileNetSSD_deploy.prototxt.txt"
+      confidence_threshold: 0.5
+      nms_threshold: 0.4
+
+# =============================================================================
+# SLAM CONFIGURATION
+# =============================================================================
+slam:
+  # Common Parameters
+  common:
+    odom_frame: "odom"
+    map_frame: "map"
+    base_frame: "base_link"  # STANDARDIZED
+    scan_topic: "/scan"
+    
+    # Map Parameters
+    resolution: 0.05
+    publish_period: 1.0
+    
+    # Motion Model
+    minimum_travel_distance: 0.2
+    minimum_travel_heading: 0.2
+    
+  # Environment Specific
+  real_hardware:
+    mode: "mapping"
+    use_sim_time: false
+    map_update_interval: 5.0
+    
+  simulation:
+    mode: "localization"
+    use_sim_time: true
+    map_file_name: "/path/to/saved_map"
+    map_start_at_dock: true
+
+# =============================================================================
+# NAVIGATION CONFIGURATION
+# =============================================================================
+navigation:
+  # Global Planner
+  global_planner:
+    plugin: "nav2_navfn_planner/NavfnPlanner"
+    tolerance: 0.5
+    use_astar: false
+    
+  # Local Planner
+  local_planner:
+    plugin: "nav2_regulated_pure_pursuit_controller/RegulatedPurePursuitController"
+    desired_linear_vel: 0.5
+    lookahead_dist: 0.6
+    min_lookahead_dist: 0.3
+    max_lookahead_dist: 0.9
+    
+  # Recovery Behaviors
+  recovery_behaviors:
+    - "spin"
+    - "backup"
+    - "wait"
+
+# =============================================================================
+# COMMUNICATION & INTERFACES
+# =============================================================================
+communication:
+  # ROSBridge Configuration
+  rosbridge:
+    port: 9090
+    address: "0.0.0.0"
+    
+    # Security Settings
+    authenticate: false
+    ssl: false
+    
+    # Performance Settings
+    fragment_timeout: 600
+    delay_between_messages: 0
+    max_message_size: 10000000
+    
+  # Web GUI Configuration
+  web_gui:
+    port: 8000
+    address: "0.0.0.0"
+    
+    # Control Settings
+    max_linear_velocity: 1.0
+    max_angular_velocity: 2.0
+    control_frequency: 10  # Hz
+    
+    # Topic Mappings
+    cmd_vel_topic: "/diff_cont/cmd_vel_unstamped"
+    joint_states_topic: "/joint_states"
+    scan_topic: "/scan"
+
+# =============================================================================
+# DIAGNOSTIC & MONITORING
+# =============================================================================
+diagnostics:
+  # System Health Monitoring
+  health_check:
+    frequency: 1.0  # Hz
+    timeout: 5.0    # seconds
+    
+    # Monitored Topics
+    critical_topics:
+      - "/joint_states"
+      - "/scan"
+      - "/cmd_vel"
+      
+    # Hardware Monitoring
+    hardware_checks:
+      - "motor_controller"
+      - "lidar_sensor"
+      - "imu_sensor"
+      - "camera"
+      
+  # Performance Monitoring
+  performance:
+    control_loop_frequency: 100  # Hz
+    max_latency: 0.01           # seconds
+    cpu_usage_threshold: 80     # percent
+    memory_usage_threshold: 80  # percent
+
+# =============================================================================
+# LOGGING & DEBUGGING
+# =============================================================================
+logging:
+  # Log Levels by Component
+  levels:
+    controller_manager: "info"
+    diff_cont: "info"
+    slam_toolbox: "warn"
+    rplidar_ros: "warn"
+    rosbridge_server: "error"
+    
+  # Log File Configuration
+  files:
+    enable_file_logging: true
+    log_directory: "/var/log/robot"
+    max_file_size: "100MB"
+    max_files: 10
+    
+  # Performance Logging
+  performance_logging:
+    enable: true
+    frequency: 1.0  # Hz
+    metrics:
+      - "control_loop_time"
+      - "sensor_data_rate"
+      - "network_latency"
+      - "cpu_usage"
+      - "memory_usage"

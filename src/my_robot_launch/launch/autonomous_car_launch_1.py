@@ -247,7 +247,7 @@ def generate_launch_description():
     slam_config_localization = os.path.join(
         get_package_share_directory('slam_launch'),
         'config', 
-        'mapper_params_online_async-sim.yaml'
+        'mapper_params_online_async.yaml'
     )
     
     slam_node = Node(

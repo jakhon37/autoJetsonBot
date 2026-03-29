@@ -95,7 +95,7 @@ class ROS2TestClient:
                     if 'average rate:' in line:
                         rate = float(line.split('average rate:')[1].split()[0])
                         return rate
-            except:
+            except Exception:
                 pass
         return 0.0
     
@@ -156,7 +156,7 @@ class WebClient:
         try:
             response = requests.get(self.base_url, timeout=2)
             return response.status_code == 200
-        except:
+        except Exception:
             return False
     
     def get_status(self) -> Dict[str, Any]:
@@ -165,7 +165,7 @@ class WebClient:
             response = requests.get(f"{self.base_url}/api/status", timeout=2)
             if response.status_code == 200:
                 return response.json()
-        except:
+        except Exception:
             pass
         return {}
     
@@ -178,16 +178,15 @@ class WebClient:
                 timeout=2
             )
             return response.status_code == 200
-        except:
+        except Exception:
             return False
     
-    def connect_rosbridge(self) -> bool:
+    def connect_rosbridge(self, rosbridge_url: str = "ws://localhost:9090") -> bool:
         """Test WebSocket connection"""
         try:
-            ws_url = self.base_url.replace("http", "ws") + "/rosbridge"
-            self.ws = websocket.create_connection(ws_url, timeout=5)
+            self.ws = websocket.create_connection(rosbridge_url, timeout=5)
             return True
-        except:
+        except Exception:
             return False
     
     def close(self):

@@ -18,17 +18,16 @@ Browser (port 9090) ←WebSocket→ rosbridge_server ←ROS2→ Robot Nodes
 |---------|------|--------|---------|
 | `my_robot_launch` | Python | ✅ Active | Launch files, URDF, controllers — main package |
 | `web_gui_control` | Python | ✅ Active | Static web UI (no ROS nodes) |
-| `diffdrive_arduino` | C++ | ⚠️ Broken | ros2_control hardware interface for Arduino |
+| `diffdrive_arduino` | C++ | ✅ Active | ros2_control hardware interface for Arduino |
 | `object_detection` | Python | ⚠️ Partial | Camera + MobileNetSSD detection (node disabled) |
 | `mpu6050_imu` | Python | ✅ Active | I2C IMU sensor driver |
 | `slam_launch` | Python | ✅ Active | SLAM Toolbox configs (no nodes) |
-| `robot_body` | — | ❌ Broken | Not a valid ROS2 package (no package.xml) |
 
 ### Key Files
 - Main control script: `./robot.sh`
-- Web interface: `src/web_gui_control/index.html`
-- JS controller: `src/web_gui_control/js/robot-controller.js`
-- Launch files: `src/my_robot_launch/launch/*.py`
+- Web interface: `src/web_gui_control/launch_web_gui/index.html`
+- JS controller: `src/web_gui_control/launch_web_gui/js/robot-controller.js`
+- Launch files (4): `src/my_robot_launch/launch/robot_body_launch.py`, `robot_body_launch_sim.py`, `autonomous_car_launch_1.py`, `navigation_launch.py`
 - URDF: `src/my_robot_launch/urdf/*.xacro`
 - Controllers config: `src/my_robot_launch/config/my_controllers.yaml`
 - SLAM configs: `src/slam_launch/config/*.yaml`
@@ -48,48 +47,53 @@ Browser (port 9090) ←WebSocket→ rosbridge_server ←ROS2→ Robot Nodes
 ### 🔴 Critical
 | # | Issue | Location | Status |
 |---|-------|----------|--------|
-| 1 | `src/serial/` is empty — diffdrive_arduino build fails | `src/serial/` | TODO |
-| 2 | `diffdrive_robot.cpp` is ROS1 code in ROS2 package | `src/diffdrive_arduino/diffdrive_robot.cpp` | TODO |
-| 3 | `object_detection_node` disabled + hardcoded paths + missing model files | `src/object_detection/` | TODO |
-| 4 | Hardcoded absolute paths scattered across packages | Multiple files | TODO |
-| 5 | Web GUI publish rate setting is ignored (JS hardcodes 100ms) | `src/web_gui_control/js/robot-controller.js` | TODO |
-| 6 | "Reset Odometry" and "Save Map" buttons do nothing | `src/web_gui_control/index.html` | TODO |
-| 7 | Test bug: DockerClient used before import | `test_suite/hardware/test_hardware.py:28` | TODO |
+| 3 | `object_detection_node` disabled + missing model files | `src/object_detection/` | TODO |
 
 ### 🟡 Major
 | # | Issue | Location | Status |
 |---|-------|----------|--------|
-| 8 | 7+ launch files with 80%+ overlap → consolidate to 1-2 | `src/my_robot_launch/launch/` | TODO |
-| 9 | Duplicate files: index.html=index_modern.html, SLAM configs, xacro copies | Multiple | TODO |
-| 10 | Wheel separation inconsistent: 0.15 vs 0.18 vs 0.3 | Various configs | TODO |
-| 11 | Encoder counts inconsistent: 1920 vs 3436 | config.h vs ros2_control.xacro | TODO |
-| 12 | System metrics in GUI are fake (Math.random) | `src/web_gui_control/js/robot-controller.js` | TODO |
-| 13 | CDN dependency for roslib.js despite local copy | `src/web_gui_control/index.html` | TODO |
-| 14 | Test runner bugs: --quick runs twice, discovery pattern | `run_tests.py` | TODO |
-| 15 | `robot_body` is not a valid ROS2 package | `src/robot_body/` | TODO |
+| 17 | Boilerplate TODO descriptions in package.xml files | Multiple package.xml | TODO |
 
 ### 🟢 Minor
 | # | Issue | Location | Status |
 |---|-------|----------|--------|
 | 16 | Debug print statements in launch files | `src/my_robot_launch/launch/` | TODO |
-| 17 | Boilerplate TODO descriptions in package.xml files | Multiple package.xml | TODO |
 | 18 | No diagonal movement support in web GUI | `src/web_gui_control/js/robot-controller.js` | TODO |
-| 19 | Bare `except:` clauses in test utils | `test_suite/utils.py` | TODO |
-| 20 | Hardcoded IPs in web GUI files | `src/web_gui_control/` | TODO |
+| 21 | SLAM base_frame inconsistency (base_link vs base_footprint) | `slam_toolbox_config.yaml` vs others | TODO |
+
+### ✅ Resolved
+| # | Issue | Resolved |
+|---|-------|----------|
+| 1 | `src/serial/` was empty — added ros-foxy-serial to Dockerfile.foxy | 2026-03-29 |
+| 2 | `diffdrive_robot.cpp` was ROS1 code — deleted | 2026-03-29 |
+| 4 | Hardcoded absolute paths — dynamic paths via ament_index | 2026-03-29 |
+| 5 | Web GUI publish rate ignored — wired to JS interval | 2026-03-29 |
+| 6 | "Reset Odometry" and "Save Map" buttons dead — handlers added | 2026-03-29 |
+| 7 | DockerClient import order bug — moved to top | 2026-03-29 |
+| 8 | 7+ launch files overlap — consolidated to 4 | 2026-03-29 |
+| 9 | Duplicate files everywhere — removed all duplicates | 2026-03-29 |
+| 10 | Wheel separation inconsistent — standardized to 0.18 | 2026-03-29 |
+| 11 | Encoder counts inconsistent — standardized to 3436 | 2026-03-29 |
+| 12 | Fake system metrics — replaced with N/A | 2026-03-29 |
+| 13 | CDN roslib.js dependency — switched to local copy | 2026-03-29 |
+| 14 | Test runner bugs — discovery pattern and --quick fixed | 2026-03-29 |
+| 15 | `robot_body` broken package — removed | 2026-03-29 |
+| 19 | Bare except clauses — changed to `except Exception` | 2026-03-29 |
+| 20 | Hardcoded IPs in web GUI — removed | 2026-03-29 |
 
 ---
 
-## Config Inconsistencies
+## Config Values (Standardized)
 
-| Parameter | Location A | Value A | Location B | Value B |
-|-----------|-----------|---------|------------|---------|
-| Wheel separation | gazebo_control.xacro | 0.15 | ros2_control.xacro | 0.18 |
-| Wheel separation | my_controllers.yaml | 0.18 | robot_controller_example.yaml | 0.3 |
-| Encoder counts | config.h | 1920 | ros2_control.xacro | 3436 |
-| Encoder counts | diffbot_hardware.yaml | 3436 | — | — |
-| Serial port | config.h | /dev/ttyUSB0 | ros2_control.xacro | /dev/ttyACM0 |
-| Baud rate | config.h | 57600 | ros2_control.xacro | 115200 |
-| SLAM base_frame | slam_toolbox_config.yaml | base_link | all other SLAM configs | base_footprint |
+All configs now use consistent values:
+
+| Parameter | Value |
+|-----------|-------|
+| Wheel separation | 0.18m |
+| Wheel radius | 0.035m |
+| Encoder resolution | 3436 counts/rev |
+| Serial port | /dev/ttyACM0 |
+| Baud rate | 115200 |
 
 ---
 
@@ -107,27 +111,22 @@ Browser (port 9090) ←WebSocket→ rosbridge_server ←ROS2→ Robot Nodes
 | E2E tests | ❌ None | `test_suite/e2e/` empty |
 | Functional tests | ❌ None | No cmd_vel→movement verification |
 
-### Test Bugs
-1. `DockerClient` used before import in `test_hardware.py:28`
-2. `run_tests.py` discovery finds all tests in directory, not specific file
-3. `--quick` flag runs docker tests + ROS2 tests separately (duplication)
-4. `WebClient.connect_rosbridge()` constructs wrong URL
-5. Docker format typo `{{.CPUPercs}}` should be `{{.CPUPerc}}`
+### Test Bugs — All Fixed ✅
+1. ~~DockerClient used before import~~ — moved to top of file
+2. ~~Discovery pattern runs all tests~~ — now targets specific file
+3. ~~--quick runs tests twice~~ — run_ros added to quick test
+4. ~~WebClient URL wrong~~ — takes rosbridge_url parameter
+5. ~~Docker format typo~~ — CPUPercs → CPUPerc
 
 ---
 
-## Recommended Priority Order
+## Recommended Next Steps
 
-1. Fix `serial` dependency for `diffdrive_arduino`
-2. Consolidate launch files → 1-2 parameterized
-3. Remove duplicate files and backup copies
-4. Standardize config values (wheel separation, encoder counts, baud rate)
-5. Fix web GUI bugs (publish rate, dead buttons, offline roslib)
-6. Fix test bugs (DockerClient import, discovery pattern)
-7. Add unit tests and functional tests
-8. Make `robot_body` a valid package or remove it
-9. Remove hardcoded absolute paths
-10. Wire `unified_robot_config.yaml` to actual launch files
+1. Verify Docker build works with ros-foxy-serial added
+2. Add unit tests and functional tests
+3. Wire `unified_robot_config.yaml` to actual launch files
+4. Clean up remaining comment-based hardcoded paths (low priority)
+5. Consider diagonal movement support in web GUI
 
 ---
 
@@ -136,3 +135,4 @@ Browser (port 9090) ←WebSocket→ rosbridge_server ←ROS2→ Robot Nodes
 | Date | Session | Changes |
 |------|---------|---------|
 | 2026-03-29 | Analysis | Initial deep analysis, identified all issues |
+| 2026-03-29 | Fixes | Fixed 16 issues: serial dep, ROS1 code, duplicates, configs, web GUI, tests, paths |

@@ -54,7 +54,7 @@ class RobotConfig:
 @dataclass  
 class TestPaths:
     """File paths for testing"""
-    PROJECT_ROOT: str = "/home/jakhon37/myspace/robotics/autoJetsonBot"
+    PROJECT_ROOT: str = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
     SRC_DIR: str = "/autonomous_ROS/src"
     INSTALL_DIR: str = "/autonomous_ROS/install"
     LOG_DIR: str = "/autonomous_ROS/log"

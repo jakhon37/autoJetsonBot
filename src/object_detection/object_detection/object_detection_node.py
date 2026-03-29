@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+import os
 import rclpy
 from rclpy.node import Node
 from sensor_msgs.msg import Image
@@ -14,9 +15,14 @@ class ObjectDetectionNode(Node):
         self.bridge = CvBridge()
 
         # Load the pre-trained MobileNetSSD model
-        # Adjust these paths to where you have saved your model files.
-        prototxt_path = '/home/ubuntu/my_space/autonomous_ROS/src/object_detection/resource/MobileNetSSD_deploy.prototxt.txt'
-        model_path = '/home/ubuntu/my_space/autonomous_ROS/src/object_detection/resource/MobileNetSSD_deploy.caffemodel'
+        try:
+            from ament_index_python.packages import get_package_share_directory
+            pkg_path = get_package_share_directory('object_detection')
+            resource_dir = os.path.join(pkg_path, 'resource')
+        except Exception:
+            resource_dir = os.path.join(os.path.dirname(__file__), '..', 'resource')
+        prototxt_path = os.path.join(resource_dir, 'MobileNetSSD_deploy.prototxt.txt')
+        model_path = os.path.join(resource_dir, 'MobileNetSSD_deploy.caffemodel')
         self.net = cv2.dnn.readNetFromCaffe(prototxt_path, model_path)
         
         # Define the class labels MobileNetSSD was trained to detect

@@ -67,6 +67,20 @@ class RobotController {
       document.getElementById('angularValue').textContent = this.angularScale.toFixed(2);
     });
     
+    // Robot settings from sidebar
+    document.getElementById('maxLinearVel').addEventListener('change', (e) => {
+      this.config.maxLinearVel = parseFloat(e.target.value) || 1.0;
+    });
+    
+    document.getElementById('maxAngularVel').addEventListener('change', (e) => {
+      this.config.maxAngularVel = parseFloat(e.target.value) || 2.0;
+    });
+    
+    document.getElementById('publishRate').addEventListener('change', (e) => {
+      const hz = parseFloat(e.target.value) || 10;
+      this.config.publishRate = Math.round(1000 / hz);
+    });
+    
     // D-pad controls
     this.setupDPadControls();
     
@@ -75,6 +89,12 @@ class RobotController {
     
     // Emergency stop
     document.getElementById('emergencyStop').addEventListener('click', () => this.emergencyStop());
+    
+    // Reset odometry
+    document.getElementById('resetOdometry').addEventListener('click', () => this.resetOdometry());
+    
+    // Save map
+    document.getElementById('saveMap').addEventListener('click', () => this.saveMap());
   }
   
   setupDPadControls() {
@@ -150,14 +170,12 @@ class RobotController {
     this.updateConnectionStatus('disconnected');
   }
   
-  autoDetectROSBridge() {
+    autoDetectROSBridge() {
     const hostname = window.location.hostname;
     const possibleUrls = [
       `ws://${hostname}:9090`,
       'ws://localhost:9090',
-      'ws://127.0.0.1:9090',
-      'ws://192.168.219.150:9090',
-      'ws://192.168.219.151:9090'
+      'ws://127.0.0.1:9090'
     ];
     
     document.getElementById('rosbridgeUrl').value = possibleUrls[0];
@@ -314,6 +332,38 @@ class RobotController {
     }, 1000);
   }
   
+  resetOdometry() {
+    if (!this.isConnected) {
+      this.log('Cannot reset odometry: not connected', 'warning');
+      return;
+    }
+    // Publish zero pose to reset topic (requires nav2 or custom node)
+    const resetTopic = new ROSLIB.Topic({
+      ros: this.ros,
+      name: '/initialpose',
+      messageType: 'geometry_msgs/PoseWithCovarianceStamped'
+    });
+    const msg = new ROSLIB.Message({
+      header: { frame_id: 'map' },
+      pose: {
+        pose: {
+          position: { x: 0, y: 0, z: 0 },
+          orientation: { x: 0, y: 0, z: 0, w: 1 }
+        }
+      }
+    });
+    resetTopic.publish(msg);
+    this.log('Odometry reset requested', 'info');
+  }
+  
+  saveMap() {
+    if (!this.isConnected) {
+      this.log('Cannot save map: not connected', 'warning');
+      return;
+    }
+    this.log('Map save requested — run: ros2 run nav2_map_server map_saver_cli -f map', 'info');
+  }
+  
   publishVelocity() {
     if (!this.cmdVel || !this.isConnected) return;
     
@@ -349,13 +399,19 @@ class RobotController {
   }
   
   updateScanData(message) {
-    // Process laser scan data for obstacle detection
+    // Sample every 10th range for performance
     const ranges = message.ranges;
-    const minRange = Math.min(...ranges.filter(r => r > 0));
+    let minRange = Infinity;
+    for (let i = 0; i < ranges.length; i += 10) {
+      if (ranges[i] > 0 && ranges[i] < minRange) {
+        minRange = ranges[i];
+      }
+    }
     
-    // Update obstacle warning if too close
-    if (minRange < 0.5) {
+    // Update obstacle warning if too close (throttled to once per 5s)
+    if (minRange < 0.5 && (!this._lastScanWarn || Date.now() - this._lastScanWarn > 5000)) {
       this.log(`Obstacle detected at ${minRange.toFixed(2)}m`, 'warning');
+      this._lastScanWarn = Date.now();
     }
   }
   
@@ -399,12 +455,9 @@ class RobotController {
     document.getElementById('angularVel').textContent = this.metrics.angularVel.toFixed(2);
     document.getElementById('batteryLevel').textContent = this.metrics.batteryLevel;
     
-    // Simulate system metrics (in real implementation, get from robot)
-    this.metrics.cpuUsage = Math.random() * 30 + 20;
-    this.metrics.memoryUsage = Math.random() * 40 + 30;
-    
-    document.getElementById('cpuUsage').textContent = this.metrics.cpuUsage.toFixed(1);
-    document.getElementById('memoryUsage').textContent = this.metrics.memoryUsage.toFixed(1);
+    // System metrics require backend support (not available from browser)
+    document.getElementById('cpuUsage').textContent = 'N/A';
+    document.getElementById('memoryUsage').textContent = 'N/A';
   }
   
   log(message, type = 'info') {

@@ -11,7 +11,7 @@ import re
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from test_suite.config import config
-from test_suite.utils import ROS2TestClient
+from test_suite.utils import ROS2TestClient, DockerClient
 
 
 class TestMotorController(unittest.TestCase):
@@ -207,9 +207,6 @@ class TestHardwareParameters(unittest.TestCase):
         if not controller:
             self.skipTest("Controllers not loaded")
 
-
-# Import DockerClient for hardware tests
-from test_suite.utils import DockerClient
 
 
 if __name__ == "__main__":

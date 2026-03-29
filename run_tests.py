@@ -47,14 +47,15 @@ class TestRunner:
         print(f"Running: {description}")
         print(f"{'='*60}\n")
         
-        # Discover tests from the directory containing test files
-        test_dir = os.path.dirname(test_path)
+        # Load specific test file by module path
+        module_name = os.path.splitext(os.path.basename(test_path))[0]
+        module_dir = os.path.dirname(test_path)
         
         loader = unittest.TestLoader()
-        suite = loader.discover(test_dir, pattern="test_*.py")
+        spec = loader.discover(module_dir, pattern=f"{module_name}.py")
         
         runner = unittest.TextTestRunner(verbosity=2 if self.verbose else 1)
-        result = runner.run(suite)
+        result = runner.run(spec)
         
         return result
     
@@ -126,7 +127,7 @@ Examples:
     
     # Determine which tests to run
     run_docker = args.docker or args.all or args.quick
-    run_ros = args.ros or args.all
+    run_ros = args.ros or args.all or args.quick
     run_web = args.web or args.all
     run_nav = args.nav or args.all
     run_sim = args.sim or args.all
@@ -184,14 +185,6 @@ Examples:
             result = runner.run_tests(
                 os.path.join(test_dir, "test_suite/hardware/test_hardware.py"),
                 "Hardware Tests"
-            )
-            results.append(result)
-        
-        # Quick test - just Docker + basic ROS
-        if args.quick:
-            result = runner.run_tests(
-                os.path.join(test_dir, "test_suite/integration/test_ros2_core.py"),
-                "Quick Smoke Test"
             )
             results.append(result)
         

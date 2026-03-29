@@ -140,7 +140,7 @@ class TestDockerPerformance(unittest.TestCase):
         """Test container CPU usage"""
         result = subprocess.run(
             ["docker", "stats", "--no-stream", "--format",
-             "{{.CPUPercs}}", self.container_name],
+             "{{.CPUPerc}}", self.container_name],
             capture_output=True,
             text=True
         )

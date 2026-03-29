@@ -37,7 +37,12 @@ def main():
         tf_broadcaster = TransformBroadcaster(node)
     
     # Path to the URDF file (adjust this to your URDF location)
-    urdf_path = "/home/jetson/myspace/autoJetsonBot/src/my_robot_launch/urdf/robot_core.urdf"
+    try:
+        from ament_index_python.packages import get_package_share_directory
+        pkg_path = get_package_share_directory('my_robot_launch')
+        urdf_path = os.path.join(pkg_path, 'urdf', 'robot_core.xacro')
+    except Exception:
+        urdf_path = os.path.join(os.path.dirname(__file__), '..', 'urdf', 'robot_core.xacro')
     
     # Load URDF and set robot_description parameter
     urdf_content = load_urdf(urdf_path)

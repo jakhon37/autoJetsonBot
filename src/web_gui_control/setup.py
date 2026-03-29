@@ -14,9 +14,6 @@ setup(
         ('share/' + package_name, ['package.xml']),
         ('share/' + package_name + '/launch_web_gui', [
             'launch_web_gui/index.html',
-            'launch_web_gui/index1.html', 
-            'launch_web_gui/index_dynamic.html',
-            'launch_web_gui/index_modern.html',
             'launch_web_gui/roslib.min.js',
             'launch_web_gui/run_web.sh'
         ]),

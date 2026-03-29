@@ -86,7 +86,7 @@ def generate_launch_description():
     slam_pkg = get_package_share_directory('slam_launch')
     
     # Choose between mapping and localization based on navigation mode
-    mapping_config = os.path.join(slam_pkg, 'config/mapper_params_online_async-sim.yaml')
+    mapping_config = os.path.join(slam_pkg, 'config/mapper_params_online_async.yaml')
     localization_config = os.path.join(slam_pkg, 'config/slam_config_localization.yaml')
     
     # Use localization mode when navigation is enabled, mapping mode otherwise

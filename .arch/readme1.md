@@ -1,343 +1,387 @@
+## Due to raspberry pi's low 2gb memory we could not run slam&navigation on the device. You can still create mobile robot that can be controlled on your phone throuh web controll gui 
+## So we will continue this project with Jetson nano b1 on - github/...
+# Autonomous ROS Project
 
+This project integrates multiple sensors and actuators on a mobile robot platform to achieve autonomous navigation. The system runs on a Raspberry Pi 4B (2GB) and combines motor control, encoder feedback, LIDAR scanning, SLAM, navigation, camera vision, and line tracking.
+---
+[<img src="assets/thubnl.png" width="50%">](https://youtu.be/JTg8ff2hSGM?si=UqfauM6vN_xyPFOV)
+---
+> **Status Overview:**  
+> - **Completed:** Motor control node, encoder node, and web GUI for remote control  
+> - **In Progress:** RP‑Lidar scan node, SLAM integration, navigation stack, camera & object detection, and line tracking
+aBelow is a revised, polished version of your README that consolidates information, removes duplicates, fills in missing details, and adds a section on Dockerization. You can adjust details (such as package names, file paths, or contact information) as needed.
 
-- create project sturcture as shown in the repo 
+---
 
+# Autonomous ROS Project
 
-```
-autonomus_ROS/
-├── src
-│   └── config
-│       └── empty_config.yaml
-│   └── description
-│       └── robot.urdf.xacro
-│   └── include
-│   └── launch
-│       └── rsp.launch.py
-│   └── worldsc
-│       └── empty.world
-│   └── ...
+This project integrates multiple sensors and actuators on a mobile robot platform to achieve autonomous navigation. The system runs on a Raspberry Pi 4B (2GB) with Ubuntu 22.04 and ROS 2 Humble. It combines motor control, encoder feedback, LIDAR scanning, SLAM, navigation, camera vision, and line tracking.
 
-```
-- install ros2 full packages and extra packages as shown below: 
-```
-sudo apt install ros-jazzy-xacro 
-sudo apt install ros-jazzy-joint-state-publisher-gui
-```
- 
-- build colcon project
-```
-cd ~/autonomus_ROS
-colcon build --symlink-install
+[![Project Video](assets/thubnl.png)](https://youtu.be/JTg8ff2hSGM?si=UqfauM6vN_xyPFOV)
 
-```
+> **Status Overview:**  
+> - **Completed:** Dual Motor Control Node, Encoder Node, Web GUI for remote control  
+> - **In Progress:** RP‑Lidar Scan Node, SLAM integration, Navigation Stack, Camera & Object Detection, Line Tracking
 
-- activate new ros project env 
+![Project Image](assets/thub.png)
 
-```
-source install/setup.bash
-```
-- visualize robot 
-```
-ros2 launch my_bot rsp.launch.py
-```
+---
 
-- add base link and some details on robot desctiption 
-```
---rerun lauch file 
---run rviz2 on another terminal 
---Set the fixed frame to base_link on rviz2 
---Add a TF display (and enable showing names)
---Add a RobotModel display (setting the topic to /robot_description)
-```
+## Table of Contents
 
-- run wheel joints runner 
+- [Hardware Components](#hardware-components)
+- [Circuit Connection & Wiring Details](#circuit-connection--wiring-details)
+- [Software Overview and Nodes](#software-overview-and-nodes)
+  - [Dual Motor Control Node](#dual-motor-control-node)
+  - [Encoder Node](#encoder-node)
+  - [Web GUI Node](#web-gui-node)
+  - [RP‑Lidar Scan Node (In Progress)](#rp-lidar-scan-node-in-progress)
+  - [SLAM Node (In Progress)](#slam-node-in-progress)
+  - [Navigation Node (In Progress)](#navigation-node-in-progress)
+  - [Camera / Object Detection Node (In Progress)](#camera--object-detection-node-in-progress)
+  - [Line Tracking Node (In Progress)](#line-tracking-node-in-progress)
+- [Creating New Nodes](#creating-new-nodes)
+- [To-Do List](#to-do-list)
+- [Installation and Launch Instructions](#installation-and-launch-instructions)
+- [Dockerization](#dockerization)
+- [License](#license)
 
-```
-ros2 runjoint_state_publisher_gui joint_state_publisher_gui
-```
+---
 
-- gazebo launch 
+## Hardware Components
 
-```
-ros2 launch gazebo_ros gazebo.launch.py
-```
+- **Raspberry Pi 4B (2GB)**  
+  - Runs Ubuntu 22.04 and ROS 2 Humble.
+- **TB6612 Dual Motor Driver**  
+  - Controls two DC motors via PWM and direction signals.
+- **2 × JGA25-370 DC 6V Geared Motors with Encoders and Wheels**  
+  - Provide propulsion and motion feedback.
+- **7.2V 4500mAh Li-ion Battery**  
+  - Powers the motors (via the motor driver's VM and GND outputs).
+- **5V 5000mAh Power Bank**  
+  - Powers the Raspberry Pi via its Type-C connector.
+- **RP‑Lidar A1**  
+  - Provides 2D LaserScan data on the `/scan` topic for SLAM and obstacle detection.
+- **Raspberry Pi Camera**  
+  - For vision-based tasks such as object detection and line tracking.
+- **Extra Balance Wheel**  
+  - Helps maintain stability.
+- **XL6015 Boost Converter**  
+  - Used if voltage adaptation is needed (e.g., when using a 12V battery).
 
-if gazebo has not alreay been installed 
-```
-sudo apt install ros-jazzy-gazebo-ros-pkgs
-```
-for the rest of guide refer to : https://articulatedrobotics.xyz/tutorials/mobile-robot/concept-design/concept-gazebo
+---
 
-- gazebo hormonic launch 
+## Circuit Connection & Wiring Details
 
-```
-sudo apt install ros-jazzy-ros2-control
-sudo apt install ros-jazzy-ros2-controllers
-sudo apt install ros-jazzy-ros-gz
-sudo apt install ros-jazzy-gz-ros2-control
-sudo apt install ros-jazzy-joy*
-sudo apt install ros-jazzy-joint-state-publisher
+### Raspberry Pi 4B Connections
 
+- **Motor Driver (TB6612FNG):**
+  - **PWMA (Left Motor PWM):** GPIO18 → TB6612FNG PWMA
+  - **AI1 (Left Motor Direction):** GPIO23 → TB6612FNG AI1
+  - **AI2 (Left Motor Direction):** GPIO24 → TB6612FNG AI2
+  - **PWMB (Right Motor PWM):** GPIO13 → TB6612FNG PWMB
+  - **BI1 (Right Motor Direction):** GPIO19 → TB6612FNG BI1
+  - **BI2 (Right Motor Direction):** GPIO26 → TB6612FNG BI2
+  - **STBY & VCC:** 5V → TB6612FNG (enables driver and provides logic power)
+  - **GND:** Common ground
 
+- **Motors with Encoders (JGA25-371dc):**
+  - **Motor Power:**
+    - **Motor Power +:** Connected to TB6612FNG outputs (A01/B01)
+    - **Motor Power -:** Connected to TB6612FNG outputs (A02/B02)
+  - **Encoder Power:**
+    - **Encoder Power +:** 3V3 from Raspberry Pi
+    - **Encoder Power -:** GND
+  - **Encoder Signals:**
+    - **Channel 1 / A (C1/A):** Connect to GPIO5 and/or GPIO17
+    - **Channel 2 / B (C2/B):** Connect to GPIO6 and/or GPIO27
 
-ros2 launch gazebo_ros gazebo.launch.py
-```
-for the rest of gazebo hormonic, reger to https://www.youtube.com/watch?v=b8VwSsbZYn0
+- **Power:**
+  - **Raspberry Pi:** Powered via a 5V 5000mAh power bank (Type-C)
+  - **Motors:** Powered by a 7.2V 4500mAh Li-ion battery connected to TB6612FNG VM and GND
 
+### TB6612FNG Motor Driver Connections
 
+- **Inputs (from Raspberry Pi):**
+  - **Left Motor:** PWMA (GPIO18), AI1 (GPIO23), AI2 (GPIO24)
+  - **Right Motor:** PWMB (GPIO13), BI1 (GPIO19), BI2 (GPIO26)
+- **Power & Enable:**
+  - **STBY & VCC:** 5V (from Raspberry Pi)
+  - **VM:** 7.2V Li-ion battery
+  - **GND:** Common ground
+- **Outputs (to Motors):**
+  - **A01, B01:** Motor Power +
+  - **A02, B02:** Motor Power -
 
+### Additional Components
 
+- **RP‑Lidar A1:**  
+  - Connect via USB (e.g., `/dev/ttyUSB0`) and configure in its launch file.
+- **Raspberry Pi Camera:**  
+  - Connect to the dedicated camera interface.
+- **Balance Wheel:**  
+  - Mount mechanically to help stabilize the robot.
 
+---
 
+## Software Overview and Nodes
 
+### Dual Motor Control Node
 
-
-
-```
-
-
-
-
-
-
-
-
-```
-
-
-
-Implementing an autonomous driving system with ROS (Robot Operating System) on the NVIDIA Jetson Nano involves several steps, including setting up the hardware, installing the necessary software, and developing and integrating various components such as perception, planning, and control. Here’s a comprehensive guide to help you get started:
-
-### 1. Setting Up the Jetson Nano
-
-#### Hardware Requirements:
-- NVIDIA Jetson Nano Developer Kit
-- MicroSD card (32GB or larger)
-- Power supply (5V 4A recommended)
-- Camera (preferably a stereo camera or depth camera)
-- Sensors (e.g., LiDAR, ultrasonic sensors, IMU)
-- Motor controller and actuators (for steering and throttle)
-- Monitor, keyboard, and mouse
-
-#### Software Requirements:
-- JetPack SDK
-- ROS Melodic or ROS Noetic
-- Python libraries: OpenCV, NumPy, etc.
-- Deep learning frameworks: TensorFlow or PyTorch
-
-### 2. Initial Setup
-
-1. **Flash the MicroSD Card:**
-   - Download and flash the JetPack image onto the MicroSD card.
-
-2. **Boot the Jetson Nano:**
-   - Insert the MicroSD card, connect peripherals, and power on the Jetson Nano.
-
-3. **Install ROS:**
-   - Follow the ROS installation guide for Jetson Nano:
-     ```sh
-     # Set up your sources.list
-     sudo sh -c 'echo "deb http://packages.ros.org/ros/ubuntu $(lsb_release -sc) main" > /etc/apt/sources.list.d/ros-latest.list'
-
-     # Set up your keys
-     sudo apt-key adv --keyserver 'hkp://keyserver.ubuntu.com:80' --recv-key C1CF6E31E6BADE8868B172B4F42ED6FBAB17C654
-
-     # Update package index
-     sudo apt-get update
-
-     # Install ROS
-     sudo apt-get install ros-melodic-desktop-full
-
-     # Initialize rosdep
-     sudo rosdep init
-     rosdep update
-
-     # Environment setup
-     echo "source /opt/ros/melodic/setup.bash" >> ~/.bashrc
-     source ~/.bashrc
-
-     # Dependencies for building packages
-     sudo apt install python-rosinstall python-rosinstall-generator python-wstool build-essential
+- **Status:** Complete  
+- **Location:** `src/dual_motor/dual_motor/dual_motor_controller.py`  
+- **Description:**  
+  Subscribes to `/cmd_vel` (Twist messages) and drives the TB6612FNG using PWM signals to control motor speed and direction.
+- **Key Topics:**
+  - **Subscribed:** `/cmd_vel`
+- **Creation Steps:**
+  1. Create package:
+     ```bash
+     ros2 pkg create --build-type ament_python dual_motor --dependencies rclpy std_msgs
      ```
+  2. Implement node using RPi.GPIO.
+  3. Update `package.xml` and `setup.py`.
 
-4. **Install Required Libraries:**
-   - Update the system and install essential libraries:
-     ```sh
-     sudo apt-get update
-     sudo apt-get upgrade
-     sudo apt-get install python3-opencv python3-numpy
-     pip3 install tensorflow
+---
+
+### Encoder Node
+
+- **Status:** Complete  
+- **Location:** `src/motor_encoder/motor_encoder/dual_encoder_node.py`  
+- **Description:**  
+  Reads encoder signals via GPIO interrupts and publishes RPM data on `/left_motor_rpm` and `/right_motor_rpm`.
+- **Key Topics:**
+  - **Published:** `/left_motor_rpm`, `/right_motor_rpm`
+- **Creation Steps:**
+  1. Create package:
+     ```bash
+     ros2 pkg create --build-type ament_python motor_encoder --dependencies rclpy sensor_msgs std_msgs
      ```
+  2. Implement node using RPi.GPIO.
+  3. Update `package.xml` and `setup.py`.
 
-### 3. Developing the Autonomous Driving System
+---
 
-#### Step 1: Perception (Object Detection, Lane Detection)
+### Web GUI Node
 
-1. **Object Detection:**
-   - Use a pretrained deep learning model for object detection (e.g., SSD, YOLO):
-     ```python
-     import tensorflow as tf
-     import numpy as np
-     import cv2
+- **Status:** Complete  
+- **Location:** `src/my_robot_launch/launch/web_gui/index.html`  
+- **Description:**  
+  An HTML/JavaScript interface (using roslib.js) for remote control and monitoring. It publishes motor commands to `/cmd_vel` and subscribes to encoder topics.
+- **Key Topics:**
+  - **Published:** `/cmd_vel`
+  - **Subscribed:** `/left_motor_rpm`, `/right_motor_rpm`
+- **Creation Steps:**
+  - Place your `index.html` and `roslib.min.js` files in `launch/web_gui/`.
+  - Serve the directory using a simple HTTP server (see Unified Launch File below).
 
-     model = tf.saved_model.load("ssd_mobilenet_v2_fpnlite_320x320/saved_model")
-     detection_fn = model.signatures['serving_default']
+---
 
-     def detect_objects(image):
-         input_tensor = tf.convert_to_tensor(image)
-         input_tensor = input_tensor[tf.newaxis, ...]
-         detections = detection_fn(input_tensor)
-         return detections
+### MY ROBOT LAUNCH Node
 
-     cap = cv2.VideoCapture(0)
-     while True:
-         ret, frame = cap.read()
-         if not ret:
-             break
-         image_np = np.array(frame)
-         detections = detect_objects(image_np)
-         for i in range(int(detections['num_detections'])):
-             score = detections['detection_scores'][i].numpy()
-             if score > 0.5:
-                 bbox = detections['detection_boxes'][i].numpy()
-                 ymin, xmin, ymax, xmax = bbox
-                 (left, right, top, bottom) = (xmin * width, xmax * width, ymin * height, ymax * height)
-                 cv2.rectangle(frame, (int(left), int(top)), (int(right), int(bottom)), (0, 255, 0), 2)
-         cv2.imshow('Autonomous Driving - Object Detection', frame)
-         if cv2.waitKey(1) & 0xFF == ord('q'):
-             break
-     cap.release()
-     cv2.destroyAllWindows()
-     ```
+- **Status:** Complete  
+- **All Nodes Location:** `src/my_robot_launch/launch/autonomous_car_launch.py`  
+- **Launch file:** `src/my_robot_launch/launch/launchpr.py`
+- **Description:**  
+  All nodes to launch at once. 
+- **Creation Steps:**
+  - Place web_gui in launch folder.
+  - Update `package.xml` and `setup.py`.
 
-2. **Lane Detection:**
-   ```python
-   def region_of_interest(img, vertices):
-       mask = np.zeros_like(img)
-       cv2.fillPoly(mask, vertices, 255)
-       masked_image = cv2.bitwise_and(img, mask)
-       return masked_image
 
-   def draw_lines(img, lines):
-       if lines is not None:
-           for line in lines:
-               for x1, y1, x2, y2 in line:
-                   cv2.line(img, (x1, y1), (x2, y2), (0, 255, 0), 5)
+---
 
-   cap = cv2.VideoCapture(0)
-   while True:
-       ret, frame = cap.read()
-       if not ret:
-           break
-       gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
-       blur = cv2.GaussianBlur(gray, (5, 5), 0)
-       edges = cv2.Canny(blur, 50, 150)
-       height, width = edges.shape
-       roi_vertices = [(0, height), (width / 2, height / 2), (width, height)]
-       cropped_edges = region_of_interest(edges, np.array([roi_vertices], np.int32))
-       lines = cv2.HoughLinesP(cropped_edges, 1, np.pi / 180, 50, maxLineGap=50)
-       draw_lines(frame, lines)
-       cv2.imshow('Autonomous Driving - Lane Detection', frame)
-       if cv2.waitKey(1) & 0xFF == ord('q'):
-           break
-   cap.release()
-   cv2.destroyAllWindows()
+### RP‑Lidar Scan Node (In Progress)
+
+- **Status:** In Progress  
+- **Location:** Typically provided by the `rplidar_ros` package.
+- **Description:**  
+  Reads LIDAR data from the RP‑Lidar A1 and publishes LaserScan messages on `/scan`.
+- **Key Topics:**
+  - **Published:** `/scan`
+- **Creation Steps:**  
+  Install via apt:
+  ```bash
+  sudo apt install ros-humble-rplidar-ros
+  ```
+  and include it in your autonomous car launch file.
+
+---
+
+### SLAM Node (In Progress)
+
+- **Status:** In Progress  
+- **Location:** `src/my_robot_slam/` (using slam_toolbox)
+- **Description:**  
+  Uses `async_slam_toolbox_node` (or sync version) to build a map from LIDAR data and publishes `/map` along with TF transforms.
+- **Key Topics:**
+  - **Subscribed:** `/scan`
+  - **Published:** `/map`
+- **Creation Steps:**  
+  Create a configuration file in `config/` and a launch file to start the SLAM node. Install via:
+  ```bash
+  sudo apt install ros-humble-slam-toolbox
+  ```
+
+---
+
+### Navigation Node (In Progress)
+
+- **Status:** In Progress  
+- **Location:** In a package like `my_robot_nav` or via the Navigation2 stack.
+- **Description:**  
+  Provides autonomous navigation using planners and costmaps.
+- **Key Topics:**
+  - **Subscribed:** `/map`, `/scan`, `/odom`
+  - **Published:** `/cmd_vel`
+- **Creation Steps:**  
+  Create navigation parameters (e.g., `nav2_params.yaml`) and a launch file for Nav2.
+
+---
+
+### Camera / Object Detection Node (In Progress)
+
+- **Status:** In Progress  
+- **Location:** `src/camera_node/` or `src/object_detection/`
+- **Description:**  
+  Captures images with the Raspberry Pi camera (or USB camera) using OpenCV and publishes them on `/camera/image_raw`. Optionally runs object detection.
+- **Key Topics:**
+  - **Published:** `/camera/image_raw`
+- **Creation Steps:**  
+  Create a package:
+  ```bash
+  ros2 pkg create --build-type ament_python camera_node --dependencies rclpy sensor_msgs cv_bridge
+  ```
+  Implement the node with OpenCV and cv_bridge.
+
+---
+
+### Line Tracking Node (In Progress)
+
+- **Status:** In Progress  
+- **Location:** `src/line_tracking/line_tracking/line_tracking_node.py`
+- **Description:**  
+  Processes camera images to detect and follow a line, publishing velocity commands to `/cmd_vel`.
+- **Key Topics:**
+  - **Subscribed:** `/camera/image_raw`
+  - **Published:** `/cmd_vel`
+- **Creation Steps:**  
+  Create a package:
+  ```bash
+  ros2 pkg create --build-type ament_python line_tracking --dependencies rclpy sensor_msgs cv_bridge geometry_msgs
+  ```
+  Implement the node using OpenCV.
+
+---
+
+## Creating New Nodes
+
+1. **Create a New Package:**  
+   ```bash
+   ros2 pkg create --build-type ament_python <package_name> --dependencies rclpy <other_dependencies>
+   ```
+2. **Write the Node Script:**  
+   Place your Python script (with a proper shebang, e.g., `#!/usr/bin/env python3`) in `src/<package_name>/` and make it executable:
+   ```bash
+   chmod +x src/<package_name>/<node_script>.py
+   ```
+3. **Update `package.xml` and `setup.py`:**  
+   Ensure all dependencies are declared.
+4. **Build the Package:**  
+   ```bash
+   colcon build --packages-select <package_name>
+   source install/setup.bash
+   ```
+5. **(Optional) Create a Launch File:**  
+   Use Python launch files to start your node(s).
+
+---
+
+## To-Do List
+
+- [x] Dual Motor Control Node  
+- [x] Encoder Node  
+- [x] Web GUI  
+- [ ] RP‑Lidar Scan Node  
+- [ ] SLAM Integration (using slam_toolbox)  
+- [ ] Navigation Stack (Nav2)  
+- [ ] Camera / Object Detection Node  
+- [ ] Line Tracking Node  
+
+---
+
+## Installation and Launch Instructions
+
+1. **Build the Workspace:**  
+   From the workspace root (`autonomous_ROS/`):
+   ```bash
+   colcon build
+   source install/setup.bash
    ```
 
-#### Step 2: Planning (Path Planning)
+2. **Launch All Nodes:**  
+   Use the unified launch file in the `my_robot_launch` package:
+   ```bash
+   ros2 launch my_robot_launch all_nodes_launch.py
+   ```
+   This will:
+   - Launch autonomous car nodes (motor control, encoder, etc.)
+   - Start the rosbridge server (on port 9090)
+   - Start the HTTP server (serving the web GUI on port 8000)
 
-1. **Implementing a Simple Path Planner:**
-   - Use A* or Dijkstra’s algorithm for path planning:
-     ```python
-     import heapq
+3. **Access the Web GUI:**  
+   Open a web browser on a device in the same network and navigate to:
+   ```
+   http://<raspberry_pi_ip>:8000
+   ```
+   For example, if the Pi's IP is `192.168.219.100`, use:
+   ```
+   http://192.168.219.100:8000
+   ```
 
-     def a_star(start, goal, graph):
-         open_list = []
-         heapq.heappush(open_list, (0, start))
-         came_from = {}
-         g_score = {node: float('inf') for node in graph}
-         g_score[start] = 0
-         f_score = {node: float('inf') for node in graph}
-         f_score[start] = heuristic(start, goal)
+4. **Remote Visualization (Optional):**  
+   Run RViz on another machine (with ROS 2 Humble) to view topics such as `/map` and `/scan`.
 
-         while open_list:
-             _, current = heapq.heappop(open_list)
-             if current == goal:
-                 return reconstruct_path(came_from, current)
-             for neighbor in graph[current]:
-                 tentative_g_score = g_score[current] + graph[current][neighbor]
-                 if tentative_g_score < g_score[neighbor]:
-                     came_from[neighbor] = current
-                     g_score[neighbor] = tentative_g_score
-                     f_score[neighbor] = g_score[neighbor] + heuristic(neighbor, goal)
-                     if neighbor not in [i[1] for i in open_list]:
-                         heapq.heappush(open_list, (f_score[neighbor], neighbor))
-         return []
+---
 
-     def heuristic(a, b):
-         return abs(a[0] - b[0]) + abs(a[1] - b[1])
+## Dockerization
 
-     def reconstruct_path(came_from, current):
-         total_path = [current]
-         while current in came_from:
-             current = came_from[current]
-             total_path.append(current)
-         return total_path[::-1]
-     ```
+To simplify deployment and ensure a consistent environment, you can containerize your project using Docker.
 
-2. **Integrate with ROS:**
-   - Create a ROS node to handle path planning and communication with other components:
-     ```python
-     import rospy
-     from nav_msgs.msg import Path
-     from geometry_msgs.msg import PoseStamped
+### Example Dockerfile
 
-     def path_planner():
-         rospy.init_node('path_planner', anonymous=True)
-         path_pub = rospy.Publisher('/planned_path', Path, queue_size=10)
-         rate = rospy.Rate(10)
+Place check Dockerfile in the root directory (`autonomous_ROS/Dockerfile`)
 
-         while not rospy.is_shutdown():
-             path_msg = Path()
-             path_msg.header.stamp = rospy.Time.now()
-             path_msg.header.frame_id = "map"
-             for pose in planned_path:
-                 pose_msg = PoseStamped()
-                 pose_msg.header.stamp = rospy.Time.now()
-                 pose_msg.header.frame_id = "map"
-                 pose_msg.pose.position.x = pose[0]
-                 pose_msg.pose.position.y = pose[1]
-                 path_msg.poses.append(pose_msg)
-             path_pub.publish(path_msg)
-             rate.sleep()
+### Building and Running the Docker Container
 
-     if __name__ == '__main__':
-         try:
-             planned_path = a_star(start, goal, graph)
-             path_planner()
-         except rospy.ROSInterruptException:
-             pass
-     ```
+1. **Build the Image:**
+   ```bash
+   docker build -t autonomous_ros_project .
+   ```
 
-#### Step 3: Control (Actuating the Vehicle)
+2. **Run the Container (using host networking for ROS 2 DDS discovery):**
+   ```bash
+   docker run -d \
+    --privileged \
+    --restart=always \
+    --name auto_ros \
+    --network=host \
+    autonomous_ros_project
 
-1. **Implementing Control Algorithms:**
-   - Use a PID controller for steering and speed control:
-     ```python
-     class PIDController:
-         def __init__(self, kp, ki, kd):
-             self.kp = kp
-             self.ki = ki
-             self.kd = kd
-             self.previous_error = 0
-             self.integral = 0
+   ```
 
-         def control(self, setpoint, measured_value):
-             error = setpoint - measured_value
-             self.integral += error
-             derivative = error - self.previous_error
-             output = self.kp * error + self.ki * self.integral + self.kd * derivative
-             self.previous_error = error
-             return output
+3. **Access the Web GUI:**  
+   Open a browser and navigate to:
+   ```
+   http://<raspberry_pi_ip>:8000
+   ```
 
-     pid = PIDController(1.0, 0.1, 
+---
+
+## License
+
+This project is licensed under the MIT License. Feel free to modify, distribute, or use this code for personal, educational, or commercial purposes, provided proper attribution is given.
+
+---
+
+*For issues or contributions, please contact jakhon37@gmail.com*

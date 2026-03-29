@@ -16,7 +16,8 @@ setup(
         ('share/' + package_name + '/launch', glob('launch/*.py')),
         ('share/' + package_name + '/my_robot_launch', glob('my_robot_launch/*.py')),
         ('share/' + package_name + '/config', glob('config/*.yaml')),
-        ('share/' + package_name + '/launch', glob('launch/robot_body_launch_sim.py')),
+        ('share/' + package_name + '/config', glob('config/*.world')),
+        ('share/' + package_name + '/config', glob('config/*.rviz')),
         
         
         # ('share/' + package_name + '/launch/web_gui', glob('launch/web_gui/*')),

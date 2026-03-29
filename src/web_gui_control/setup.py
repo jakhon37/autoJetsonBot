@@ -12,9 +12,14 @@ setup(
         ('share/ament_index/resource_index/packages',
             ['resource/' + package_name]),
         ('share/' + package_name, ['package.xml']),
-        ('share/' + package_name + '/launch_web_gui', glob('launch_web_gui/*.html')),
-        ('share/' + package_name + '/launch_web_gui', glob('launch_web_gui/*.js')),
-        ('share/' + package_name + '/launch_web_gui', glob('launch_web_gui/*.sh')),
+        ('share/' + package_name + '/launch_web_gui', [
+            'launch_web_gui/index.html',
+            'launch_web_gui/index1.html', 
+            'launch_web_gui/index_dynamic.html',
+            'launch_web_gui/index_modern.html',
+            'launch_web_gui/roslib.min.js',
+            'launch_web_gui/run_web.sh'
+        ]),
         ('share/' + package_name + '/launch_web_gui/css', glob('launch_web_gui/css/*.css')),
         ('share/' + package_name + '/launch_web_gui/js', glob('launch_web_gui/js/*.js')),
     ],

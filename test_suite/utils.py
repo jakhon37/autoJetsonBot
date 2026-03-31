@@ -69,10 +69,16 @@ class ROS2TestClient:
     
     @staticmethod
     def run_cli(command: List[str], timeout: int = 30) -> Tuple[int, str, str]:
-        """Run a ROS2 CLI command"""
+        """Run a ROS2 CLI command inside the Docker container"""
         try:
+            # Source ROS2 environment before running the command
+            cmd_str = " ".join(command)
+            docker_cmd = [
+                "docker", "exec", "-t", "auto_ros_foxy", "bash", "-c",
+                f"source /opt/ros/foxy/setup.bash && source /autonomous_ROS/install/setup.bash 2>/dev/null; {cmd_str}"
+            ]
             result = subprocess.run(
-                command,
+                docker_cmd,
                 capture_output=True,
                 text=True,
                 timeout=timeout
@@ -84,13 +90,22 @@ class ROS2TestClient:
     @staticmethod
     def topic_hz(topic: str) -> float:
         """Get topic publish frequency in Hz"""
-        code, stdout, _ = ROS2TestClient.run_cli(
-            ["ros2", "topic", "hz", topic], 
-            timeout=5
-        )
-        if code == 0:
+        # Use stdbuf -oL to force line buffering (ros2 topic hz output is buffered)
+        cmd = ["stdbuf", "-oL", "timeout", "8", "ros2", "topic", "hz", topic]
+        cmd_str = " ".join(cmd)
+        docker_cmd = [
+            "docker", "exec", "-t", "auto_ros_foxy", "bash", "-c",
+            f"source /opt/ros/foxy/setup.bash && source /autonomous_ROS/install/setup.bash 2>/dev/null; {cmd_str}"
+        ]
+        try:
+            result = subprocess.run(docker_cmd, capture_output=True, text=True, timeout=12)
+            output = result.stdout + result.stderr
+        except subprocess.TimeoutExpired:
+            return 0.0
+        
+        if output:
             try:
-                lines = stdout.split('\n')
+                lines = output.split('\n')
                 for line in lines:
                     if 'average rate:' in line:
                         rate = float(line.split('average rate:')[1].split()[0])

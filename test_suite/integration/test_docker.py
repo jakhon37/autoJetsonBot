@@ -63,7 +63,7 @@ class TestDockerEnvironment(unittest.TestCase):
         """Test that ROS2 is installed in container"""
         code, stdout, _ = DockerClient.exec_in_container(
             self.container_name,
-            ["bash", "-c", "which ros2"]
+            ["bash", "-c", "source /opt/ros/foxy/setup.bash && which ros2"]
         )
         self.assertEqual(code, 0, "ros2 CLI not found in container")
     

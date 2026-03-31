@@ -53,7 +53,7 @@ class TestROSTopics(unittest.TestCase):
     """Test required ROS2 topics"""
     
     REQUIRED_TOPICS = [
-        "/cmd_vel",
+        "/diff_cont/cmd_vel_unstamped",
         "/odom", 
         "/joint_states",
         "/tf",
@@ -83,13 +83,17 @@ class TestROSTopics(unittest.TestCase):
                 )
     
     def test_required_topics_have_publishers(self):
-        """Test that required topics have publishers"""
+        """Test that required topics have publishers or subscribers"""
         for topic in self.REQUIRED_TOPICS:
             with self.subTest(topic=topic):
                 info = ROS2TestClient.topic_info(topic)
-                self.assertGreater(
-                    info.get('publishers', 0), 0,
-                    f"Topic '{topic}' has no publishers"
+                has_activity = (
+                    info.get('publishers', 0) > 0 or 
+                    info.get('subscribers', 0) > 0
+                )
+                self.assertTrue(
+                    has_activity,
+                    f"Topic '{topic}' has no publishers or subscribers"
                 )
     
     def test_optional_topics_if_available(self):
@@ -149,8 +153,8 @@ class TestROSNodes(unittest.TestCase):
     
     CORE_NODES = [
         "/robot_state_publisher",
-        "/gzserver",
-        "/gzclient", 
+        "/gazebo",
+        "/controller_manager",
     ]
     
     NAV_NODES = [

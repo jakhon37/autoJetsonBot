@@ -21,6 +21,8 @@
 - Build: `./robot.sh build` (builds inside Docker container `auto_ros_foxy`)
 - Test: `./run_tests.py --all`
 - Test categories: `--docker`, `--ros`, `--web`, `--nav`, `--sim`, `--hardware`
+- Tests run from HOST, use `docker exec` for ROS2 commands
+- wjwwood serial library is installed manually in container at `/opt/ros/foxy/{include,lib}/`
 
 ## Project Structure
 ```
@@ -30,9 +32,7 @@ src/
 ├── diffdrive_arduino/  # C++ ros2_control hardware interface
 ├── object_detection/   # Camera + MobileNetSSD
 ├── mpu6050_imu/        # I2C IMU driver
-├── slam_launch/        # SLAM Toolbox configs
-├── robot_body/         # BROKEN — not a valid package
-└── serial/             # BROKEN — empty directory
+└── slam_launch/        # SLAM Toolbox configs
 config/                 # unified_robot_config.yaml
 test/                   # Legacy hardware diagnostic scripts
 test_suite/             # Structured test framework

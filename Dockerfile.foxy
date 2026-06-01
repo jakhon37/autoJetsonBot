@@ -45,9 +45,11 @@ RUN rm -rf /var/lib/apt/lists/* && \
     ros-foxy-ros2-control \
     ros-foxy-ros2-controllers \
     ros-foxy-gazebo-ros2-control \
-    ros-foxy-serial \
+    python3-serial \
     nano \
  && rm -rf /var/lib/apt/lists/*
+
+    # ros-foxy-serial \
 
 #  ros-foxy-gazebo-ros2-plugins \
 

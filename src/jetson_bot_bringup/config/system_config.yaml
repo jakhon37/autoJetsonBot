@@ -1,0 +1,8 @@
+# Unified Robot System Configuration
+system:
+  operational_mode: "simulation" # options: "simulation", "hardware"
+  activity_mode: "mapping"      # options: "mapping", "navigation"
+  use_gui: true                 # automatically start VNC/RViz
+
+robot:
+  name: "jetson_bot"

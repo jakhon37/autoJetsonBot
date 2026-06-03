@@ -1,6 +1,7 @@
 #!/bin/sh
-xhost +local:docker
-# Add a flag to rebuild the image if needed
+# runrosenv.sh — create/start the auto_ros_foxy container
+# Port 5900 included for VNC (./robot.sh gui)
+
 REBUILD=false
 DISTRO="foxy"
 DOCKERFILE="Dockerfile.foxy"
@@ -9,52 +10,40 @@ CONTAINER_N="auto_ros_$DISTRO"
 WORK_SPACE_N="autonomous_ROS"
 NETWORK_N="ros2_network"
 
-# Parse command-line arguments
 for arg in "$@"; do
-    if [ "$arg" = "--rebuild" ]; then
-        REBUILD=true
-    fi
+    [ "$arg" = "--rebuild" ] && REBUILD=true
 done
 
-# Create a custom Docker network with multicast enabled if it doesn’t exist
+# Create network with multicast if needed
 if ! docker network ls | grep -q "$NETWORK_N"; then
-    echo "Creating custom Docker network '$NETWORK_N' with multicast support..."
+    echo "Creating Docker network '$NETWORK_N'..."
     docker network create --driver bridge \
         --opt com.docker.network.bridge.enable_ip_multicast=true \
         "$NETWORK_N"
 else
-    echo "Docker network '$NETWORK_N' already exists."
+    echo "Network '$NETWORK_N' already exists."
 fi
 
-# Build the Docker image if it doesn’t exist or if --rebuild is specified
-if [ "$REBUILD" = true ] || ! docker images --format '{{.Repository}}:{{.Tag}}' \
-   | grep -q "^$IMAGE_N\$"; then
-    echo "Building the Docker image..."
+# Build image if needed or --rebuild requested
+if [ "$REBUILD" = true ] || ! docker images --format '{{.Repository}}:{{.Tag}}' | grep -q "^$IMAGE_N\$"; then
+    echo "Building image $IMAGE_N..."
     docker build -t "$IMAGE_N" -f "$DOCKERFILE" .
 fi
 
-# Check if the container already exists
+# Create or start container
 if ! docker ps -a | grep -q "$CONTAINER_N"; then
-    echo "Creating and starting the Docker container..."
-    docker run -it --privileged -p 8000:8000 -p 9090:9090 \
-        --hostname $(hostname) \
+    echo "Creating container $CONTAINER_N..."
+    docker run -it --privileged \
+        -p 8000:8000 \
+        -p 9090:9090 \
+        -p 5900:5900 \
+        --hostname "$(hostname)" \
         --network "$NETWORK_N" \
         --name "$CONTAINER_N" \
-        -v "$(pwd)":/$WORK_SPACE_N \
-        -e DISPLAY="$DISPLAY" \
-        -v /tmp/.X11-unix:/tmp/.X11-unix \
+        -v "$(pwd):/$WORK_SPACE_N" \
         -e ROS_DOMAIN_ID=0 \
-        --device=/dev/ttyACM0:/dev/ttyACM0 \
-        --device=/dev/ttyUSB0:/dev/ttyUSB0 \
         "$IMAGE_N" /bin/bash
 else
-    echo "Starting the existing Docker container..."
+    echo "Starting existing container $CONTAINER_N..."
     docker start -ai "$CONTAINER_N"
 fi
-
-        # --gpus all 
-        # -p 8001:8001 -p 7860:7860 \
-        # --network=host \
-# export ROS_DOMAIN_ID=0
-# xhost +local:docker
-# 

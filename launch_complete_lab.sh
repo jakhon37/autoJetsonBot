@@ -62,6 +62,8 @@ docker exec auto_ros_foxy bash -c "
     source install/setup.bash && 
     export DISPLAY=$DISPLAY_VAR && 
     export LIBGL_ALWAYS_INDIRECT=1 && 
+    export LIBGL_ALWAYS_SOFTWARE=1 && 
+    export MESA_GL_VERSION_OVERRIDE=3.3 && 
     export GAZEBO_MODEL_PATH=/autonomous_ROS/install/my_robot_launch/share/my_robot_launch && 
     
     # Launch the complete system with navigation enabled

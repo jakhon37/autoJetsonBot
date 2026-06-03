@@ -1,54 +1,47 @@
-# Agent Instructions
+# AGENTS.md — Technical Wisdom & Lessons Learned
 
-## Session Startup (MUST DO)
-1. Read `SESSION_LOG.md` — understand previous work and context
-2. Read `PROJECT_ANALYSIS.md` — know all known issues and their status
-3. Check `git log --oneline -5` — see recent commits
-4. Review the task at hand
+This file captures the "Hard-Won" knowledge of the project. Consult this before debugging "Active but Silent" nodes or TF disconnection issues.
 
-## Session Shutdown (MUST DO)
-1. Update `SESSION_LOG.md` — add entry with work done, files changed, next steps
-2. Update `PROJECT_ANALYSIS.md` — if any issues were fixed, update status to ✅ Done
-3. If new issues discovered, add them to `PROJECT_ANALYSIS.md`
+## ⚠️ Known Pitfalls & Anti-Patterns
 
-## Project Overview
-- Autonomous Jetson Robot — ROS2 Foxy with web GUI, SLAM, object detection
-- Main control script: `./robot.sh` (sim, robot, web, shell, build, stop, status, logs, clean)
-- Web interface: http://localhost:8000
-- ROSBridge WebSocket: ws://localhost:9090
+### 1. Controller Naming (ROS 2 Foxy Bug)
+The `diff_drive_controller` in ROS 2 Foxy is extremely sensitive. 
+*   ❌ **Don't:** Use singular joint names like `left_wheel_name: "name"`. This results in "Wheel names parameters are empty" errors.
+*   ✅ **Do:** Use plural list format: `left_wheel_names: ["joint_name"]`. Even for a single wheel.
 
-## Build & Test
-- Build: `./robot.sh build` (builds inside Docker container `auto_ros_foxy`)
-- Test: `./run_tests.py --all`
-- Test categories: `--docker`, `--ros`, `--web`, `--nav`, `--sim`, `--hardware`
-- Tests run from HOST, use `docker exec` for ROS2 commands
-- wjwwood serial library is installed manually in container at `/opt/ros/foxy/{include,lib}/`
+### 2. The "Ghost Joint" (Broadcaster Hang)
+*   ❌ **Don't:** Include `fixed` joints (like the `caster_wheel_joint`) in the `joint_state_broadcaster` list.
+*   ✅ **Do:** Only list motorized joints. Broadcasters wait for a state interface that fixed joints don't have, which can cause the entire node to hang silently.
 
-## Project Structure
-```
-src/
-├── my_robot_launch/    # Launch files, URDF, controllers (main package)
-├── web_gui_control/    # Static web interface
-├── diffdrive_arduino/  # C++ ros2_control hardware interface
-├── object_detection/   # Camera + MobileNetSSD
-├── mpu6050_imu/        # I2C IMU driver
-└── slam_launch/        # SLAM Toolbox configs
-config/                 # unified_robot_config.yaml
-test/                   # Legacy hardware diagnostic scripts
-test_suite/             # Structured test framework
-```
+### 3. Simulation Time Drift
+*   ❌ **Don't:** Let Gazebo run on its own clock while ROS nodes use system time. This creates "disconnected islands" in the TF tree.
+*   ✅ **Do:** Ensure `use_sim_time: true` is set globally in the controller YAML and passed to nodes like RViz2.
 
-## Conventions
-- ROS2 Foxy (ament_python for Python, ament_cmake for C++)
-- Launch files in `src/my_robot_launch/launch/`
-- URDF/XACRO in `src/my_robot_launch/urdf/`
-- Web interface in `src/web_gui_control/`
-- Controllers config in `src/my_robot_launch/config/my_controllers.yaml`
-- Robot specs: wheel_sep=0.18m, radius=0.035m, enc=3436, serial=/dev/ttyACM0, 115200
+### 4. Frame Source of Truth
+*   ❌ **Don't:** Use `base_footprint` as a root link.
+*   ✅ **Do:** Use `base_link`. All SLAM and Nav2 configs are now standardized to this root to prevent "split-tree" errors.
 
-## When Making Changes
-1. Check `PROJECT_ANALYSIS.md` for related known issues
-2. After fixing an issue, mark it ✅ Done in `PROJECT_ANALYSIS.md`
-3. Add a Work Log entry in `PROJECT_ANALYSIS.md`
-4. Update `SESSION_LOG.md` with summary
-5. Follow existing code style and conventions
+## 🛡️ Efficient Debugging & Loop Prevention
+
+To avoid getting stuck in "trial-and-error" loops, any agent working on this robot **must** follow this protocol:
+
+1.  **The "Rule of Two":** If a configuration change or fix fails twice, **STOP**. Do not try a third variation. Re-read the source code of the controller and the full log output (not just the last 10 lines).
+2.  **Verify the "Active but Silent" Paradox:** If `ros2 control list_controllers` says **Active** but `ros2 topic hz` shows **0Hz**:
+    *   It is always a naming or interface mismatch (e.g., plural vs singular names).
+    *   Use `ros2 param dump /<node_name>` to see what the node *actually* loaded.
+3.  **Clock First, TF Second:** Never debug "Unknown Frame" errors until you have verified that the Gazebo clock is ticking (`ros2 topic hz /clock`).
+4.  **Grepping for Truth:** Use specific grep patterns: `docker exec auto_ros_foxy grep -iE "error|fail|exception|empty" /tmp/sim.log`.
+5.  **Non-Interactive Verification:** Use the fixed `robot.sh shell "command"` to run quick checks without hanging the terminal.
+
+## 🔍 Technical Implementation Notes
+
+### VNC / GUI Architecture
+Since macOS Docker Desktop cannot forward X11 correctly (Mesa driver failure), we use:
+*   `Xvfb :99` (Virtual Framebuffer) inside the container.
+*   `x11vnc` to expose the display on Port 5900.
+*   `openbox` as the window manager.
+*   **Env Vars:** `QT_X11_NO_MITSHM=1`, `LIBGL_ALWAYS_SOFTWARE=1`, `GALLIUM_DRIVER=softpipe`.
+
+### Process Lifecycle (`robot.sh`)
+*   The script uses `pkill -9` on specific regex patterns to ensure "Zombie" Gazebo or ROS nodes don't survive.
+*   Port cleanup is handled via `netstat` analysis to find PIDs holding 8000, 9090, or 5900.

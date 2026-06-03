@@ -1,6 +1,6 @@
 FROM ros:foxy-ros-core-focal
 
-# Install essential tools including add-apt-repository utility
+# Essential build tools + Python utilities
 RUN apt-get update && apt-get install -y --no-install-recommends \
     software-properties-common \
     build-essential \
@@ -13,24 +13,24 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     python3-pymongo \
  && rm -rf /var/lib/apt/lists/*
 
-# Enable the Universe repository
+# Enable Universe repository
 RUN add-apt-repository universe && \
-    rm -rf /var/lib/apt/lists/* && \
-    apt-get update
+    apt-get update && \
+    rm -rf /var/lib/apt/lists/*
 
 # Bootstrap rosdep
 RUN rosdep init && rosdep update --rosdistro $ROS_DISTRO
 
-# Setup colcon mixin and metadata
-RUN colcon mixin add default https://raw.githubusercontent.com/colcon/colcon-mixin-repository/master/index.yaml \
+# Colcon mixin and metadata
+RUN colcon mixin add default \
+        https://raw.githubusercontent.com/colcon/colcon-mixin-repository/master/index.yaml \
  && colcon mixin update \
- && colcon metadata add default https://raw.githubusercontent.com/colcon/colcon-metadata-repository/master/index.yaml \
+ && colcon metadata add default \
+        https://raw.githubusercontent.com/colcon/colcon-metadata-repository/master/index.yaml \
  && colcon metadata update
 
-# Install ROS2 packages (desktop, navigation, Gazebo integration, and rosbridge) and nano
-# apt install ros-foxy-ros2-control ros-foxy-ros2-controllers ros-foxy-gazebo-ros2-control
-RUN rm -rf /var/lib/apt/lists/* && \
-    apt-get update && apt-get install -y --no-install-recommends \
+# ROS2 packages + Mesa (software rendering) + VNC stack — all in one layer
+RUN apt-get update && apt-get install -y --no-install-recommends \
     ros-foxy-desktop \
     ros-foxy-navigation2 \
     ros-foxy-nav2-bringup \
@@ -47,16 +47,13 @@ RUN rm -rf /var/lib/apt/lists/* && \
     ros-foxy-gazebo-ros2-control \
     python3-serial \
     nano \
+    mesa-utils \
+    libgl1-mesa-dri \
+    libgl1-mesa-glx \
+    xvfb \
+    x11vnc \
+    openbox \
  && rm -rf /var/lib/apt/lists/*
 
-    # ros-foxy-serial \
-
-#  ros-foxy-gazebo-ros2-plugins \
-
-#  ros-foxy-ros2-control-toolbox \
-#  ros-foxy-ros2-controllers-msgs \
-#  ros-foxy-ros2-controllers-interface \
-# Add ROS setup to bashrc
+# Source ROS on every shell
 RUN echo "source /opt/ros/foxy/setup.bash" >> /root/.bashrc
-
-# sudo apt install ros-foxy-xacro ros-foxy-joint-state-publisher-gui

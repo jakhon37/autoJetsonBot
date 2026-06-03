@@ -102,3 +102,4 @@ elif command -v xdg-open > /dev/null 2>&1; then
     sleep 3
     xdg-open http://localhost:8000
 fi
+

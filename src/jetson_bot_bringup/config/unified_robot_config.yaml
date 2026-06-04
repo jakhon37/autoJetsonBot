@@ -1,4 +1,29 @@
-# ROS 2 Controller Manager parameters
+# autoJetsonBot - Unified Configuration
+
+# 🌍 Global Operational Parameters (The Robot's "Source of Truth")
+global:
+  ros__parameters:
+    use_sim: true              # true: Gazebo simulation | false: Real hardware (Serial/IMU)
+    mode: "navigation"            # options: "mapping", "navigation"
+    viz: true                  # true: Open RViz2
+    headless: true            # true: Run Gazebo in background (fast test) | false: Show Gazebo window
+    use_sim_time: true         # Always true for simulation, false for hardware
+
+    map_name: "lab_map_v2"        # Base name for saved/loaded maps
+    # map_name: "demo_map"        # Base name for saved/loaded maps
+    map_dir: "/autonomous_ROS/src/jetson_bot_bringup/worlds" # Absolute path for persistence
+    gazebo_world: "lab_small_light.world"  # World file to load in simulation
+    # gazebo_world: "demo.world"  # World file to load in simulation
+    rviz_config: "default.rviz" # RViz config file to use
+
+    # 📍 Initial Spawn Pose (Gazebo only)
+    spawn_x: 0.0
+    spawn_y: 0.0
+    spawn_z: 0.0              # Reset to 0.0 (Standard)
+    spawn_yaw: 0.0
+
+
+# 🎮 ROS 2 Controller Manager parameters
 controller_manager:
   ros__parameters:
     update_rate: 100
@@ -10,7 +35,7 @@ controller_manager:
     joint_broad:
       type: joint_state_broadcaster/JointStateBroadcaster
 
-# Differential drive controller parameters
+# 🚗 Differential drive controller parameters
 diff_cont:
   ros__parameters:
     use_sim_time: true
@@ -18,13 +43,31 @@ diff_cont:
     right_wheel_names: ["right_wheel_joint"]
     wheel_separation: 0.18
     wheel_radius: 0.035
-    publish_rate: 50.0
-    base_frame_id: "base_link"
+    publish_rate: 100.0
+    base_frame_id: "base_footprint"
     odom_frame_id: "odom"
     enable_odom_tf: true
     use_stamped_vel: false
 
-# Joint state broadcaster parameters
+    # 🎢 Velocity & Acceleration Limits (Smooth Ramping)
+    linear:
+      x:
+        has_velocity_limits: true
+        max_velocity: 0.8
+        min_velocity: -0.8
+        has_acceleration_limits: true
+        max_acceleration: 1.0
+        min_acceleration: -1.0
+    angular:
+      z:
+        has_velocity_limits: true
+        max_velocity: 1.5
+        min_velocity: -1.5
+        has_acceleration_limits: true
+        max_acceleration: 2.0
+        min_acceleration: -2.0
+
+# 🛠️ Joint state broadcaster parameters
 joint_broad:
   ros__parameters:
     use_sim_time: true

@@ -2,36 +2,40 @@
 
 This is the primary status board. Consult this file to understand the current operational health and the immediate roadmap.
 
-## 📊 Current Status: Mapping Ready ✅
+## 📊 Current Status: Navigation Active 🚀
 
-The robot is functionally stable in simulation. All core systems (Control, TF, Sensors, UI) are operational and synchronized.
+The robot has been fully refactored to the **Industry Standard (REP 120)**. All core systems are synchronized to the `base_footprint` root.
 
 ### System Health
 | System | Status | Note |
 | :--- | :--- | :--- |
-| **TF Tree** | ✅ Connected | `map -> odom -> base_link -> laser_frame` fully resolvable. |
-| **Control** | ✅ Active | `diff_cont` publishing `/odom` and responding to `/cmd_vel`. |
-| **Sensors** | ✅ Active | Lidar (`/scan`) and Camera (`/image_raw`) publishing. |
-| **Slam** | ✅ Mapping | `slam_toolbox` actively generating occupancy grid. |
-| **UI** | ✅ Stable | Web Dashboard (8000) and VNC (5900) functional. |
+| **TF Tree** | ✅ Standardized | `map -> odom -> base_footprint -> base_link` (REP 120). |
+| **Control** | ✅ Active | Smooth motion with traction on simulated floor. |
+| **Navigation** | ✅ Active | `bt_navigator` processing goals with active costmaps. |
+| **UI** | ✅ Hardened | `./robot.sh status` now performs deep internal health checks. |
+
+**Primary Focus:** Validating physical hardware integration and sourcing the `diffdrive_arduino` plugin.
+
+## 🚧 Critical Blockers
+1. **Missing Hardware Plugin:** The source code for `diffdrive_arduino` is missing.
+2. **Hardware Launch Logic:** `main.launch.py` needs finalization for `mode:=robot`.
 
 ## 🗺️ Roadmap & Active Tasks
 
-### Phase 1: Verification (Current)
-- [ ] **Test Drive:** Execute a complete circuit in `lab.world` and verify map consistency.
-- [ ] **Map Persistence:** Verify map saving/loading from the `/maps` directory.
+### Phase 1: Industry Standard (Complete)
+- [x] **URDF Refactor:** Implemented `base_footprint` as root with mathematical floor offset.
+- [x] **Nav Synchronization:** Aligned AMCL and Costmaps to the new frame structure.
+- [x] **Physics Fix:** Resolved ground clipping; robot now sits perfectly at Z=0.
 
-### Phase 2: Feature Restoration
-- [ ] **Object Detection:** Restore the `object_detection` package.
-    - [ ] Download MobileNetSSD model files.
-    - [ ] Update node paths to point to correct resources.
-- [ ] **IMU Validation:** Confirm simulated IMU data integration for EKF.
+### Phase 2: Feature Restoration (Active)
+- [x] **Navigation Fix:** Resolved BT plugin crashes and "Blind Robot" Lidar filters.
+- [ ] **Navigation Validation:** Verify precise obstacle avoidance in RViz.
+- [x] **Telemetry:** Active in Web UI via ROS topics.
 
-### Phase 3: Cleanup & Refactor
-- [ ] **Delete Deprecated:** Remove all `*.deprecated` folders in `src/`.
-- [ ] **Telemetry:** Implement a simple battery/latency node for the dashboard.
+### Phase 3: Hardware & Fusion (Next)
+- [ ] **Plugin Recovery:** Locate or reimplement the `diffdrive_arduino` Foxy hardware interface.
+- [ ] **EKF Integration:** Implement `robot_localization` to fuse IMU and Odometry.
+- [ ] **Physical Bringup:** Validate serial communication with the ESP32/Arduino base.
 
-## 🛠️ Active Context (2026-06-02)
-We just completed a major migration to modular `jetson_bot_*` packages and resolved a critical "Active but Silent" controller bug caused by Foxy-specific naming constraints. The system is now baseline-stable.
-
-**Primary Focus:** Verification of autonomy stack in simulation.
+## 🛠️ Active Context (2026-06-04)
+The system is now "Mapping Ready" and highly stable in simulation. We have successfully restored the Navigation Stack configurations. The primary bottleneck has shifted to **Physical Hardware Integration** due to the missing motor controller plugin and the need for finalized hardware launch logic.

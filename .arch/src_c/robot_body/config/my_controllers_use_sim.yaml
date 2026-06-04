@@ -1,5 +1,0 @@
-# autoJetsonBot/src/robot_body/config/my_controllers_use_sim.yaml
-
-controller_manager:
-  ros__parameters:
-    use_sim_time: true

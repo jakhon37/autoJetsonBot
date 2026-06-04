@@ -20,10 +20,13 @@ def generate_launch_description():
     xacro_file = os.path.join(pkg_description, 'urdf', 'robot.xacro')
     
     # 3. Process XACRO
-    # Note: Xacro needs to be processed with the mappings
     def process_xacro(context):
         sim_mode = LaunchConfiguration('sim_mode').perform(context)
-        robot_description_config = xacro.process_file(xacro_file, mappings={'sim_mode': sim_mode})
+        # Explicitly pass both sim_mode and use_ros2_control
+        robot_description_config = xacro.process_file(
+            xacro_file, 
+            mappings={'sim_mode': sim_mode, 'use_ros2_control': 'true'}
+        )
         return [Node(
             package='robot_state_publisher',
             executable='robot_state_publisher',

@@ -1,3 +1,5 @@
+import os
+from glob import glob
 from setuptools import setup
 
 package_name = 'jetson_bot_description'
@@ -11,18 +13,7 @@ setup(
             ['resource/' + package_name]),
         ('share/' + package_name, ['package.xml']),
         ('share/' + package_name + '/launch', ['launch/description.launch.py']),
-        ('share/' + package_name + '/urdf', [
-            'urdf/camera.xacro',
-            'urdf/esp32_hardware.xml',
-            'urdf/face.xacro',
-            'urdf/gazebo_control.xacro',
-            'urdf/inertial_macros.xacro',
-            'urdf/lidar.xacro',
-            'urdf/robot_core.xacro',
-            'urdf/robot.xacro',
-            'urdf/ros2_control.xacro'
-        ]),
-        ('share/' + package_name + '/rviz', ['rviz/default.rviz']),
+        ('share/' + package_name + '/urdf', glob('urdf/*')),
     ],
     install_requires=['setuptools'],
     zip_safe=True,

@@ -1,4 +1,6 @@
 from setuptools import setup
+import os
+from glob import glob
 
 package_name = 'jetson_bot_bringup'
 
@@ -10,15 +12,9 @@ setup(
         ('share/ament_index/resource_index/packages',
             ['resource/' + package_name]),
         ('share/' + package_name, ['package.xml']),
-        ('share/' + package_name + '/launch', [
-            'launch/sim.launch.py',
-            'launch/main.launch.py'
-        ]),
-        ('share/' + package_name + '/config', ['config/unified_robot_config.yaml', 'config/system_config.yaml']),
-        ('share/' + package_name + '/worlds', [
-            'worlds/lab.world',
-            'worlds/simple.world'
-        ]),
+        ('share/' + package_name + '/launch', glob('launch/*.launch.py')),
+        ('share/' + package_name + '/config', glob('config/*')),
+        ('share/' + package_name + '/worlds', glob('worlds/*')),
     ],
     install_requires=['setuptools'],
     zip_safe=True,

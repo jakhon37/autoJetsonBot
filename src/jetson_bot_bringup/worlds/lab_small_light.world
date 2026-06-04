@@ -1,0 +1,114 @@
+<?xml version="1.0" ?>
+<sdf version='1.7'>
+  <world name='default'>
+
+    <light name='sun' type='directional'>
+      <cast_shadows>1</cast_shadows>
+      <pose>0 0 10 0 0 0</pose>
+      <diffuse>0.8 0.8 0.8 1</diffuse>
+      <specular>0.2 0.2 0.2 1</specular>
+      <attenuation><range>1000</range><constant>0.9</constant><linear>0.01</linear><quadratic>0.001</quadratic></attenuation>
+      <direction>-0.5 0.1 -0.9</direction>
+    </light>
+
+    <gravity>0 0 -9.8</gravity>
+    <atmosphere type='adiabatic'/>
+    <physics type='ode'>
+      <max_step_size>0.001</max_step_size>
+      <real_time_factor>1</real_time_factor>
+      <real_time_update_rate>1000</real_time_update_rate>
+    </physics>
+    <scene>
+      <ambient>0.4 0.4 0.4 1</ambient>
+      <background>0.7 0.7 0.7 1</background>
+      <shadows>1</shadows>
+    </scene>
+
+    <gui fullscreen='0'>
+      <camera name='user_camera'>
+        <pose>0 0 14.0 0 1.5708 0</pose>
+        <view_controller>orbit</view_controller>
+        <projection_type>perspective</projection_type>
+      </camera>
+    </gui>
+
+    <!-- ground -->
+    <model name='ground_plane'><static>1</static>
+      <link name='link'>
+        <collision name='collision'>
+          <geometry><plane><normal>0 0 1</normal><size>20 20</size></plane></geometry>
+          <surface><friction><ode><mu>100</mu><mu2>50</mu2></ode></friction></surface>
+        </collision>
+        <visual name='visual'>
+          <cast_shadows>0</cast_shadows>
+          <geometry><plane><normal>0 0 1</normal><size>20 20</size></plane></geometry>
+          <material><script><uri>file://media/materials/scripts/gazebo.material</uri><name>Gazebo/Grey</name></script></material>
+        </visual>
+      </link>
+    </model>
+
+    <!-- == WALLS  6x6m room, 0.2m thick, 0.5m tall ==
+         South door gap: world x≈[−0.476, 0.524] (1m, centre x=0.048)
+         East  door gap: world y≈[−1.021, 0.024] (1m, centre y=−0.045) -->
+
+    <model name='wall_north'><static>1</static><pose>0.000 3.024 0.25 0 0 0</pose><link name='link'>
+      <collision name='c'><geometry><box><size>6.190 0.143 0.5</size></box></geometry></collision>
+      <visual name='v'><geometry><box><size>6.190 0.143 0.5</size></box></geometry><material><script><uri>file://media/materials/scripts/gazebo.material</uri><name>Gazebo/White</name></script></material></visual>
+    </link></model>
+
+    <model name='wall_south_left'><static>1</static><pose>-1.821 -2.976 0.25 0 0 0</pose><link name='link'>
+      <collision name='c'><geometry><box><size>2.548 0.143 0.5</size></box></geometry></collision>
+      <visual name='v'><geometry><box><size>2.548 0.143 0.5</size></box></geometry><material><script><uri>file://media/materials/scripts/gazebo.material</uri><name>Gazebo/White</name></script></material></visual>
+    </link></model>
+
+    <model name='wall_south_right'><static>1</static><pose>1.798 -2.976 0.25 0 0 0</pose><link name='link'>
+      <collision name='c'><geometry><box><size>2.690 0.143 0.5</size></box></geometry></collision>
+      <visual name='v'><geometry><box><size>2.690 0.143 0.5</size></box></geometry><material><script><uri>file://media/materials/scripts/gazebo.material</uri><name>Gazebo/White</name></script></material></visual>
+    </link></model>
+
+    <model name='wall_west'><static>1</static><pose>-3.024 0.024 0.25 0 0 0</pose><link name='link'>
+      <collision name='c'><geometry><box><size>0.143 6.143 0.5</size></box></geometry></collision>
+      <visual name='v'><geometry><box><size>0.143 6.143 0.5</size></box></geometry><material><script><uri>file://media/materials/scripts/gazebo.material</uri><name>Gazebo/White</name></script></material></visual>
+    </link></model>
+
+    <model name='wall_east_top'><static>1</static><pose>3.024 1.821 0.25 0 0 0</pose><link name='link'>
+      <collision name='c'><geometry><box><size>0.143 2.548 0.5</size></box></geometry></collision>
+      <visual name='v'><geometry><box><size>0.143 2.548 0.5</size></box></geometry><material><script><uri>file://media/materials/scripts/gazebo.material</uri><name>Gazebo/White</name></script></material></visual>
+    </link></model>
+
+    <model name='wall_east_bottom'><static>1</static><pose>3.024 -1.750 0.25 0 0 0</pose><link name='link'>
+      <collision name='c'><geometry><box><size>0.143 2.548 0.5</size></box></geometry></collision>
+      <visual name='v'><geometry><box><size>0.143 2.548 0.5</size></box></geometry><material><script><uri>file://media/materials/scripts/gazebo.material</uri><name>Gazebo/White</name></script></material></visual>
+    </link></model>
+
+    <!-- == DIVIDER  vertical fin, 0.5m tall == -->
+    <!-- divider_vert: centre=(1.513, -1.758), 0.174x1.274m -->
+    <model name='divider_vert'><static>1</static><pose>1.513 -1.758 0.25 0 0 0</pose><link name='link'>
+      <collision name='c'><geometry><box><size>0.174 1.274 0.5</size></box></geometry></collision>
+      <visual name='v'><geometry><box><size>0.174 1.274 0.5</size></box></geometry><material><script><uri>file://media/materials/scripts/gazebo.material</uri><name>Gazebo/Blue</name></script></material></visual>
+    </link></model>
+
+    <!-- == CABINETS  0.5m tall == -->
+    <!-- cabinet1: centre=(0.036, 1.531) -->
+    <model name='cabinet1'><static>1</static><pose>0.036 1.531 0.25 0 0 0</pose><link name='link'>
+      <collision name='c'><geometry><box><size>0.452 0.452 0.5</size></box></geometry></collision>
+      <visual name='v'><geometry><box><size>0.452 0.452 0.5</size></box></geometry><material><script><uri>file://media/materials/scripts/gazebo.material</uri><name>Gazebo/WoodPallet</name></script></material></visual>
+    </link></model>
+
+    <!-- cabinet2: centre=(-2.088, -2.660) -->
+    <model name='cabinet2'><static>1</static><pose>-2.088 -2.660 0.25 0 0 0</pose><link name='link'>
+      <collision name='c'><geometry><box><size>0.452 0.452 0.5</size></box></geometry></collision>
+      <visual name='v'><geometry><box><size>0.452 0.452 0.5</size></box></geometry><material><script><uri>file://media/materials/scripts/gazebo.material</uri><name>Gazebo/WoodPallet</name></script></material></visual>
+    </link></model>
+
+    <!-- == BOX OBSTACLE  0.5m tall ==
+         NOTE: red_box centre=(-2.729, -0.552) — SVG flags this as overlapping
+         the west wall (box left edge reaches x≈-2.932, wall inner face x≈-2.953).
+         Position kept exactly as in SVG. Push x to ~-2.5 if collision issues arise. -->
+    <model name='red_box'><static>1</static><pose>-2.729 -0.552 0.25 0 0 0</pose><link name='link'>
+      <collision name='c'><geometry><box><size>0.405 0.405 0.5</size></box></geometry></collision>
+      <visual name='v'><geometry><box><size>0.405 0.405 0.5</size></box></geometry><material><script><uri>file://media/materials/scripts/gazebo.material</uri><name>Gazebo/Red</name></script></material></visual>
+    </link></model>
+
+  </world>
+</sdf>

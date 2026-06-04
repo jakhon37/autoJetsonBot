@@ -26,7 +26,9 @@ setup(
     tests_require=['pytest'],
     entry_points={
         'console_scripts': [
-            'web_server = jetson_bot_gui.web_server:main'
+            'web_server = jetson_bot_gui.web_server:main',
+            'telemetry_node = jetson_bot_gui.telemetry_node:main',
         ],
     },
+
 )

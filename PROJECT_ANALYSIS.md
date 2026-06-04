@@ -10,8 +10,8 @@ The robot has been fully refactored to the **Industry Standard (REP 120)**. All 
 | System | Status | Note |
 | :--- | :--- | :--- |
 | **TF Tree** | ✅ Standardized | `map -> odom -> base_footprint -> base_link` (REP 120). |
-| **Control** | ✅ Active | Smooth motion with traction on simulated floor. |
-| **Navigation** | ✅ Active | `bt_navigator` processing goals with active costmaps. |
+| **Control** | ✅ Active | Remapped to standard `/cmd_vel` for Nav2 compatibility. |
+| **Navigation** | ✅ Active | AMCL auto-localizing via correct `initial_pose` array. |
 | **UI** | ✅ Hardened | `./robot.sh status` now performs deep internal health checks. |
 
 **Primary Focus:** Validating physical hardware integration and sourcing the `diffdrive_arduino` plugin.

@@ -57,6 +57,10 @@
         <gazebo>
             <plugin name="gazebo_ros2_control" filename="libgazebo_ros2_control.so">
                 <parameters>$(find jetson_bot_bringup)/config/unified_robot_config.yaml</parameters>
+                <ros>
+                    <remapping>/diff_cont/cmd_vel_unstamped:=/cmd_vel</remapping>
+                    <remapping>/diff_cont/odom:=/odom</remapping>
+                </ros>
             </plugin>
         </gazebo>
     </xacro:if>

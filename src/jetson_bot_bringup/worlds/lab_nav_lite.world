@@ -1,0 +1,200 @@
+<?xml version="1.0" ?>
+<sdf version='1.7'>
+  <world name='default'>
+
+    <light name='sun' type='directional'>
+      <cast_shadows>1</cast_shadows>
+      <pose>0 0 10 0 0 0</pose>
+      <diffuse>0.8 0.8 0.8 1</diffuse>
+      <specular>0.2 0.2 0.2 1</specular>
+      <attenuation><range>1000</range><constant>0.9</constant><linear>0.01</linear><quadratic>0.001</quadratic></attenuation>
+      <direction>-0.5 0.1 -0.9</direction>
+    </light>
+
+    <gravity>0 0 -9.8</gravity>
+    <atmosphere type='adiabatic'/>
+    <physics type='ode'>
+      <max_step_size>0.001</max_step_size>
+      <real_time_factor>1</real_time_factor>
+      <real_time_update_rate>1000</real_time_update_rate>
+    </physics>
+    <scene>
+      <ambient>0.4 0.4 0.4 1</ambient>
+      <background>0.7 0.7 0.7 1</background>
+      <shadows>1</shadows>
+    </scene>
+
+    <gui fullscreen='0'>
+      <camera name='user_camera'>
+        <pose>0 0 14.0 0 1.5708 0</pose>
+        <view_controller>orbit</view_controller>
+        <projection_type>perspective</projection_type>
+      </camera>
+    </gui>
+
+    <!-- ground -->
+    <model name='ground_plane'>
+      <static>1</static>
+      <link name='link'>
+        <collision name='collision'>
+          <geometry><plane><normal>0 0 1</normal><size>20 20</size></plane></geometry>
+          <surface><friction><ode><mu>100</mu><mu2>50</mu2></ode></friction></surface>
+        </collision>
+        <visual name='visual'>
+          <cast_shadows>0</cast_shadows>
+          <geometry><plane><normal>0 0 1</normal><size>20 20</size></plane></geometry>
+          <material><script><uri>file://media/materials/scripts/gazebo.material</uri><name>Gazebo/Grey</name></script></material>
+        </visual>
+      </link>
+    </model>
+
+    <!-- == WALLS  6x6m, 0.2m thick, 0.5m tall == -->
+    <!-- north -->
+    <model name='wall_north'><static>1</static><pose>0 3.1 0.25 0 0 0</pose><link name='link'>
+      <collision name='c'><geometry><box><size>6.4 0.2 0.5</size></box></geometry></collision>
+      <visual name='v'><geometry><box><size>6.4 0.2 0.5</size></box></geometry><material><script><uri>file://media/materials/scripts/gazebo.material</uri><name>Gazebo/White</name></script></material></visual>
+    </link></model>
+
+    <!-- south left -->
+    <model name='wall_south_left'><static>1</static><pose>-1.738 -3.1 0.25 0 0 0</pose><link name='link'>
+      <collision name='c'><geometry><box><size>2.524 0.2 0.5</size></box></geometry></collision>
+      <visual name='v'><geometry><box><size>2.524 0.2 0.5</size></box></geometry><material><script><uri>file://media/materials/scripts/gazebo.material</uri><name>Gazebo/White</name></script></material></visual>
+    </link></model>
+
+    <!-- south right -->
+    <model name='wall_south_right'><static>1</static><pose>1.762 -3.1 0.25 0 0 0</pose><link name='link'>
+      <collision name='c'><geometry><box><size>2.476 0.2 0.5</size></box></geometry></collision>
+      <visual name='v'><geometry><box><size>2.476 0.2 0.5</size></box></geometry><material><script><uri>file://media/materials/scripts/gazebo.material</uri><name>Gazebo/White</name></script></material></visual>
+    </link></model>
+
+    <!-- west -->
+    <model name='wall_west'><static>1</static><pose>-3.1 0 0.25 0 0 0</pose><link name='link'>
+      <collision name='c'><geometry><box><size>0.2 6.4 0.5</size></box></geometry></collision>
+      <visual name='v'><geometry><box><size>0.2 6.4 0.5</size></box></geometry><material><script><uri>file://media/materials/scripts/gazebo.material</uri><name>Gazebo/White</name></script></material></visual>
+    </link></model>
+
+    <!-- east top -->
+    <model name='wall_east_top'><static>1</static><pose>3.1 1.952 0.25 0 0 0</pose><link name='link'>
+      <collision name='c'><geometry><box><size>0.2 2.095 0.5</size></box></geometry></collision>
+      <visual name='v'><geometry><box><size>0.2 2.095 0.5</size></box></geometry><material><script><uri>file://media/materials/scripts/gazebo.material</uri><name>Gazebo/White</name></script></material></visual>
+    </link></model>
+
+    <!-- east bottom -->
+    <model name='wall_east_bottom'><static>1</static><pose>3.1 -1.548 0.25 0 0 0</pose><link name='link'>
+      <collision name='c'><geometry><box><size>0.2 2.905 0.5</size></box></geometry></collision>
+      <visual name='v'><geometry><box><size>0.2 2.905 0.5</size></box></geometry><material><script><uri>file://media/materials/scripts/gazebo.material</uri><name>Gazebo/White</name></script></material></visual>
+    </link></model>
+
+    <!-- == DIVIDERS  0.12m wide, 0.5m tall == -->
+    <model name='divider_main'><static>1</static><pose>-0.287 1.103 0.25 0 0 0</pose><link name='link'>
+      <collision name='c'><geometry><box><size>3.595 0.12 0.5</size></box></geometry></collision>
+      <visual name='v'><geometry><box><size>3.595 0.12 0.5</size></box></geometry><material><script><uri>file://media/materials/scripts/gazebo.material</uri><name>Gazebo/Blue</name></script></material></visual>
+    </link></model>
+
+    <model name='divider_short1'><static>1</static><pose>-1.868 1.855 0.25 0 0 0</pose><link name='link'>
+      <collision name='c'><geometry><box><size>1.317 0.12 0.5</size></box></geometry></collision>
+      <visual name='v'><geometry><box><size>1.317 0.12 0.5</size></box></geometry><material><script><uri>file://media/materials/scripts/gazebo.material</uri><name>Gazebo/Blue</name></script></material></visual>
+    </link></model>
+
+    <model name='divider_short2'><static>1</static><pose>2.215 -0.518 0.25 0 0 0</pose><link name='link'>
+      <collision name='c'><geometry><box><size>1.317 0.12 0.5</size></box></geometry></collision>
+      <visual name='v'><geometry><box><size>1.317 0.12 0.5</size></box></geometry><material><script><uri>file://media/materials/scripts/gazebo.material</uri><name>Gazebo/Blue</name></script></material></visual>
+    </link></model>
+
+    <model name='divider_short3'><static>1</static><pose>0.326 -1.227 0.25 0 0 0</pose><link name='link'>
+      <collision name='c'><geometry><box><size>1.317 0.12 0.5</size></box></geometry></collision>
+      <visual name='v'><geometry><box><size>1.317 0.12 0.5</size></box></geometry><material><script><uri>file://media/materials/scripts/gazebo.material</uri><name>Gazebo/Blue</name></script></material></visual>
+    </link></model>
+
+    <model name='divider_vert1'><static>1</static><pose>-2.005 0.370 0.25 0 0 0</pose><link name='link'>
+      <collision name='c'><geometry><box><size>0.17 1.275 0.5</size></box></geometry></collision>
+      <visual name='v'><geometry><box><size>0.17 1.275 0.5</size></box></geometry><material><script><uri>file://media/materials/scripts/gazebo.material</uri><name>Gazebo/Blue</name></script></material></visual>
+    </link></model>
+
+    <model name='divider_vert2'><static>1</static><pose>-1.212 -0.937 0.25 0 0 0</pose><link name='link'>
+      <collision name='c'><geometry><box><size>0.17 1.623 0.5</size></box></geometry></collision>
+      <visual name='v'><geometry><box><size>0.17 1.623 0.5</size></box></geometry><material><script><uri>file://media/materials/scripts/gazebo.material</uri><name>Gazebo/Blue</name></script></material></visual>
+    </link></model>
+
+    <model name='divider_vert3'><static>1</static><pose>1.513 -1.767 0.25 0 0 0</pose><link name='link'>
+      <collision name='c'><geometry><box><size>0.17 1.275 0.5</size></box></geometry></collision>
+      <visual name='v'><geometry><box><size>0.17 1.275 0.5</size></box></geometry><material><script><uri>file://media/materials/scripts/gazebo.material</uri><name>Gazebo/Blue</name></script></material></visual>
+    </link></model>
+
+    <!-- == SHELVES  0.3m tall == -->
+    <model name='shelf_sw1'><static>1</static><pose>-1.798 -1.618 0.15 0 0 0</pose><link name='link'>
+      <collision name='c'><geometry><box><size>0.927 0.267 0.3</size></box></geometry></collision>
+      <visual name='v'><geometry><box><size>0.927 0.267 0.3</size></box></geometry><material><script><uri>file://media/materials/scripts/gazebo.material</uri><name>Gazebo/Wood</name></script></material></visual>
+    </link></model>
+
+    <model name='shelf_sw2'><static>1</static><pose>-0.890 -1.942 0.15 0 0 0</pose><link name='link'>
+      <collision name='c'><geometry><box><size>0.927 0.267 0.3</size></box></geometry></collision>
+      <visual name='v'><geometry><box><size>0.927 0.267 0.3</size></box></geometry><material><script><uri>file://media/materials/scripts/gazebo.material</uri><name>Gazebo/Wood</name></script></material></visual>
+    </link></model>
+
+    <model name='shelf_nw1'><static>1</static><pose>1.501 1.842 0.15 0 0 0</pose><link name='link'>
+      <collision name='c'><geometry><box><size>0.905 0.357 0.3</size></box></geometry></collision>
+      <visual name='v'><geometry><box><size>0.905 0.357 0.3</size></box></geometry><material><script><uri>file://media/materials/scripts/gazebo.material</uri><name>Gazebo/Wood</name></script></material></visual>
+    </link></model>
+
+    <model name='shelf_nw2'><static>1</static><pose>-0.148 1.976 0.15 0 0 0</pose><link name='link'>
+      <collision name='c'><geometry><box><size>0.905 0.357 0.3</size></box></geometry></collision>
+      <visual name='v'><geometry><box><size>0.905 0.357 0.3</size></box></geometry><material><script><uri>file://media/materials/scripts/gazebo.material</uri><name>Gazebo/Wood</name></script></material></visual>
+    </link></model>
+
+    <model name='shelf_mid'><static>1</static><pose>2.151 -1.340 0.15 0 0 0</pose><link name='link'>
+      <collision name='c'><geometry><box><size>0.288 0.727 0.3</size></box></geometry></collision>
+      <visual name='v'><geometry><box><size>0.288 0.727 0.3</size></box></geometry><material><script><uri>file://media/materials/scripts/gazebo.material</uri><name>Gazebo/Wood</name></script></material></visual>
+    </link></model>
+
+    <!-- == BOX OBSTACLES  0.5m tall == -->
+    <model name='box1'><static>1</static><pose>1.191 -1.360 0.25 0 0 0</pose><link name='link'>
+      <collision name='c'><geometry><box><size>0.405 0.405 0.5</size></box></geometry></collision>
+      <visual name='v'><geometry><box><size>0.405 0.405 0.5</size></box></geometry><material><script><uri>file://media/materials/scripts/gazebo.material</uri><name>Gazebo/Red</name></script></material></visual>
+    </link></model>
+
+    <model name='box2'><static>1</static><pose>0.751 0.031 0.25 0 0 0</pose><link name='link'>
+      <collision name='c'><geometry><box><size>0.405 0.405 0.5</size></box></geometry></collision>
+      <visual name='v'><geometry><box><size>0.405 0.405 0.5</size></box></geometry><material><script><uri>file://media/materials/scripts/gazebo.material</uri><name>Gazebo/Red</name></script></material></visual>
+    </link></model>
+
+    <model name='box3'><static>1</static><pose>-2.315 0.953 0.25 0 0 0</pose><link name='link'>
+      <collision name='c'><geometry><box><size>0.405 0.405 0.5</size></box></geometry></collision>
+      <visual name='v'><geometry><box><size>0.405 0.405 0.5</size></box></geometry><material><script><uri>file://media/materials/scripts/gazebo.material</uri><name>Gazebo/Red</name></script></material></visual>
+    </link></model>
+
+    <model name='box4'><static>1</static><pose>-2.729 -0.561 0.25 0 0 0</pose><link name='link'>
+      <collision name='c'><geometry><box><size>0.405 0.405 0.5</size></box></geometry></collision>
+      <visual name='v'><geometry><box><size>0.405 0.405 0.5</size></box></geometry><material><script><uri>file://media/materials/scripts/gazebo.material</uri><name>Gazebo/Red</name></script></material></visual>
+    </link></model>
+
+    <!-- == PILLAR  0.5m tall == -->
+    <model name='pillar1'><static>1</static><pose>1.787 -2.241 0.25 0 0 0</pose><link name='link'>
+      <collision name='c'><geometry><box><size>0.310 0.310 0.5</size></box></geometry></collision>
+      <visual name='v'><geometry><box><size>0.310 0.310 0.5</size></box></geometry><material><script><uri>file://media/materials/scripts/gazebo.material</uri><name>Gazebo/Grey</name></script></material></visual>
+    </link></model>
+
+    <!-- == CABINETS  0.5m tall == -->
+    <model name='cabinet_nw1'><static>1</static><pose>1.731 2.280 0.25 0 0 0</pose><link name='link'>
+      <collision name='c'><geometry><box><size>0.452 0.452 0.5</size></box></geometry></collision>
+      <visual name='v'><geometry><box><size>0.452 0.452 0.5</size></box></geometry><material><script><uri>file://media/materials/scripts/gazebo.material</uri><name>Gazebo/WoodPallet</name></script></material></visual>
+    </link></model>
+
+    <model name='cabinet_ne1'><static>1</static><pose>0.037 1.523 0.25 0 0 0</pose><link name='link'>
+      <collision name='c'><geometry><box><size>0.452 0.452 0.5</size></box></geometry></collision>
+      <visual name='v'><geometry><box><size>0.452 0.452 0.5</size></box></geometry><material><script><uri>file://media/materials/scripts/gazebo.material</uri><name>Gazebo/WoodPallet</name></script></material></visual>
+    </link></model>
+
+    <model name='cabinet_sw1'><static>1</static><pose>-2.088 -2.668 0.25 0 0 0</pose><link name='link'>
+      <collision name='c'><geometry><box><size>0.452 0.452 0.5</size></box></geometry></collision>
+      <visual name='v'><geometry><box><size>0.452 0.452 0.5</size></box></geometry><material><script><uri>file://media/materials/scripts/gazebo.material</uri><name>Gazebo/WoodPallet</name></script></material></visual>
+    </link></model>
+
+    <!-- == CYLINDER  r=0.167m, 0.5m tall == -->
+    <model name='cylinder1'><static>1</static><pose>-2.340 2.162 0.25 0 0 0</pose><link name='link'>
+      <collision name='c'><geometry><cylinder><radius>0.167</radius><length>0.5</length></cylinder></geometry></collision>
+      <visual name='v'><geometry><cylinder><radius>0.167</radius><length>0.5</length></cylinder></geometry><material><script><uri>file://media/materials/scripts/gazebo.material</uri><name>Gazebo/Orange</name></script></material></visual>
+    </link></model>
+
+  </world>
+</sdf>

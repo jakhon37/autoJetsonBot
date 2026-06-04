@@ -8,7 +8,6 @@ This project is a ROS 2 Foxy-based autonomous mobile robot platform designed for
 | :--- | :--- |
 | `./robot.sh build` | Build the workspace inside the container. |
 | `./robot.sh sim` | Start headless simulation + Web UI (`http://localhost:8000`). |
-| `./robot.sh gui` | Start sim + VNC access for RViz2 (`open vnc://localhost:5900`). |
 | `./robot.sh robot` | Start nodes for physical hardware integration. |
 | `./robot.sh stop` | Robustly kill all processes and free ports (8000, 9090, 5900). |
 | `./robot.sh status` | Show container, port, and ROS node health. |

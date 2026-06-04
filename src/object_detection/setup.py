@@ -1,4 +1,6 @@
 from setuptools import find_packages, setup
+import os
+from glob import glob
 
 package_name = 'object_detection'
 
@@ -10,19 +12,19 @@ setup(
         ('share/ament_index/resource_index/packages',
             ['resource/' + package_name]),
         ('share/' + package_name, ['package.xml']),
+        (os.path.join('share', package_name, 'resource'), glob('resource/*')),
     ],
     install_requires=['setuptools'],
     zip_safe=True,
-    maintainer='ubuntu',
+    maintainer='jakhon37',
     maintainer_email='jakhon37@gmail.com',
-    description='TODO: Package description',
-    license='TODO: License declaration',
+    description='Object detection using MobileNetSSD for autoJetsonBot.',
+    license='Apache-2.0',
     tests_require=['pytest'],
     entry_points={
         'console_scripts': [
-            # 'object_detection_node = object_detection.object_detection_node:main',
+            'object_detection_node = object_detection.object_detection_node:main',
             'camera_go = object_detection.camera_go:main',
-            
         ],
     },
 )

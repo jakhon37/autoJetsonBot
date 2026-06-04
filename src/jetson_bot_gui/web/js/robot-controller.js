@@ -22,7 +22,7 @@ class RobotController {
       maxLinearVel: 1.0,
       maxAngularVel: 2.0,
       topics: {
-        cmdVel: '/diff_cont/cmd_vel_unstamped',
+        cmdVel: '/cmd_vel',
         jointStates: '/joint_states',
         scan: '/scan'
       }
@@ -47,8 +47,31 @@ class RobotController {
     this.setupEventListeners();
     this.setupUI();
     this.autoDetectROSBridge();
+    this.fetchConfig(); // Fetch dynamic config from launch
     this.startMetricsUpdate();
     this.log('Robot Controller initialized', 'info');
+  }
+
+  async fetchConfig() {
+    try {
+      this.log('Fetching system configuration...', 'info');
+      const response = await fetch('config.json');
+      if (response.ok) {
+        const remoteConfig = await response.json();
+        this.log('Remote configuration loaded', 'success');
+        
+        // Merge with existing config
+        if (remoteConfig.map_name) this.config.map_name = remoteConfig.map_name;
+        if (remoteConfig.map_dir) this.config.map_dir = remoteConfig.map_dir;
+        
+        this.log(`Active Map: ${this.config.map_name}`, 'info');
+        this.log(`Map Directory: ${this.config.map_dir}`, 'info');
+      } else {
+        this.log('No remote config found, using defaults', 'warning');
+      }
+    } catch (error) {
+      this.log(`Failed to fetch config: ${error}`, 'warning');
+    }
   }
   
   setupEventListeners() {
@@ -256,6 +279,17 @@ class RobotController {
       this.updateScanData(message);
     });
     
+    // Battery subscriber
+    this.batteryTopic = new ROSLIB.Topic({
+      ros: this.ros,
+      name: '/battery_state',
+      messageType: 'sensor_msgs/BatteryState'
+    });
+    
+    this.batteryTopic.subscribe((message) => {
+      this.metrics.batteryLevel = Math.round(message.percentage * 100);
+    });
+    
     this.log('ROS topics initialized', 'info');
   }
   
@@ -361,7 +395,42 @@ class RobotController {
       this.log('Cannot save map: not connected', 'warning');
       return;
     }
-    this.log('Map save requested — run: ros2 run nav2_map_server map_saver_cli -f map', 'info');
+    
+    // Fallback to default names if config not yet fetched
+    const mapName = this.config.map_name || 'lab_map';
+    const mapDir = this.config.map_dir || '/autonomous_ROS/src/jetson_bot_bringup/worlds';
+    const fullPath = `${mapDir}/${mapName}`;
+
+    this.log(`Requesting map save: ${fullPath}...`, 'info');
+    
+    // Create service client
+    const saveMapService = new ROSLIB.Service({
+      ros: this.ros,
+      name: '/slam_toolbox/save_map',
+      serviceType: 'slam_toolbox/srv/SaveMap'
+    });
+    
+    // Request structure for slam_toolbox/srv/SaveMap
+    // It expects a std_msgs/String name, which is {data: "string"}
+    const request = new ROSLIB.ServiceRequest({
+      name: { data: fullPath }
+    });
+    
+    saveMapService.callService(request, (result) => {
+      this.log(`✅ Map saved successfully to ${fullPath}`, 'success');
+      this.log(`Files: ${mapName}.yaml and ${mapName}.pgm created.`, 'info');
+    }, (error) => {
+      this.log(`❌ Map save error: ${error}`, 'error');
+      
+      // Fallback try: flat string
+      this.log('Retrying with alternative request format...', 'warning');
+      const fallbackRequest = new ROSLIB.ServiceRequest({
+        name: fullPath
+      });
+      saveMapService.callService(fallbackRequest, (res) => {
+        this.log(`✅ Map saved (fallback success) to ${fullPath}`, 'success');
+      });
+    });
   }
   
   publishVelocity() {

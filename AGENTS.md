@@ -21,27 +21,72 @@ The `diff_drive_controller` in ROS 2 Foxy is extremely sensitive.
 *   ❌ **Don't:** Use `base_footprint` as a root link.
 *   ✅ **Do:** Use `base_link`. All SLAM and Nav2 configs are now standardized to this root to prevent "split-tree" errors.
 
+### 5. Wait for Physics (Gazebo Startup)
+*   ❌ **Don't:** Launch controller spawners or SLAM/Navigation nodes immediately after starting Gazebo.
+*   ✅ **Do:** On Docker-on-Mac, Gazebo takes 25-35s to initialize its physics engine. Set a delay of at least **60s** (90s recommended) for controller spawners and **120s** for higher-level stacks like AMCL.
+
+### 6. Foxy Parameter Redeclaration
+*   ❌ **Don't:** Blindly use `declare_parameter('use_sim_time')` in Python nodes.
+*   ✅ **Do:** ROS 2 Foxy sometimes pre-declares this via `ros-args`. Use `if not self.has_parameter('use_sim_time'):` to prevent crashes.
+
+### 3. Fast Testing: Headless Mode
+*   **Discovery:** Gazebo rendering (`gzclient`) is the main CPU bottleneck.
+*   ✅ **Do:** Set `headless: true` in `unified_robot_config.yaml` to run physics in the background.
+*   **RViz Synergy:** You can keep `viz: true` while `headless: true`. This gives you the RViz interface for path planning verification without the heavy Gazebo overhead.
+
+### 4. Navigation: The "Missing Map Frame" Startup Bug
+*   **Discovery:** RViz often reports "Frame [map] does not exist" on startup, even if the map is loaded.
+*   **Cause:** AMCL waits for an `initial_pose` before it publishes the `map -> odom` transform.
+*   ✅ **Fix Applied:** Added `set_initial_pose: true` and `initial_pose: [0,0,0,0]` to `nav2_params.yaml`.
+*   **Manual Override:** If the robot starts at a different location, use the **"2D Pose Estimate"** tool in RViz to re-localize.
+
+### 5. Configuration Priority (YAML vs CLI)
+*   **Discovery:** ROS 2 Launch arguments with defaults were overriding the `unified_robot_config.yaml` even when not passed.
+*   ✅ **Fix Applied:** Refactored `main.launch.py` to use empty defaults for CLI arguments. 
+*   **Behavior:** The system now correctly treats the YAML as the "Source of Truth" for `./robot.sh up`. CLI arguments (like `./robot.sh nav`) still act as temporary overrides.
+
 ## 🛡️ Efficient Debugging & Loop Prevention
 
-To avoid getting stuck in "trial-and-error" loops, any agent working on this robot **must** follow this protocol:
-
-1.  **The "Rule of Two":** If a configuration change or fix fails twice, **STOP**. Do not try a third variation. Re-read the source code of the controller and the full log output (not just the last 10 lines).
-2.  **Verify the "Active but Silent" Paradox:** If `ros2 control list_controllers` says **Active** but `ros2 topic hz` shows **0Hz**:
-    *   It is always a naming or interface mismatch (e.g., plural vs singular names).
-    *   Use `ros2 param dump /<node_name>` to see what the node *actually* loaded.
-3.  **Clock First, TF Second:** Never debug "Unknown Frame" errors until you have verified that the Gazebo clock is ticking (`ros2 topic hz /clock`).
-4.  **Grepping for Truth:** Use specific grep patterns: `docker exec auto_ros_foxy grep -iE "error|fail|exception|empty" /tmp/sim.log`.
-5.  **Non-Interactive Verification:** Use the fixed `robot.sh shell "command"` to run quick checks without hanging the terminal.
+1.  **The "Rule of Two":** If a configuration change or fix fails twice, **STOP**. Re-read the source code.
+2.  **Verify the "Active but Silent" Paradox:** If topic hz is 0 but status is Active, it's a naming/interface mismatch. Use `ros2 param dump`.
+3.  **Clock First, TF Second:** Never debug "Unknown Frame" errors until you have verified that the Gazebo clock is ticking.
 
 ## 🔍 Technical Implementation Notes
 
 ### VNC / GUI Architecture
-Since macOS Docker Desktop cannot forward X11 correctly (Mesa driver failure), we use:
+Since macOS Docker Desktop cannot forward X11 correctly, we use:
 *   `Xvfb :99` (Virtual Framebuffer) inside the container.
 *   `x11vnc` to expose the display on Port 5900.
 *   `openbox` as the window manager.
 *   **Env Vars:** `QT_X11_NO_MITSHM=1`, `LIBGL_ALWAYS_SOFTWARE=1`, `GALLIUM_DRIVER=softpipe`.
 
-### Process Lifecycle (`robot.sh`)
-*   The script uses `pkill -9` on specific regex patterns to ensure "Zombie" Gazebo or ROS nodes don't survive.
-*   Port cleanup is handled via `netstat` analysis to find PIDs holding 8000, 9090, or 5900.
+### X11/VNC Display Access
+RViz/Gazebo requires `XAUTHORITY` and `xhost +local:` to render to `Xvfb`. If rendering fails, ensure these environment variables are correctly passed in `docker exec` calls and that the display server is initialized before launching ROS nodes.
+
+### Process Lifecycle & "Zombies"
+If `robot.sh stop` fails to terminate Gazebo, it is usually because `gzserver` is still holding the socket. Use `pkill -9 -f gzserver` to clear the slate. A port being open on the host (5900) only means Docker is listening; it doesn't guarantee the internal service is alive.
+
+---
+
+### 💡 Quick Tips for Container Scripts
+*   **Scoping:** Use single quotes `'` for `docker exec bash -c` to prevent the host shell from expanding variables meant for the container.
+*   **Health:** Always verify internal process status (`pgrep`) rather than just checking host ports.
+
+## 🧩 Hardware & Dependency Insights
+
+### 1. Missing Hardware Plugin (`diffdrive_arduino`)
+*   **Context:** The physical robot relies on a custom `diffdrive_arduino` hardware interface plugin for `ros2_control`. 
+*   ⚠️ **Critical Discovery:** The plugin source is currently missing from the workspace. Without `libdiffdrive_arduino.so`, the `controller_manager` will fail to spawn the `diff_cont` in `mode:=robot`. 
+*   **Mitigation:** Sourcing the original repository or migrating to a standard `ros2_control` hardware interface for the ESP32 is required before physical testing.
+
+### 2. Telemetry Parity
+*   **Simulated Battery:** The `telemetry_node.py` publishes synthetic data to `/telemetry/battery` to allow UI development without a real battery connected.
+*   **Validation:** Always verify the Web UI via the ROS topic rather than direct host-port checks to ensure end-to-end data flow.
+
+### 3. Gazebo Physics: Ground Clipping
+*   **Discovery:** The robot appeared "stuck" even with active nodes. RViz showed wheels underground and chassis touching the floor.
+*   **Cause:** Mismatch between URDF origin and the floor plane.
+*   ✅ **Permanent Fix:** Refactored URDF so `base_footprint` is at the floor level ($z=0$) with `base_link` offset 55mm above it. 
+*   **Benefit:** We can now spawn at `spawn_z: 0.0` (set in `unified_robot_config.yaml`), and the robot sits perfectly on its wheels.
+lane, locking it with infinite friction.
+*   ✅ **Fix:** Updated `main.launch.py` to spawn with `-z 0.06`. This ensures the wheels clear the ground and the physics engine can apply traction.

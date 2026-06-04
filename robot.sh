@@ -15,6 +15,7 @@ NC='\033[0m'
 # Configuration
 CONTAINER_NAME="auto_ros_foxy"
 VNC_PORT=5900
+VNC_RESOLUTION=${VNC_RESOLUTION:-"1920x1080x24"}
 XVFB_DISPLAY=":99"
 XVFB_AUTH="/tmp/xvfb99.auth"
 
@@ -24,42 +25,31 @@ log_warn()    { echo -e "${YELLOW}[WARN]${NC} $1"; }
 log_error()   { echo -e "${RED}[ERROR]${NC} $1"; }
 
 show_help() {
-    cat << EOF
+    cat << 'EOH'
 🤖 Autonomous Jetson Robot Control
 
 USAGE:
-    ./robot.sh [COMMAND]
+    ./robot.sh [COMMAND] [ARGS...]
 
-COMMANDS:
-    sim         Start Gazebo simulation (headless)
-    gui         Start Gazebo + RViz2 via VNC (connect to localhost:${VNC_PORT})
-    vnc-restart Restart VNC server (fixes stuck/refused connections)
-    robot       Start real robot (no simulation)
-    web         Open web interface in browser
-    shell       Enter robot container
-    build       Build the workspace
-    stop        Stop all robot processes
-    status      Show robot status
-    logs        Show robot logs
-    clean       Clean build files
+CORE COMMANDS:
+    up          Start system using config file defaults (YAML)
+    sim         Force Simulation Mode (sim:=true viz:=true)
+    robot       Force Hardware Mode (sim:=false viz:=false)
+    nav         Force Navigation Mode (mode:=navigation)
+    stop        Stop all robot processes and clean up ports
+
+UTILITY COMMANDS:
+    build       Build the modular workspace (jetson_bot_*)
+    status      Show container and node health
+    shell       Enter container (or run command: ./robot.sh shell "ls")
+    clean       Delete build, install, and log folders
     help        Show this help
 
-GUI / VNC:
-    './robot.sh gui' starts a virtual display (Xvfb :99) inside the container
-    and exposes it over VNC on port ${VNC_PORT}. No XQuartz needed.
-
-    Mac:   open vnc://localhost:${VNC_PORT}   (or RealVNC Viewer — leave password blank)
-    Linux: vncviewer localhost:${VNC_PORT}
-
-WEB INTERFACE:
-    http://localhost:8000   Robot control interface
-    ws://localhost:9090     ROSBridge WebSocket
-
-KEYBOARD CONTROLS (web UI):
-    WASD / Arrow Keys  Move robot
-    Spacebar           Emergency stop
-
-EOF
+EXAMPLES:
+    ./robot.sh sim
+    ./robot.sh sim mode:=navigation
+    ./robot.sh up
+EOH
 }
 
 # ── Container lifecycle ───────────────────────────────────────────────────────
@@ -67,479 +57,244 @@ EOF
 check_container() {
     if ! docker ps -a | grep -q "$CONTAINER_NAME"; then
         log_error "Container $CONTAINER_NAME does not exist."
-        log_info  "Create it first with: ./runrosenv.sh"
         exit 1
     fi
 
     if ! docker ps | grep -q "$CONTAINER_NAME"; then
         log_info "Container $CONTAINER_NAME is stopped — starting..."
-        docker start "$CONTAINER_NAME" || { log_error "Failed to start container"; exit 1; }
-        log_success "Container started"
-        sleep 3
+        docker start "$CONTAINER_NAME"
+        sleep 2
     fi
 }
 
 # ── Build ─────────────────────────────────────────────────────────────────────
 
 build_workspace() {
-    log_info "Building robot workspace..."
+    log_info "Building modular workspace..."
     check_container
-
-    if docker exec "$CONTAINER_NAME" bash -c "
+    docker exec "$CONTAINER_NAME" bash -c "
         cd /autonomous_ROS &&
         source /opt/ros/foxy/setup.bash &&
-        colcon build --symlink-install
-    "; then
-        log_success "Workspace built successfully"
-    else
-        log_error "Build failed — run './robot.sh shell' to debug"
-        exit 1
-    fi
+        colcon build --symlink-install --continue-on-error
+    "
 }
 
-# ── Simulation launch (shared by sim and gui) ─────────────────────────────────
+# ── Launch Logic (Refactored) ─────────────────────────────────────────────────
 
-_launch_sim_nodes() {
-    # Parse extra arguments (e.g., mode:=navigation)
-    EXTRA_ARGS="${@:-mode:=mapping}"
+_launch() {
+    local EXTRA_ARGS="$*"
+    log_info "🚀 Launching Robot System with: ${EXTRA_ARGS:-"YAML Defaults"}"
+    check_container
+    
+    # Infrastructure
+    start_virtual_display
+    start_vnc_server
+    
+    # X11 Auth Fix
+    docker exec "$CONTAINER_NAME" bash -c "DISPLAY=${XVFB_DISPLAY} XAUTHORITY=${XVFB_AUTH} xhost +local: >/dev/null 2>&1 || true"
+    
+    start_openbox
 
+    # Launch ROS Stack (Headless redirection to /tmp/sim.log)
     docker exec -d \
         -e DISPLAY="${XVFB_DISPLAY}" \
+        -e XAUTHORITY="${XVFB_AUTH}" \
         -e QT_X11_NO_MITSHM=1 \
         -e LIBGL_ALWAYS_SOFTWARE=1 \
-        -e MESA_GL_VERSION_OVERRIDE=3.3 \
         -e GALLIUM_DRIVER=softpipe \
-        -e GAZEBO_MODEL_PATH="/autonomous_ROS/install/jetson_bot_description/share/jetson_bot_description" \
         "$CONTAINER_NAME" bash -c "
             cd /autonomous_ROS &&
             source /opt/ros/foxy/setup.bash &&
-            source install/setup.bash &&
-            nohup ros2 launch jetson_bot_bringup sim.launch.py ${EXTRA_ARGS} > /tmp/sim.log 2>&1
+            source install/setup.bash 2>/dev/null || true &&
+            nohup ros2 launch jetson_bot_bringup main.launch.py ${EXTRA_ARGS} > /tmp/sim.log 2>&1
         "
+
+    log_success "System is booting. Access Web UI at http://localhost:8000 or VNC at localhost:5900"
 }
 
-_wait_for_web() {
-    local timeout=${1:-60}
-    log_info "Waiting for web server (up to ${timeout}s)..."
-    for i in $(seq 1 "$timeout"); do
-        sleep 1
-        if curl -s http://localhost:8000 > /dev/null 2>&1; then
-            return 0
-        fi
-        [ $((i % 5)) -eq 0 ] && echo -n " ${i}s" || echo -n "."
-    done
-    echo ""
-    return 1
-}
-
-start_robot_system() {
-    log_info "🚀 Starting Simulation System..."
-
-    # 1. Setup Display (always lightweight, ensures GUI apps can run)
-    start_virtual_display
-    start_vnc_server
-    start_openbox
-
-    # 2. Launch Simulation Nodes
-    _launch_sim_nodes "$@"
-
-    log_success "Simulation system is booting. Check VNC or Web UI."
-    open_vnc_viewer
-}
-
-
-# ── VNC / Xvfb helpers ────────────────────────────────────────────────────────
+# ── Infrastructure Helpers ────────────────────────────────────────────────────
 
 start_virtual_display() {
-    if docker exec "$CONTAINER_NAME" bash -c "pgrep -f 'Xvfb ${XVFB_DISPLAY}'" &>/dev/null; then
-        log_info "Xvfb already running on ${XVFB_DISPLAY}"
-        return
-    fi
-
-    # Install xauth if missing (needed to create the auth file)
-    if ! docker exec "$CONTAINER_NAME" bash -c "command -v xauth" &>/dev/null; then
-        log_info "Installing xauth..."
-        docker exec "$CONTAINER_NAME" bash -c "apt-get install -y --no-install-recommends xauth" \
-            || { log_error "Failed to install xauth"; exit 1; }
-    fi
-
-    # Remove any stale lock/socket files from a previous crashed Xvfb
-    local display_num="${XVFB_DISPLAY#:}"
+    docker exec "$CONTAINER_NAME" bash -c "pgrep -f 'Xvfb ${XVFB_DISPLAY}'" &>/dev/null && return
+    log_info "Starting virtual framebuffer (${XVFB_DISPLAY})..."
+    
     docker exec "$CONTAINER_NAME" bash -c "
-        rm -f /tmp/.X${display_num}-lock
-        rm -f /tmp/.X11-unix/X${display_num}
+        rm -f /tmp/.X${XVFB_DISPLAY#:}-lock
+        touch ${XVFB_AUTH}
+        if command -v xauth >/dev/null; then
+            # Generate cookie inside the container, fallback if mcookie missing
+            COOKIE=\$(mcookie 2>/dev/null || head -c 16 /dev/urandom | od -An -tx1 | tr -d ' \n' 2>/dev/null || echo '00000000000000000000000000000000')
+            xauth -f ${XVFB_AUTH} add ${XVFB_DISPLAY} . \$COOKIE 2>/dev/null || true
+        fi
     " || true
 
-    # Pre-create a valid empty xauth file (Xvfb -auth requires this to already exist)
-    docker exec "$CONTAINER_NAME" bash -c "
-        touch ${XVFB_AUTH} && xauth -f ${XVFB_AUTH} generate ${XVFB_DISPLAY} . trusted 2>/dev/null || true
-    "
-
-    log_info "Starting virtual framebuffer (Xvfb ${XVFB_DISPLAY})..."
-    docker exec -d "$CONTAINER_NAME" bash -c \
-        "Xvfb ${XVFB_DISPLAY} -screen 0 1280x1024x24 -auth ${XVFB_AUTH} > /tmp/xvfb.log 2>&1"
-    sleep 2
-
-    if ! docker exec "$CONTAINER_NAME" bash -c "pgrep -f 'Xvfb ${XVFB_DISPLAY}'" &>/dev/null; then
-        log_error "Xvfb failed — log output:"
-        docker exec "$CONTAINER_NAME" bash -c "cat /tmp/xvfb.log" || true
-        exit 1
-    fi
-    log_success "Xvfb running on ${XVFB_DISPLAY}"
+    docker exec -d "$CONTAINER_NAME" bash -c "Xvfb ${XVFB_DISPLAY} -screen 0 ${VNC_RESOLUTION} -auth ${XVFB_AUTH} > /tmp/xvfb.log 2>&1"
+    sleep 1
 }
 
 start_vnc_server() {
-    if docker exec "$CONTAINER_NAME" bash -c "pgrep x11vnc" &>/dev/null; then
-        log_info "x11vnc already running"
-        return
-    fi
-
+    docker exec "$CONTAINER_NAME" bash -c "pgrep x11vnc" &>/dev/null && return
     log_info "Starting VNC server on port ${VNC_PORT}..."
-    docker exec -d "$CONTAINER_NAME" bash -c \
-        "x11vnc -display ${XVFB_DISPLAY} \
-         -auth ${XVFB_AUTH} \
-         -nopw -forever -shared \
-         -noipv6 -permitfiletransfer \
-         -listen 0.0.0.0 -rfbport ${VNC_PORT} \
-         > /tmp/x11vnc.log 2>&1"
-    sleep 1
-
-    if ! docker exec "$CONTAINER_NAME" bash -c "pgrep x11vnc" &>/dev/null; then
-        log_error "x11vnc failed — check: docker exec $CONTAINER_NAME cat /tmp/x11vnc.log"
-        exit 1
-    fi
-    log_success "VNC server listening on localhost:${VNC_PORT}"
+    docker exec -d "$CONTAINER_NAME" bash -c "x11vnc -display ${XVFB_DISPLAY} -auth ${XVFB_AUTH} -nopw -forever -shared -listen 0.0.0.0 -rfbport ${VNC_PORT} > /tmp/x11vnc.log 2>&1"
 }
 
 start_openbox() {
-    if docker exec "$CONTAINER_NAME" bash -c "pgrep openbox" &>/dev/null; then
-        log_info "Openbox already running"
-        return
-    fi
-
+    docker exec "$CONTAINER_NAME" bash -c "pgrep openbox" &>/dev/null && return
     log_info "Starting Openbox window manager..."
-    docker exec -d "$CONTAINER_NAME" bash -c \
-        "DISPLAY=${XVFB_DISPLAY} openbox --sm-disable > /tmp/openbox.log 2>&1"
-    sleep 1
-
-    if docker exec "$CONTAINER_NAME" bash -c "pgrep openbox" &>/dev/null; then
-        log_success "Openbox running — windows will have title bars"
-    else
-        log_warn "Openbox failed — windows won't be draggable"
-        log_warn "Check: docker exec $CONTAINER_NAME cat /tmp/openbox.log"
-    fi
-}
-
-check_vnc_port_exposed() {
-    if ! docker port "$CONTAINER_NAME" "$VNC_PORT" &>/dev/null; then
-        log_warn "Port ${VNC_PORT} is NOT forwarded to the host."
-        log_warn "Recreate the container with -p ${VNC_PORT}:${VNC_PORT} (runrosenv.sh already does this)."
-    fi
-}
-
-launch_gui_apps() {
-    local rviz_config="/autonomous_ROS/install/my_robot_launch/share/my_robot_launch/config/lab_slam.rviz"
-
-    log_info "Launching gzclient on display ${XVFB_DISPLAY}..."
     docker exec -d \
         -e DISPLAY="${XVFB_DISPLAY}" \
-        -e QT_X11_NO_MITSHM=1 \
-        -e LIBGL_ALWAYS_SOFTWARE=1 \
-        -e MESA_GL_VERSION_OVERRIDE=3.3 \
-        -e GALLIUM_DRIVER=softpipe \
-        -e GAZEBO_MODEL_PATH="/autonomous_ROS/install/jetson_bot_description/share" \
-        "$CONTAINER_NAME" bash -c "
-            source /opt/ros/foxy/setup.bash &&
-            source /autonomous_ROS/install/setup.bash &&
-            gzclient > /tmp/gzclient.log 2>&1
-        "
-
-    log_info "Launching RViz2 on display ${XVFB_DISPLAY}..."
-    docker exec -d \
-        -e DISPLAY="${XVFB_DISPLAY}" \
-        -e QT_X11_NO_MITSHM=1 \
-        -e LIBGL_ALWAYS_SOFTWARE=1 \
-        -e MESA_GL_VERSION_OVERRIDE=3.3 \
-        "$CONTAINER_NAME" bash -c "
-            source /opt/ros/foxy/setup.bash &&
-            source /autonomous_ROS/install/setup.bash &&
-            if [ -f '${rviz_config}' ]; then
-                rviz2 -d '${rviz_config}' --ros-args -p use_sim_time:=true > /tmp/rviz2.log 2>&1
-            else
-                rviz2 --ros-args -p use_sim_time:=true > /tmp/rviz2.log 2>&1
-            fi
-        "
+        -e XAUTHORITY="${XVFB_AUTH}" \
+        "$CONTAINER_NAME" openbox --sm-disable
 }
 
-open_vnc_viewer() {
-    log_info "────────────────────────────────────────────────"
-    log_info "VNC is ready. Connect with one of these:"
-    log_info ""
-    log_info "  Option 1 — RealVNC Viewer (recommended, free):"
-    log_info "    https://www.realvnc.com/en/connect/download/viewer/"
-    log_info "    Address: localhost:${VNC_PORT}   (leave password blank)"
-    log_info ""
-    log_info "  Option 2 — macOS Screen Sharing:"
-    log_info "    Finder → Go → Connect to Server → vnc://localhost:${VNC_PORT}"
-    log_info "────────────────────────────────────────────────"
-}
+# ── Utility Commands ──────────────────────────────────────────────────────────
 
-start_gui() {
-    log_info "🖥  Starting GUI mode (Xvfb + VNC)..."
-    check_container
-    start_virtual_display
-    start_vnc_server
-    start_openbox
-    check_vnc_port_exposed
-
-    if ! curl -s http://localhost:8000 > /dev/null 2>&1; then
-        log_info "Simulation not running — starting it first..."
-        _launch_sim_nodes "gui:=true $@"
-        if ! _wait_for_web 60; then
-            echo ""
-            log_warn "Web server not up yet — sim may still be loading"
-            log_info "Check: docker exec $CONTAINER_NAME tail -20 /tmp/sim.log"
-        else
-            echo ""
-        fi
-    else
-        log_info "Simulation already running — attaching GUI"
-    fi
-
-    log_info "Waiting for gzserver..."
-    for i in $(seq 1 20); do
-        sleep 1
-        docker exec "$CONTAINER_NAME" bash -c "pgrep gzserver" &>/dev/null && break
-        echo -n "."
-    done
-    echo ""
-
-    launch_gui_apps
-
-    log_success "🎉 GUI launched!"
-    log_info "🌐 Web interface: http://localhost:8000"
-    log_info "🔌 ROSBridge:     ws://localhost:9090"
-    log_info ""
-    log_info "Logs inside container:"
-    log_info "  /tmp/xvfb.log  /tmp/x11vnc.log  /tmp/gzclient.log  /tmp/rviz2.log"
-    log_info ""
-    open_vnc_viewer
-}
-
-restart_vnc() {
-    log_info "Restarting x11vnc..."
-    check_container
-    docker exec "$CONTAINER_NAME" bash -c "pkill x11vnc || true"
-    sleep 1
-    start_vnc_server
-    log_success "VNC restarted on localhost:${VNC_PORT}"
-    open_vnc_viewer
-}
-
-# ── Real robot ────────────────────────────────────────────────────────────────
-
-start_robot() {
-    log_info "🤖 Starting real robot..."
-
-    docker exec -d "$CONTAINER_NAME" bash -c "
-        cd /autonomous_ROS &&
-        source /opt/ros/foxy/setup.bash &&
-        source install/setup.bash &&
-        nohup ros2 launch jetson_bot_bringup main.launch.py > /tmp/robot.log 2>&1
-    "
-
-    if _wait_for_web 20; then
-        echo ""
-        log_success "🎉 Robot started!"
-        log_info "🌐 Web interface: http://localhost:8000"
-        log_info "🔌 ROSBridge:     ws://localhost:9090"
-    else
-        echo ""
-        log_error "Robot failed to start — check: ./robot.sh logs"
-    fi
-}
-
-# ── Utility commands ──────────────────────────────────────────────────────────
-
-open_web() {
-    if curl -s http://localhost:8000 > /dev/null 2>&1; then
-        log_success "Web interface is running"
-        if command -v open > /dev/null 2>&1; then
-            open http://localhost:8000
-        elif command -v xdg-open > /dev/null 2>&1; then
-            xdg-open http://localhost:8000
-        else
-            log_info "Open: http://localhost:8000"
-        fi
-    else
-        log_error "Web interface not running."
-        log_info "Start first with: ./robot.sh sim  (or)  ./robot.sh gui"
-    fi
-}
-
-enter_shell() {
-    log_info "🐚 Entering robot container..."
-    check_container
-    
-    # Allow passing a command to run non-interactively
-    if [ $# -gt 0 ]; then
-        docker exec "$CONTAINER_NAME" bash -c "
-            cd /autonomous_ROS &&
-            source /opt/ros/foxy/setup.bash &&
-            source install/setup.bash 2>/dev/null || true &&
-            $*
-        "
-    else
-        docker exec -it "$CONTAINER_NAME" bash -c "
-            cd /autonomous_ROS &&
-            source /opt/ros/foxy/setup.bash &&
-            source install/setup.bash 2>/dev/null || true &&
-            echo '🤖 Robot container — useful commands:' &&
-            echo '  ros2 node list  |  ros2 topic list  |  ros2 launch ...' &&
-            exec bash
-        "
-    fi
-}
 stop_robot() {
     log_info "🛑 Stopping all processes..."
-    check_container
+    
+    # Check if container is running
+    if ! docker ps --format '{{.Names}}' | grep -q "^$CONTAINER_NAME$"; then
+        log_warn "Container $CONTAINER_NAME is not running."
+        return 0
+    fi
 
-    log_info "Killing ROS/Gazebo/Web processes inside container..."
-
-    # Aggregate kill command for efficiency
-    docker exec "$CONTAINER_NAME" bash -c "
-        pkill -9 -f 'ros2' || true
-        pkill -9 -f 'gzserver' || true
-        pkill -9 -f 'gzclient' || true
-        pkill -9 -f 'gazebo' || true
-        pkill -9 -f 'rviz2' || true
-        pkill -9 -f 'slam_toolbox' || true
-        pkill -9 -f 'robot_state_publisher' || true
-        pkill -9 -f 'controller_manager' || true
-        pkill -9 -f 'spawner' || true
-        pkill -9 -f 'rosbridge' || true
-        pkill -9 -f 'web_server' || true
-        pkill -9 -f 'python3 -m http.server' || true
-        pkill -9 -f 'Xvfb' || true
-        pkill -9 -f 'x11vnc' || true
-        pkill -9 -f 'openbox' || true
-        pkill -9 -f 'jetson_bot' || true
-    " || true
-
+    # Killing processes inside container using single quotes to avoid host expansion
+    docker exec "$CONTAINER_NAME" bash -c '
+        pkill -9 -f ros || true
+        pkill -9 -f gazebo || true
+        pkill -9 -f gzserver || true
+        pkill -9 -f gzclient || true
+        pkill -9 -f gz || true
+        pkill -9 -f rviz || true
+        pkill -9 -f Xvfb || true
+        pkill -9 -f x11vnc || true
+        pkill -9 -f openbox || true
+        pkill -9 -f python3 || true
+    ' || true
+    
     _cleanup_ports
-
-    log_success "All processes stopped"
+    log_success "Processes stopped"
+    sleep 2
 }
 
 _cleanup_ports() {
-    log_info "Cleaning up ports 8000, 9090, 5900..."
-    
-    docker exec "$CONTAINER_NAME" bash -c "
+    if ! docker ps --format '{{.Names}}' | grep -q "^$CONTAINER_NAME$"; then
+        return 0
+    fi
+
+    docker exec "$CONTAINER_NAME" bash -c '
         for port in 8000 9090 5900; do
-            # Use netstat to find PIDs (netstat -p shows 'PID/Program')
-            pids=\$(netstat -tulpn 2>/dev/null | grep \":\$port \" | awk '{print \$7}' | cut -d'/' -f1 | grep -E '^[0-9]+\$' || true)
-            for pid in \$pids; do
-                if [ ! -z \"\$pid\" ]; then
-                    echo \"Killing process \$pid holding port \$port\"
-                    kill -9 \$pid 2>/dev/null || true
+            pids=$(netstat -tulpn 2>/dev/null | grep ":$port " | awk "{print \$7}" | cut -d/ -f1 | grep -E "^[0-9]+$" || true)
+            for pid in $pids; do
+                if [ -n "$pid" ]; then
+                    kill -9 "$pid" 2>/dev/null || true
                 fi
             done
         done
-    " || true
+    ' || true
+}
 
-    # Give a moment for the OS to release ports
-    sleep 2
-
-    # Quick check from host - if ports are still busy, the container needs a restart
-    if lsof -i :9090 -t >/dev/null || lsof -i :8000 -t >/dev/null; then
-        log_warn "Ports still blocked after kill. Force-restarting container..."
-        docker restart "$CONTAINER_NAME" >/dev/null
-        sleep 5
+enter_shell() {
+    check_container
+    if [  $# -gt 0 ]; then
+        docker exec "$CONTAINER_NAME" bash -c "source /opt/ros/foxy/setup.bash && source install/setup.bash 2>/dev/null || true && $*"
+    else
+        log_info "🐚 Entering container..."
+        docker exec -it "$CONTAINER_NAME" bash -c "source /opt/ros/foxy/setup.bash && source install/setup.bash 2>/dev/null || true && exec bash"
     fi
 }
 
 show_status() {
-    log_info "📊 Robot status:"
+    log_info "📊 Status:"
+    docker ps -f "name=$CONTAINER_NAME" --format "table {{.Names}}\t{{.Status}}"
+    
+    # Get Local IP (Portable for macOS/Linux)
+    if command -v hostname &> /dev/null && hostname -I &> /dev/null; then
+        LOCAL_IP=$(hostname -I | awk '{print $1}')
+    else
+        # Fallback for macOS
+        LOCAL_IP=$(ipconfig getifaddr en0 || ipconfig getifaddr en1 || echo "localhost")
+    fi
 
-    echo ""
-    echo "Container:"
-    docker ps -f "name=$CONTAINER_NAME" --format "table {{.Names}}\t{{.Status}}\t{{.Ports}}"
+    # Check Web UI
+    if curl -s --connect-timeout 1 http://localhost:8000 >/dev/null 2>&1; then
+        echo -e "Web UI:    ${GREEN}✅ Active${NC}"
+        echo -e "           🔗 http://${LOCAL_IP}:8000"
+    else
+        echo -e "Web UI:    ${RED}❌ Offline${NC}"
+    fi
 
-    echo ""
-    echo "Services:"
-    curl -s http://localhost:8000 > /dev/null 2>&1 \
-        && echo "✅ Web Interface: http://localhost:8000" \
-        || echo "❌ Web Interface: not running"
+    # Check VNC
+    if docker exec "$CONTAINER_NAME" pgrep x11vnc >/dev/null 2>&1; then
+        echo -e "VNC:       ${GREEN}✅ Active${NC}"
+        echo -e "           🔗 ${LOCAL_IP}:5900"
+    else
+        echo -e "VNC:       ${RED}❌ Offline${NC}"
+    fi
 
-    docker exec "$CONTAINER_NAME" bash -c "netstat -ln 2>/dev/null | grep -q ':9090'" &>/dev/null \
-        && echo "✅ ROSBridge: ws://localhost:9090" \
-        || echo "❌ ROSBridge: not running"
+    # --- DEEP HEALTH CHECKS ---
+    echo -e "--- ROS Health ---"
+    
+    # 1. Check if the main launch process is alive
+    if docker exec "$CONTAINER_NAME" pgrep -f "main.launch.py" >/dev/null 2>&1; then
+        echo -e "ROS Launch: ${GREEN}✅ Running${NC}"
+    else
+        echo -e "ROS Launch: ${RED}❌ CRASHED or NOT STARTED${NC}"
+        # Check for errors in logs
+        if docker exec "$CONTAINER_NAME" [ -f /tmp/sim.log ]; then
+            echo -e "${YELLOW}Recent Errors from /tmp/sim.log:${NC}"
+            docker exec "$CONTAINER_NAME" tail -n 5 /tmp/sim.log
+        fi
+    fi
 
-    docker exec "$CONTAINER_NAME" bash -c "pgrep x11vnc" &>/dev/null \
-        && echo "✅ VNC: localhost:${VNC_PORT}" \
-        || echo "❌ VNC: not running  (start with: ./robot.sh gui)"
-
-    if docker ps | grep -q "$CONTAINER_NAME"; then
-        echo ""
-        echo "Xvfb / VNC:"
-        docker exec "$CONTAINER_NAME" bash -c "pgrep -a Xvfb   || echo '  Xvfb    not running'"
-        docker exec "$CONTAINER_NAME" bash -c "pgrep -a x11vnc || echo '  x11vnc  not running'"
-
-        echo ""
-        echo "Active ROS Nodes:"
-        docker exec "$CONTAINER_NAME" bash -c "
-            source /opt/ros/foxy/setup.bash 2>/dev/null &&
-            source /autonomous_ROS/install/setup.bash 2>/dev/null &&
-            ros2 node list 2>/dev/null || echo '  No ROS nodes running'
-        " 2>/dev/null
+    # 2. Check key nodes (if launch is running)
+    if docker exec "$CONTAINER_NAME" pgrep -f "main.launch.py" >/dev/null 2>&1; then
+        # Check for any active nodes
+        NODE_COUNT=$(docker exec "$CONTAINER_NAME" bash -c "source /opt/ros/foxy/setup.bash && ros2 node list 2>/dev/null | wc -l" || echo "0")
+        if [ "$NODE_COUNT" -gt 0 ]; then
+            echo -e "Active Nodes: ${GREEN}${NODE_COUNT}${NC}"
+            
+            # Check specific critical nodes depending on mode
+            # We fetch current mode from the exported config using Python inside the container
+            CURRENT_MODE=$(docker exec "$CONTAINER_NAME" python3 -c "import json, os; p='/autonomous_ROS/src/jetson_bot_gui/web/config.json'; print(json.load(open(p))['mode']) if os.path.exists(p) else print('unknown')" 2>/dev/null || echo "unknown")
+            echo -e "System Mode:  ${BLUE}${CURRENT_MODE}${NC}"
+            
+            if [[ "$CURRENT_MODE" == "navigation" ]]; then
+                # Check if bt_navigator is in 'active' state
+                IS_ACTIVE=$(docker exec "$CONTAINER_NAME" bash -c "source /opt/ros/foxy/setup.bash && ros2 lifecycle get /bt_navigator 2>/dev/null" | grep -q "active" && echo "yes" || echo "no")
+                if [[ "$IS_ACTIVE" == "yes" ]]; then
+                    echo -e "Nav Stack:  ${GREEN}✅ ACTIVE${NC}"
+                else
+                    echo -e "Nav Stack:  ${RED}❌ INACTIVE (Check Logs)${NC}"
+                fi
+            fi
+        else
+            echo -e "Active Nodes: ${YELLOW}Initializing... (or check /tmp/sim.log)${NC}"
+        fi
     fi
 }
 
-show_logs() {
-    log_info "📝 Simulation log (last 50 lines):"
-    check_container
-    docker exec "$CONTAINER_NAME" bash -c "tail -50 /tmp/sim.log 2>/dev/null || docker logs --tail 50 $CONTAINER_NAME" || \
-        docker logs --tail 50 "$CONTAINER_NAME"
-}
-
-clean_build() {
-    log_info "🧹 Cleaning build files..."
-    check_container
-    docker exec "$CONTAINER_NAME" bash -c "cd /autonomous_ROS && rm -rf build install log || true"
-    log_success "Build files cleaned"
-}
-
-# ── Main dispatcher ───────────────────────────────────────────────────────────
+# ── Main Dispatcher ───────────────────────────────────────────────────────────
 
 case "${1:-help}" in
-    sim|start)       shift; stop_robot; _cleanup_ports; build_workspace; start_robot_system "$@" ;;
-    gui)             shift; stop_robot; _cleanup_ports; build_workspace; start_gui "$@" ;;
-    robot)           shift; stop_robot; _cleanup_ports; build_workspace; start_robot ;;
-    vnc-restart)     restart_vnc ;;
+    up)              shift; stop_robot; _launch "$@" ;;
+    sim)             shift; stop_robot; _launch "sim:=true viz:=true $@" ;;
+    robot)           shift; stop_robot; _launch "sim:=false viz:=false $@" ;;
+    nav)             shift; stop_robot; _launch "mode:=navigation $@" ;;
+    
     build)           build_workspace ;;
-    stop)            stop_robot ;;
-    status)          show_status ;;
-    shell|bash)      shift; enter_shell "$@" ;;
-    logs)            show_logs ;;
-    clean)           clean_build ;;
-    help|--help|-h)  show_help ;;
-    *)
-        log_error "Unknown command: $1"
-        echo ""
-        show_help
-        exit 1
+    stop)
+        if [ "$2" == "f" ]; then
+            log_info "🔥 Force restarting container $CONTAINER_NAME..."
+            docker restart "$CONTAINER_NAME"
+            log_success "Container restarted"
+        else
+            stop_robot
+        fi
         ;;
+    shell)           shift; enter_shell "$@" ;;
+    status)          show_status ;;
+    clean)           docker exec "$CONTAINER_NAME" bash -c "cd /autonomous_ROS && rm -rf build install log" ;;
+    *)               show_help ;;
 esac
 
-
-docker exec auto_ros_foxy bash -c "
-  echo '=== SIM LOG (last 30) ===' && tail -30 /tmp/sim.log
-  echo '=== GZCLIENT LOG ===' && cat /tmp/gzclient.log 2>/dev/null
-  echo '=== RVIZ LOG ===' && cat /tmp/rviz2.log 2>/dev/null
-"
-
-docker exec auto_ros_foxy bash -c " 
-  echo '=== GZCLIENT LOG ===' && cat /tmp/gzclient.log 2>/dev/null "
-
-docker exec auto_ros_foxy bash -c " 
-  echo '=== RVIZ LOG ===' && cat /tmp/rviz2.log 2>/dev/null "

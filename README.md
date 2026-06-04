@@ -1,177 +1,107 @@
-# 🤖 Autonomous Jetson Robot
+# autoJetsonBot
 
-A modern ROS2 Foxy autonomous robot system with web-based control interface, designed for Jetson Nano deployment.
+**autoJetsonBot** is a high-performance, modular ROS 2 Foxy-based autonomous mobile robot platform designed specifically for the NVIDIA Jetson Nano B01. It bridges the gap between sophisticated simulation and real-world hardware integration, providing a robust framework for SLAM, navigation, and object detection.
 
-## ✨ Features
+---
+[<img src="assets/thubnl.png" width="50%">](https://youtu.be/JTg8ff2hSGM?si=UqfauM6vN_xyPFOV)
+---
 
-- 🎮 **Gazebo Simulation** - Full robot simulation environment
-- 🌐 **Modern Web Interface** - Professional control dashboard
-- 🎯 **ROS2 Control Integration** - Industry-standard robot control
-- 📱 **Mobile-Friendly** - Responsive design for all devices
-- ⌨️ **Keyboard Control** - WASD + Arrow key support
-- 📊 **Real-time Monitoring** - Live metrics and system status
-- 🔧 **Easy Configuration** - Simple setup and deployment
+## 📊 Project Status: Navigation Active 🚀
 
-## 🚀 Quick Start
+The robot has been fully refactored to the **Industry Standard (REP 120)**. All core systems are synchronized to the `base_footprint` root projection, ensuring seamless coordinate transformations across the entire stack.
 
-### Prerequisites
-- Docker installed and running
-- Container `auto_ros_foxy` available
-
-### Simple Commands
-
-```bash
-# Start simulation with web interface
-./robot.sh sim
-
-# Start real robot
-./robot.sh robot
-
-# Open web control interface
-./robot.sh web
-
-# Enter robot container for debugging
-./robot.sh shell
-
-# Show robot status
-./robot.sh status
-
-# Stop all robot processes
-./robot.sh stop
-```
-
-## 🌐 Web Interface
-
-Once running, access the robot control interface:
-
-- **Control Dashboard**: http://localhost:8000
-- **ROSBridge WebSocket**: ws://localhost:9090
-
-### Controls
-- **WASD Keys** or **Arrow Keys**: Move robot
-- **Spacebar**: Emergency stop
-- **Mouse/Touch**: Use on-screen D-pad
-- **Sliders**: Adjust speed limits
-
-## 📁 Project Structure
-
-```
-autonomous_jetson_robot/
-├── robot.sh                    # Main control script
-├── src/
-│   ├── my_robot_launch/        # Robot launch files & URDF
-│   ├── web_gui_control/        # Modern web interface
-│   ├── object_detection/       # Camera & object detection
-│   ├── mpu6050_imu/           # IMU sensor integration
-│   └── slam_launch/           # SLAM configuration
-├── config/                     # Configuration files
-└── README.md                  # This file
-```
-
-## 🎮 Usage Examples
-
-### Start Simulation
-```bash
-./robot.sh sim
-# Opens Gazebo + Web interface
-# Control robot at http://localhost:8000
-```
-
-### Control Real Robot
-```bash
-./robot.sh robot
-# Starts real hardware interface
-# Control via web interface
-```
-
-### Debug & Development
-```bash
-./robot.sh shell
-# Enter container for ROS development
-# Full ROS2 environment available
-```
-
-## 🔧 Configuration
-
-### Robot Settings
-- **Max Linear Velocity**: 1.0 m/s
-- **Max Angular Velocity**: 2.0 rad/s
-- **Wheel Separation**: 0.18m
-- **Wheel Radius**: 0.035m
-- **Encoder Resolution**: 3436 counts/rev
-
-### Network Settings
-- **Web Server**: Port 8000
-- **ROSBridge**: Port 9090
-- **Auto IP Detection**: Supports multiple network interfaces
-
-## 📊 Monitoring
-
-The web interface provides real-time monitoring:
-
-- **Wheel RPM**: Left/Right wheel speeds
-- **Velocities**: Linear and angular motion
-- **System Health**: CPU, memory, battery status
-- **Activity Log**: Real-time event logging
-- **Connection Status**: Visual connection indicator
-
-## 🛠️ Development
-
-### Build Workspace
-```bash
-./robot.sh build
-```
-
-### View Logs
-```bash
-./robot.sh logs
-```
-
-### Clean Build Files
-```bash
-./robot.sh clean
-```
-
-## 🎯 Key Components
-
-### ROS2 Packages
-- **my_robot_launch**: Main robot launch system
-- **web_gui_control**: Modern web interface
-- **object_detection**: MobileNetSSD object detection
-- **mpu6050_imu**: IMU sensor integration
-- **slam_launch**: SLAM toolbox configuration
-
-### Hardware Support
-- **Motor Control**: TB6612FNG dual motor driver
-- **Sensors**: RPLidar A1, MPU6050 IMU, Camera
-- **Communication**: Micro-ROS, ROSBridge WebSocket
-- **Platform**: Jetson Nano, ROS2 Foxy
-
-## 🚀 Deployment
-
-### Jetson Nano
-1. Copy project to Jetson Nano
-2. Run `./robot.sh robot` for real hardware
-3. Access web interface from any device on network
-
-### Development
-1. Use `./robot.sh sim` for simulation testing
-2. Develop and test features safely
-3. Deploy to real hardware when ready
-
-## 📝 License
-
-MIT License - Feel free to use and modify for your projects.
-
-## 🤝 Contributing
-
-Contributions welcome! The modular architecture makes it easy to add new features:
-
-- **New Sensors**: Add to hardware interface
-- **Web Features**: Extend the modern web GUI
-- **AI/ML**: Integrate with object detection
-- **Navigation**: Add path planning capabilities
+### System Health Snapshot
+| System | Status | Technical Detail |
+| :--- | :--- | :--- |
+| **TF Tree** | ✅ Standardized | `map -> odom -> base_footprint -> base_link` chain. |
+| **Control** | ✅ Active | Remapped internal controller to standard `/cmd_vel` topic. |
+| **Navigation** | ✅ Active | AMCL auto-localization with array-based `initial_pose`. |
+| **UI** | ✅ Hardened | Integrated deep health checks into the CLI control script. |
 
 ---
 
-**Happy Robot Building! 🤖✨**
+## 🏗️ System Architecture (Modular)
+
+The project is decomposed into specialized ROS 2 packages within the `src/` directory to maximize maintainability and scalability.
+
+| Package | Responsibility | Key Components |
+| :--- | :--- | :--- |
+| **`jetson_bot_bringup`** | Orchestration | Launch files, world files, global config (`unified_robot_config.yaml`). |
+| **`jetson_bot_description`**| Physical Model | URDF/XACRO definitions, mesh resources, sensor placements. |
+| **`jetson_bot_gui`** | Web Dashboard | Telemetry server, roslibjs bridge, and real-time UI. |
+| **`jetson_bot_slam`** | Environment Mapping| `slam_toolbox` configurations for asynchronous mapping. |
+| **`jetson_bot_navigation`**| Path Planning | Nav2 parameters, Behavior Trees, and Local/Global planners. |
+| **`jetson_bot_imu`** | Sensor Driver | Python driver for MPU6050 I2C communication. |
+| **`object_detection`** | Computer Vision | Image processing node for real-time detection. |
+
+---
+
+## 🏎️ Hardware Specification
+
+The physical platform is an advanced continuation of the [Autonomous ROS](https://github.com/jakhon37/autonomous_ROS) baseline, optimized for the Jetson Nano.
+
+### 1. Compute & Intelligence
+*   **Main Brain:** NVIDIA Jetson Nano B01 (4GB) – Executes the full ROS 2 stack and vision processing.
+*   **Low-Level Controller:** ESP32 / Arduino – Acts as the real-time bridge for motor PWM and encoder interrupts.
+*   **Serial Communication:** 115200 Baud rate via `/dev/ttyACM0` or `/dev/ttyUSB0`.
+
+### 2. Sensing & Perception
+*   **Lidar:** RPLidar A1/A2 – Provides 360° laser scans for mapping and obstacle avoidance.
+*   **IMU:** MPU6050 – Fuses 6-DOF data for improved odometry via EKF integration.
+*   **Encoders:** Hall-effect sensors (3436 counts/rev) – High-resolution wheel position feedback.
+*   **Vision:** Raspberry Pi Camera v2 – Integrated for object detection and visual servoing.
+
+### 3. Chassis & Power
+*   **Drive:** Differential drive system (Wheel Radius: 0.035m, Separation: 0.18m).
+*   **Power:** 12V Li-ion battery with dual buck converters for isolated 5V (Jetson) and 5V/3.3V (Sensors) rails.
+
+---
+
+## 🚀 Development Workflow (The `robot.sh` CLI)
+
+We utilize a unified control script to manage the dockerized environment efficiently.
+
+### Core Commands
+| Command | Result |
+| :--- | :--- |
+| `./robot.sh build` | Rebuilds the modular workspace inside the container. |
+| `./robot.sh sim` | Launches Gazebo simulation + Web UI in **Mapping Mode**. |
+| `./robot.sh nav` | Launches simulation + Nav2 in **Navigation Mode**. |
+| `./robot.sh status` | Deep-inspects ROS nodes, topics, and port health. |
+| `./robot.sh stop` | Robustly terminates all processes (including Gazebo/VNC). |
+
+---
+
+## 🗺️ Mapping & Navigation Steps
+
+### Phase 1: Creating a Map
+1.  Run `./robot.sh sim`.
+2.  Use the Web UI or a joystick to drive the robot around the environment.
+3.  Monitor mapping progress in RViz (via VNC at `localhost:5900`).
+4.  Save the map dynamically:
+    ```bash
+    ./robot.sh shell "ros2 run nav2_map_server map_saver_cli -f /autonomous_ROS/maps/current_map"
+    ```
+
+### Phase 2: Autonomous Navigation
+1.  Verify the map name in `src/jetson_bot_bringup/config/unified_robot_config.yaml`.
+2.  Run `./robot.sh nav`.
+3.  The robot will auto-localize at its starting point. Use **"2D Nav Goal"** in RViz to set a destination.
+4.  The system uses the **DWB Local Planner** for smooth obstacle avoidance.
+
+---
+
+## 🧠 Project Continuity & Memory
+To maintain long-term technical health, consult these primary documentation nodes:
+
+1.  **[PROJECT_ANALYSIS.md](./PROJECT_ANALYSIS.md)**: Current roadmap, active blockers, and system status.
+2.  **[AGENTS.md](./AGENTS.md)**: Repository of technical wisdom, bug fixes, and "hard-won" lessons.
+3.  **[SESSION_LOG.md](./SESSION_LOG.md)**: Detailed chronological history of all development sessions.
+4.  **[GEMINI.md](./GEMINI.md)**: Core mandates, architectural conventions, and standard workflows.
+
+---
+
+## 📜 License
+Licensed under the MIT License. Based on the [Autonomous ROS](https://github.com/jakhon37/autonomous_ROS) project.
+
+*For issues or contributions, please contact jakhon37@gmail.com*

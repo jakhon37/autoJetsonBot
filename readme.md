@@ -1,125 +1,98 @@
-### continuation of [Autonomous ROS](https://github.com/jakhon37/autonomous_ROS) Project with Jetson Nano B1 on
-# Autonomous Jetson Robot
+# autoJetsonBot
 
-This project develops a mobile robot platform for autonomous navigation by integrating multiple sensors and actuators. Powered by a Jetson Nano B01, the system combines motor control, encoder-based feedback, LIDAR scanning, Simultaneous Localization and Mapping (SLAM), navigation, Reinforcement Learning (RL)-based autonomous path planning, camera vision, and object detection capabilities.
+Autonomous ROS 2 Foxy platform for Jetson Nano B01. Optimized for simulation (Gazebo/RViz) and physical hardware integration. This project is an advanced continuation of the [Autonomous ROS](https://github.com/jakhon37/autonomous_ROS) architecture, adapted for the Jetson ecosystem with modular packages and REP 120 compliance.
+
 ---
 [<img src="assets/thubnl.png" width="50%">](https://youtu.be/JTg8ff2hSGM?si=UqfauM6vN_xyPFOV)
 ---
 
-### **To-Do List**
+## 📊 Project Status: Navigation Active 🚀
+The system is currently mapping-ready and navigation-stable in simulation. It features a standardized TF tree (`map -> odom -> base_footprint -> base_link`) and a unified configuration management system.
 
-✅ **Physical Robot Design & Circuit Setup** – Robot base and hardware assembly  
-✅ **Robot Description (URDF & xacro)** – Define robot joints and links for ROS 2  
-✅ **Gazebo & RViz2 Setup** – Simulate the robot in a virtual environment  
-✅ **Dual Motor Control Node** – Implement motor control for mobility  
-✅ **Encoder Node** – Use encoder data for odometry (ODOM)  
-✅ **Remote Motor Control** – Web-based GUI for manual control  
-✅ **RP-Lidar & Scan Node Setup** – Configure Lidar for scanning  
-
-💭 **SLAM (Simultaneous Localization & Mapping)** – Create an environment map and localize the robot  
-💭 **Navigation (nav2)** – Implement path following and autonomous goal reaching  
-💭 **Path Planning AI (Reinforcement Learning)** – Train an RL agent for navigation in unseen environments  
-💭 **Camera & Camera Node Setup** – Integrate a camera for vision processing  
-💭 **Object Detection** – Improve localization and navigation with vision-based detection  
+### System Health
+| System | Status | Note |
+| :--- | :--- | :--- |
+| **TF Tree** | ✅ Standardized | REP 120 compliant tree with `base_footprint` root projection. |
+| **Control** | ✅ Active | Remapped to standard `/cmd_vel` for Nav2 and Web UI parity. |
+| **Navigation** | ✅ Active | AMCL auto-localization enabled via corrected array-based `initial_pose`. |
+| **UI** | ✅ Hardened | Deep internal health checks via `./robot.sh status`. |
 
 ---
 
-![Project Image](assets/thub.png)
+## 🏗️ Hardware Architecture & Components
+
+The physical robot is designed for high-torque mobility and precise environment sensing.
+
+### **1. Core Compute & Control**
+*   **Main Brain:** NVIDIA Jetson Nano B01 (4GB) – Handles ROS 2 stack, SLAM, and Vision.
+*   **Microcontroller:** ESP32 / Arduino – Acts as the real-time serial bridge between ROS 2 and the motor drivers.
+*   **Motor Driver:** L298N / Cytron MD10C – High-current DC motor control with PWM support.
+
+### **2. Sensors & Feedback**
+*   **Lidar:** RPLidar A1/A2 – 360-degree laser scanning for SLAM and obstacle avoidance.
+*   **IMU:** MPU6050 (I2C) – Provides 6-DOF acceleration and angular velocity for EKF fusion.
+*   **Odometry:** Hall-effect Encoders (3436 counts/rev) – Precise wheel displacement feedback.
+*   **Vision:** Raspberry Pi Camera v2 / USB Cam – Object detection and visual servoing.
+
+### **3. Physical Chassis Specs**
+*   **Wheel Separation:** 0.18 m
+*   **Wheel Radius:** 0.035 m
+*   **Drive Type:** Differential Drive with a rear caster for stability.
+*   **Power:** 12V Li-ion Battery pack with buck converters for 5V (Jetson/Sensors).
 
 ---
 
-## Table of Contents
+## 🚀 Software Workflow (Host Machine)
 
-- [Hardware Components](src/robot_body/readme_body.md)
-- [Circuit Connection & Wiring Details](#circuit-connection--wiring-details)
-- [Software Overview and Nodes](#software-overview-and-nodes)
-  - [Dual Motor Control Node](#dual-motor-control-node)
-  - [Encoder Node](#encoder-node)
-  - [Web GUI Node](#web-gui-node)
-  - [RP‑Lidar Scan Node (In Progress)](#rp-lidar-scan-node-in-progress)
-  - [SLAM Node (In Progress)](#slam-node-in-progress)
-  - [Navigation Node (In Progress)](#navigation-node-in-progress)
-  - [RL Path Planning Node (In Progress)](#path-planning-node-in-progress)
-  - [Camera / Object Detection Node (In Progress)](#camera--object-detection-node-in-progress)
-- [Installation and Launch Instructions](#installation-and-launch-instructions)
-- [Dockerization](#dockerization)
-- [License](#license)
+Manage the entire lifecycle using the unified `./robot.sh` script.
+
+| Command | Action |
+| :--- | :--- |
+| `./robot.sh build` | Build the workspace inside the container. |
+| `./robot.sh sim` | Start Simulation (Mapping Mode) + Web UI. |
+| `./robot.sh nav` | Start Navigation Mode (Map Loading + Nav2). |
+| `./robot.sh status` | Show container, port, and ROS node health. |
+| `./robot.sh stop` | Robustly kill all processes and free ports. |
 
 ---
 
+## 🗺️ Mapping & Navigation Steps
 
-## Installation and Launch Instructions
+### **Phase 1: Environment Mapping**
+1.  Launch simulation: `./robot.sh sim`.
+2.  Open RViz or Web UI and drive the robot to explore the area.
+3.  Save the map dynamically:
+    ```bash
+    ./robot.sh shell "ros2 run nav2_map_server map_saver_cli -f /autonomous_ROS/maps/current_map"
+    ```
 
-1. **Build the Workspace:**  
-   From the workspace root (`autonomous_ROS/`):
-   ```bash
-   colcon build
-   source install/setup.bash
-   ```
-
-2. **Launch All Nodes:**  
-   Use the unified launch file in the `my_robot_launch` package:
-   ```bash
-   ros2 launch my_robot_launch all_nodes_launch.py
-   ```
-   This will:
-   - Launch autonomous car nodes (motor control, encoder, etc.)
-   - Start the rosbridge server (on port 9090)
-   - Start the HTTP server (serving the web GUI on port 8000)
-
-3. **Access the Web GUI:**  
-   Open a web browser on a device in the same network and navigate to:
-   ```
-   http://<raspberry_pi_ip>:8000
-   ```
-   For example, if the Pi's IP is `192.168.219.100`, use:
-   ```
-   http://192.168.219.100:8000
-   ```
-
-4. **Remote Visualization (Optional):**  
-   Run RViz on another machine (with ROS 2 Humble) to view topics such as `/map` and `/scan`.
+### **Phase 2: Autonomous Navigation**
+1.  Configure your map in `src/jetson_bot_bringup/config/unified_robot_config.yaml`.
+2.  Launch navigation: `./robot.sh nav`.
+3.  Use **"2D Nav Goal"** in RViz to send the robot to a destination. The robot will automatically calculate the optimal path using the DWB Local Planner.
 
 ---
 
-## Dockerization
+## 🧩 Modular Package Overview
+*   **`jetson_bot_bringup`**: Central orchestration and global configuration.
+*   **`jetson_bot_description`**: URDF models, Gazebo plugins, and mesh resources.
+*   **`jetson_bot_gui`**: Web-based dashboard (`localhost:8000`) and telemetry server.
+*   **`jetson_bot_slam`**: SLAM Toolbox parameters for online asynchronous mapping.
+*   **`jetson_bot_navigation`**: Nav2 planner, controller, and behavior tree configs.
+*   **`jetson_bot_imu`**: Python-based MPU6050 driver for real-time IMU data.
 
-To simplify deployment and ensure a consistent environment, you can containerize your project using Docker.
+---
 
-### Example Dockerfile
-
-Place check Dockerfile in the root directory (`autonomous_ROS/Dockerfile`)
-
-### Building and Running the Docker Container
-
-1. **Build the Image:**
-   ```bash
-   docker build -t autonomous_ros_project .
-   ```
-
-2. **Run the Container (using host networking for ROS 2 DDS discovery):**
-   ```bash
-   docker run -d \
-    --privileged \
-    --restart=always \
-    --name auto_ros \
-    --network=host \
-    autonomous_ros_project
-
-   ```
-
-3. **Access the Web GUI:**  
-   Open a browser and navigate to:
-   ```
-   http://<raspberry_pi_ip>:8000
-   ```
+## 📜 Technical Memory
+Consult these files for deeper technical context:
+*   **[GEMINI.md](./GEMINI.md)**: Mandates and standard workflows.
+*   **[PROJECT_ANALYSIS.md](./PROJECT_ANALYSIS.md)**: Current roadmap and blocker tracking.
+*   **[AGENTS.md](./AGENTS.md)**: Technical "Wisdom" and hard-won bug fixes.
+*   **[SESSION_LOG.md](./SESSION_LOG.md)**: Detailed history of all work sessions.
 
 ---
 
 ## License
-
-This project is licensed under the MIT License. Feel free to modify, distribute, or use this code for personal, educational, or commercial purposes, provided proper attribution is given.
-
----
+Licensed under the MIT License. Based on the [Autonomous ROS](https://github.com/jakhon37/autonomous_ROS) project.
 
 *For issues or contributions, please contact jakhon37@gmail.com*

@@ -37,8 +37,23 @@ The `diff_drive_controller` in ROS 2 Foxy is extremely sensitive.
 ### 4. Navigation: The "Missing Map Frame" Startup Bug
 *   **Discovery:** RViz often reports "Frame [map] does not exist" on startup, even if the map is loaded.
 *   **Cause:** AMCL waits for an `initial_pose` before it publishes the `map -> odom` transform.
-*   ✅ **Fix Applied:** Added `set_initial_pose: true` and `initial_pose: [0,0,0,0]` to `nav2_params.yaml`.
-*   **Manual Override:** If the robot starts at a different location, use the **"2D Pose Estimate"** tool in RViz to re-localize.
+*   ⚠️ **Foxy Warning:** AMCL in ROS 2 Foxy requires the array format: `initial_pose: [0.0, 0.0, 0.0, 0.0]`. Using a dictionary (`x: 0, y: 0...`) will fail silently.
+*   ✅ **Fix Applied:** Updated `nav2_params.yaml` with the correct array structure.
+
+### 5. TF Tree & Frame Standardization (REP 120)
+*   **Discovery:** A "Split Tree" error occurred where `map -> odom` existed but was disconnected from the robot.
+*   **Cause:** Mismatch between URDF root (`base_footprint`) and Controller root (`base_link`).
+*   ✅ **Standard:** Always use `base_footprint` as the `base_frame_id` in `diff_drive_controller`.
+*   **Result:** TF Chain: `map -> odom -> base_footprint -> base_link`. This ensures Lidar data (relative to `base_link`) is correctly projected to the Map (relative to `base_footprint`).
+
+### 6. Movement & Topic Remapping
+*   **Discovery:** Navigation was active and planning paths, but the robot wouldn't move.
+*   **Cause:** Nav2 talks on `/cmd_vel`, but `ros2_control` listens on `/diff_cont/cmd_vel_unstamped` by default.
+*   ✅ **Fix:** Added remapping in `ros2_control.xacro` and updated Web UI to use the industry standard `/cmd_vel`.
+
+### 7. RViz Panel Stability
+*   **Discovery:** RViz failed to load specific configurations with an error regarding `rviz_common/Time`.
+*   **Fix:** Surgically removed the `Time` panel from `.rviz` config files. In containerized environments (Xvfb), non-essential panels can cause plugin loading crashes.
 
 ### 5. Configuration Priority (YAML vs CLI)
 *   **Discovery:** ROS 2 Launch arguments with defaults were overriding the `unified_robot_config.yaml` even when not passed.

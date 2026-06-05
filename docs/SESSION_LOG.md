@@ -77,7 +77,7 @@ Append concise summaries of work done here. For technical details on *why* thing
 
 ## Session: 2026-06-04 @ 09:00 (Restoration & Stability Optimization)
 - **Navigation:** Restored a complete `nav2_params.yaml` with optimized DWB local planner and Navfn global planner. Standardized on `base_link` frame.
-- **Object Detection:** Restored `object_detection` package. Refactored `object_detection_node.py` to subscribe to `/image_raw` instead of opening the physical camera, making it compatible with both simulation and real hardware. Updated `setup.py` and metadata.
+- **Object Detection:** Restored `jetson_bot_detection` package. Refactored `jetson_bot_detection_node.py` to subscribe to `/image_raw` instead of opening the physical camera, making it compatible with both simulation and real hardware. Updated `setup.py` and metadata.
 - **IMU:** Added simulated IMU sensor to URDF (`imu.xacro`) and integrated it into the robot model. This enables future EKF integration for improved odometry.
 - **Telemetry:** Implemented `telemetry_node.py` in `jetson_bot_gui` to publish simulated battery state and system statistics. Updated Web Dashboard JS to display real-time battery level from ROS topics.
 - **Fix (Stability):** Increased controller spawner delay to **90s** and SLAM/Nav delay to **120s** in `main.launch.py`. This accounts for the heavy startup time of Gazebo in a Docker-on-Mac environment, preventing "Controller manager not available" errors.
@@ -113,5 +113,44 @@ Append concise summaries of work done here. For technical details on *why* thing
 - **Feature:** Added `auto` command to `robot.sh` to automatically install missing system dependencies (like `web_video_server`) and rebuild the workspace.
 - **Docker:** Updated `Dockerfile.foxy` to include `ros-foxy-web-video-server` as a default system package.
 - **Launch:** Verified that `main.launch.py` correctly handles `web_video_server` startup with a graceful fallback if the package is missing.
+- **Build Fix:** Resolved a `colcon` build warning in `jetson_bot_detection` by explicitly separating the package marker from model resources in `setup.py`.
 - **UI:** Confirmed implementation of Phase 1 and Phase 2 of the `UI_UPGRADE_PLAN.md`, including telemetry wiring and Nav2 goal controls.
 - **Git:** Standardized repository on uppercase `README.md` and resolved case-sensitivity conflicts.
+
+---
+
+## Session: 2026-06-05 @ 11:30 (Bug Fix: Script Dispatcher)
+- **Bug Fix:** Identified and fixed a missing `stop` case in the `robot.sh` main dispatcher.
+- **Feature:** Restored `stop f` functionality to allow force-restarting the Docker container before process cleanup.
+- **Verification:** Script now correctly handles `stop` and `stop f` instead of falling through to the help menu.
+
+---
+
+## Session: 2026-06-05 @ 12:15 (Performance Analysis & Documentation)
+- **Analysis:** Conducted deep resource audit of the ROS container. Identified `gzserver` and Nav2 servers as primary CPU bottlenecks (~460% load).
+- **Documentation:** Created `OPTIMIZATION_GUIDE.md` detailing Level 1-3 strategies for physics reduction, Nav2 tuning, and infrastructure offloading.
+- **Maintenance:** Updated `PROJECT_ANALYSIS.md` to include the new guide in the multi-session continuity framework.
+
+---
+
+## Session: 2026-06-05 @ 12:45 (Stability & Physics Optimization)
+- **Bug Fix (Ghost Movement):** Resolved autonomous robot "sliding" by stabilizing the physics engine.
+- **Physics:** Adjusted `lab_small_light.world` to use a `0.005` step size and `200` update rate. This eliminates the numerical jitter caused by the previous `0.01` over-optimization.
+- **Collision:** Updated `spawn_z` to `0.06` in `unified_robot_config.yaml`. This prevents the robot from interpenetrating the floor on startup, which was triggering massive repulsion forces.
+- **URDF Physics:** Softened physical contacts in `robot_core.xacro` by reducing wheel stiffness (`kp` to `50000.0`) and increasing damping (`kd` to `10.0`). Balanced the world file with `100Hz` update rate to provide 2x headroom. This eliminates the "time-debt spiral" and chassis sagging that caused autonomous backward sliding.
+- **Verification:** Robot now remains perfectly stationary on startup and after Emergency Stop.
+
+---
+
+## Session: 2026-06-05 @ 13:15 (Safety Fix: Emergency Stop Integration)
+- **Feature:** Fully connected the "Emergency Stop" button in the Web UI to the ROS 2 Navigation stack.
+- **Nav2:** Implemented `ROSLIB.ActionClient` for `/navigate_to_pose`. The 🛑 button now sends a real "Cancel Goal" request to Nav2 instead of just stopping manual teleop.
+- **Refactor:** Updated `cancelNavGoal` to send an immediate zero-velocity (`0,0,0`) heartbeat to `/cmd_vel` to ensure physical halt during action preemption.
+- **Verification:** Pressing Emergency Stop now successfully terminates autonomous path following and recovery behaviors.
+
+---
+
+## Session: 2026-06-05 @ 13:45 (Nav2 Tuning & Costmap Cleanup)
+- **Navigation:** Optimized costmap parameters in `nav2_params.yaml`. Reduced `inflation_radius` from `0.55` to `0.25` and increased `cost_scaling_factor` to `3.5`.
+- **Result:** Resolved the "Dark Pink Collision Illusion" where the entire room appeared as a high-cost obstacle zone. The robot now has clear paths to plan and maneuver.
+- **Physics:** Verified that residual forward-right drift is still present (~0.0007 m/s) and planned for final $k_p$ adjustment to `100,000`.

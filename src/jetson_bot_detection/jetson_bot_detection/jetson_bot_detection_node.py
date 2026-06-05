@@ -15,7 +15,7 @@ class ObjectDetectionNode(Node):
         # Parameters
         self.declare_parameter('confidence_threshold', 0.5)
         self.declare_parameter('input_topic', '/image_raw')
-        self.declare_parameter('output_topic', 'object_detection/image')
+        self.declare_parameter('output_topic', 'jetson_bot_detection/image')
         
         confidence_threshold = self.get_parameter('confidence_threshold').value
         input_topic = self.get_parameter('input_topic').value
@@ -36,7 +36,7 @@ class ObjectDetectionNode(Node):
 
         # Load the pre-trained MobileNetSSD model
         try:
-            pkg_path = get_package_share_directory('object_detection')
+            pkg_path = get_package_share_directory('jetson_bot_detection')
             resource_dir = os.path.join(pkg_path, 'resource')
         except Exception:
             # Fallback for local development

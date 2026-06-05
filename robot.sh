@@ -312,5 +312,14 @@ case "${1:-help}" in
         ;;
     clean)           docker exec "$CONTAINER_NAME" bash -c "cd /autonomous_ROS && rm -rf build install log" ;;
     shell)           shift; enter_shell "$@" ;;
+    stop)
+        shift
+        if [[ "$1" == "f" ]]; then
+            log_info "Force restarting container..."
+            docker restart "$CONTAINER_NAME"
+            sleep 2
+        fi
+        stop_robot
+        ;;
     *)               show_help ;;
 esac

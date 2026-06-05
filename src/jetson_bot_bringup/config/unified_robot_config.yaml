@@ -48,6 +48,7 @@ diff_cont:
     odom_frame_id: "odom"
     enable_odom_tf: true
     use_stamped_vel: false
+    open_loop: false 
 
     # 🎢 Velocity & Acceleration Limits (Smooth Ramping)
     linear:

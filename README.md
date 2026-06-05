@@ -33,7 +33,7 @@ The project is decomposed into specialized ROS 2 packages within the `src/` dire
 | **`jetson_bot_navigation`**| Path Planning | Nav2 parameters, Behavior Trees, and Local/Global planners. |
 | **`jetson_bot_imu`** | Sensor Driver | Python driver for MPU6050 I2C communication. |
 | **`jetson_bot_diffdrive`**| HW Interface | `ros2_control` hardware interface for physical motors (Plugin Recovery in progress). |
-| **`object_detection`** | Computer Vision | Image processing node for real-time detection. |
+| **`jetson_bot_detection`** | Computer Vision | Image processing node for real-time detection. |
 
 ### Project Directory Layout
 ```text
@@ -49,7 +49,7 @@ autoJetsonBot/
 │   ├── jetson_bot_navigation/ # Nav2 Stack Configs
 │   ├── jetson_bot_slam/     # SLAM Toolbox Configs
 │   ├── jetson_bot_imu/      # MPU6050 Driver
-│   └── object_detection/    # Vision Processing
+│   └── jetson_bot_detection/ # Vision Processing
 ├── maps/                   # Saved Occupancy Grid Maps (.yaml, .pgm)
 ├── assets/                 # Project images and diagrams
 └── test_suite/             # Integration & Hardware Verification

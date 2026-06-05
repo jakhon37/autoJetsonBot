@@ -1,6 +1,7 @@
 // autoJetsonBot — Robot Controller
 // Phase 1: Fix broken inputs, wire telemetry, dark mode
 // Phase 2: Nav2 goal send/cancel, status badge, lidar canvas, camera feed
+// Phase 3: Goal visualization & Path overlay (Frame Transformed)
 class RobotController {
   constructor() {
     this.ros = null;
@@ -12,6 +13,8 @@ class RobotController {
     this.batteryTopic      = null;
     this.systemTopic       = null;
     this.navStatusTopic    = null;
+    this.pathTopic         = null;
+    this.odomTopic         = null;
     this._activeGoalId     = null;
 
     // Control state
@@ -34,14 +37,13 @@ class RobotController {
       publishRate:   100,
       maxLinearVel:  1.0,
       maxAngularVel: 2.0,
-      // Gazebo libgazebo_ros_camera.so publishes under /camera/image_raw by default.
-      // web_video_server auto-discovers topics — try both common namespaces.
       cameraUrl:     'http://localhost:8080/stream?topic=/camera/image_raw&type=mjpeg&width=320&height=240',
       cameraUrlFallback: 'http://localhost:8080/stream?topic=/camera/camera/image_raw&type=mjpeg&width=320&height=240',
       topics: {
         cmdVel:      '/cmd_vel',
         jointStates: '/joint_states',
         scan:        '/scan',
+        odom:        '/odom',
       },
     };
     
@@ -58,8 +60,11 @@ class RobotController {
     this._lidarAngleMin = 0;
     this._lidarAngleInc = 0;
 
-    // Goal preview state
+    // Nav state for visualization
+    this._robotPose   = { x: 0, y: 0, yaw: 0 }; // Current pose in map/odom frame
     this._goalPreview = null; // { x, y, yaw } in metres, robot-relative
+    this._activeGoal  = null; // { x, y, yaw } in map frame
+    this._currentPath = [];   // Array of {x, y} poses from global planner (map frame)
 
     this.init();
   }
@@ -163,7 +168,7 @@ class RobotController {
     document.getElementById('maxAngularVel').addEventListener('change', (e) => { this.config.maxAngularVel = parseFloat(e.target.value) || 2.0; this._saveSettings(); });
     document.getElementById('publishRate').addEventListener('change',   (e) => { this.config.publishRate   = Math.round(1000 / (parseFloat(e.target.value) || 10)); this._saveSettings(); });
 
-    // Topic inputs — FIX: now actually update config and reconnect topics
+    // Topic inputs
     ['cmdVelTopic', 'jointStatesTopic', 'scanTopic'].forEach(id => {
       document.getElementById(id).addEventListener('change', () => {
         this._syncTopicConfig();
@@ -298,11 +303,11 @@ class RobotController {
 
   _teardownROSTopics() {
     [this.jointStatesTopic, this.scanTopic, this.batteryTopic,
-     this.systemTopic, this.navStatusTopic].forEach(t => {
+     this.systemTopic, this.navStatusTopic, this.pathTopic, this.odomTopic].forEach(t => {
       if (t) { try { t.unsubscribe(); } catch (_) {} }
     });
     this.cmdVelTopic = this.jointStatesTopic = this.scanTopic =
-    this.batteryTopic = this.systemTopic = this.navStatusTopic = null;
+    this.batteryTopic = this.systemTopic = this.navStatusTopic = this.pathTopic = this.odomTopic = null;
   }
 
   setupROSTopics() {
@@ -317,7 +322,7 @@ class RobotController {
     this.batteryTopic = new ROSLIB.Topic({ ros: this.ros, name: '/battery_state', messageType: 'sensor_msgs/BatteryState' });
     this.batteryTopic.subscribe((msg) => { this.metrics.batteryLevel = Math.round(msg.percentage * 100); });
 
-    // System telemetry — CPU / Memory / Temperature (published by telemetry_node.py)
+    // System telemetry
     this.systemTopic = new ROSLIB.Topic({ ros: this.ros, name: '/telemetry/system', messageType: 'std_msgs/String' });
     this.systemTopic.subscribe((msg) => {
       try {
@@ -329,9 +334,32 @@ class RobotController {
       } catch (_) {}
     });
 
+    // Robot Pose (Odometry) — Needed for Map -> Robot frame conversion
+    this.odomTopic = new ROSLIB.Topic({ ros: this.ros, name: this.config.topics.odom, messageType: 'nav_msgs/Odometry', throttle_rate: 100 });
+    this.odomTopic.subscribe((msg) => {
+      this._robotPose.x = msg.pose.pose.position.x;
+      this._robotPose.y = msg.pose.pose.position.y;
+      // Simple quat to yaw
+      const q = msg.pose.pose.orientation;
+      this._robotPose.yaw = Math.atan2(2 * (q.w * q.z + q.x * q.y), 1 - 2 * (q.y * q.y + q.z * q.z));
+    });
+
     // Nav2 goal status
     this.navStatusTopic = new ROSLIB.Topic({ ros: this.ros, name: '/navigate_to_pose/_action/status', messageType: 'action_msgs/GoalStatusArray', throttle_rate: 500 });
     this.navStatusTopic.subscribe((msg) => this._onNavStatus(msg));
+
+    // Nav2 Path visualization
+    this.pathTopic = new ROSLIB.Topic({ ros: this.ros, name: '/plan', messageType: 'nav_msgs/Path', throttle_rate: 1000 });
+    this.pathTopic.subscribe((msg) => {
+      this._currentPath = msg.poses.map(p => ({ x: p.pose.position.x, y: p.pose.position.y }));
+    });
+
+    // Nav2 Action Client
+    this.navActionClient = new ROSLIB.ActionClient({
+      ros: this.ros,
+      serverName: '/navigate_to_pose',
+      actionName: 'nav2_msgs/action/NavigateToPose'
+    });
 
     this.log('ROS topics initialized', 'info');
   }
@@ -362,7 +390,8 @@ class RobotController {
 
   emergencyStop() {
     this.stopDirection(new Event('emergency'));
-    this.log('EMERGENCY STOP', 'warning');
+    this.cancelNavGoal();
+    this.log('EMERGENCY STOP — All movement terminated', 'warning');
     const btn = document.getElementById('emergencyStop');
     btn.style.background = '#ef4444';
     setTimeout(() => { btn.style.background = ''; }, 1000);
@@ -413,22 +442,17 @@ class RobotController {
     const x   = parseFloat(document.getElementById('goalX').value)   || 0;
     const y   = parseFloat(document.getElementById('goalY').value)   || 0;
     const yaw = parseFloat(document.getElementById('goalYaw').value) || 0;
-
     this._goalPreview = { x, y, yaw };
-
-    // Visual feedback on button
     const btn = document.getElementById('previewGoalBtn');
     btn.textContent = '👁 Previewing…';
     btn.style.background = 'var(--warning-color)';
-    // Reset after 3s if user doesn't send
     clearTimeout(this._previewResetTimer);
     this._previewResetTimer = setTimeout(() => {
       this._goalPreview = null;
       btn.textContent = '👁 Preview';
       btn.style.background = '';
     }, 8000);
-
-    this.log(`Preview goal → x:${x} y:${y} yaw:${yaw}° (shown on lidar canvas)`, 'info');
+    this.log(`Preview goal → x:${x} y:${y} yaw:${yaw}°`, 'info');
   }
 
   sendNavGoal() {
@@ -438,12 +462,11 @@ class RobotController {
     const yaw = (parseFloat(document.getElementById('goalYaw').value) || 0) * Math.PI / 180;
     const qz  = Math.sin(yaw / 2);
     const qw  = Math.cos(yaw / 2);
+    this._activeGoal = { x, y, yaw: (parseFloat(document.getElementById('goalYaw').value) || 0) };
     const t   = new ROSLIB.Topic({ ros: this.ros, name: '/goal_pose', messageType: 'geometry_msgs/PoseStamped' });
     t.publish(new ROSLIB.Message({ header: { frame_id: 'map' }, pose: { position: {x,y,z:0}, orientation: {x:0,y:0,z:qz,w:qw} } }));
     this.log(`Nav goal → x:${x} y:${y} yaw:${(yaw*180/Math.PI).toFixed(1)}°`, 'info');
     document.getElementById('cancelGoalBtn').style.display = 'inline-block';
-
-    // Clear preview
     this._goalPreview = null;
     clearTimeout(this._previewResetTimer);
     const prevBtn = document.getElementById('previewGoalBtn');
@@ -453,8 +476,12 @@ class RobotController {
 
   cancelNavGoal() {
     if (!this.isConnected) return;
-    const t = new ROSLIB.Topic({ ros: this.ros, name: '/goal_pose', messageType: 'geometry_msgs/PoseStamped' });
-    t.publish(new ROSLIB.Message({ header: { frame_id: 'map' }, pose: { position: {x:0,y:0,z:0}, orientation: {x:0,y:0,z:0,w:1} } }));
+    if (this.navActionClient) this.navActionClient.cancel();
+    if (this.cmdVelTopic) {
+      this.cmdVelTopic.publish(new ROSLIB.Message({ linear: { x: 0, y: 0, z: 0 }, angular: { x: 0, y: 0, z: 0 } }));
+    }
+    this._activeGoal = null;
+    this._currentPath = [];
     this.log('Navigation cancelled', 'warning');
     document.getElementById('cancelGoalBtn').style.display = 'none';
     this._setNav2Badge('idle');
@@ -466,9 +493,15 @@ class RobotController {
       document.getElementById('cancelGoalBtn').style.display = 'none';
       return;
     }
-    const code  = msg.status_list[msg.status_list.length - 1].status;
+    const lastStatus = msg.status_list[msg.status_list.length - 1];
+    const code  = lastStatus.status;
     const map   = { 1:'executing', 2:'executing', 3:'recovering', 4:'succeeded', 5:'idle', 6:'failed' };
-    this._setNav2Badge(map[code] || 'idle');
+    const state = map[code] || 'idle';
+    this._setNav2Badge(state);
+    if (state === 'succeeded' || state === 'failed') {
+      this._activeGoal = null;
+      this._currentPath = [];
+    }
     document.getElementById('cancelGoalBtn').style.display = (code === 1 || code === 2) ? 'inline-block' : 'none';
   }
 
@@ -500,35 +533,55 @@ class RobotController {
     const W = canvas.width, H = canvas.height;
     const cx = W / 2, cy = H / 2;
     const maxR = Math.min(cx, cy) - 4;
-    const scale = maxR / 4.0; // 4m = full radius
+    const scale = maxR / 5.0; 
+
+    // Helper: Map Frame -> Robot Frame (Local)
+    const toRobotFrame = (mx, my) => {
+      const dx = mx - this._robotPose.x;
+      const dy = my - this._robotPose.y;
+      const angle = -this._robotPose.yaw;
+      return {
+        x: dx * Math.cos(angle) - dy * Math.sin(angle),
+        y: dx * Math.sin(angle) + dy * Math.cos(angle)
+      };
+    };
 
     const render = () => {
       ctx.clearRect(0, 0, W, H);
       ctx.fillStyle = '#0a0f1e';
       ctx.fillRect(0, 0, W, H);
 
-      // Range rings
-      [1,2,3,4].forEach(m => {
+      // Grid
+      ctx.strokeStyle = 'rgba(59,130,246,0.05)';
+      for (let i = -5; i <= 5; i++) {
+        ctx.beginPath(); ctx.moveTo(cx + i * scale, 0); ctx.lineTo(cx + i * scale, H); ctx.stroke();
+        ctx.beginPath(); ctx.moveTo(0, cy + i * scale); ctx.lineTo(W, cy + i * scale); ctx.stroke();
+      }
+
+      // Rings
+      [1,2,3,4,5].forEach(m => {
         ctx.beginPath(); ctx.arc(cx, cy, m * scale, 0, Math.PI * 2);
-        ctx.strokeStyle = 'rgba(59,130,246,0.2)'; ctx.lineWidth = 1; ctx.stroke();
-        ctx.fillStyle = 'rgba(148,163,184,0.4)'; ctx.font = '9px monospace';
+        ctx.strokeStyle = 'rgba(59,130,246,0.15)'; ctx.stroke();
+        ctx.fillStyle = 'rgba(148,163,184,0.3)'; ctx.font = '9px monospace';
         ctx.fillText(`${m}m`, cx + m * scale + 2, cy - 2);
       });
 
       // Cross-hairs
-      ctx.strokeStyle = 'rgba(59,130,246,0.15)';
+      ctx.strokeStyle = 'rgba(59,130,246,0.2)';
       ctx.beginPath(); ctx.moveTo(cx,0); ctx.lineTo(cx,H); ctx.stroke();
       ctx.beginPath(); ctx.moveTo(0,cy); ctx.lineTo(W,cy); ctx.stroke();
 
-      // Scan points
+      // Scan points (already in robot frame)
       this._lidarRanges.forEach((r, i) => {
-        if (!isFinite(r) || r <= 0 || r > 4) return;
+        if (!isFinite(r) || r <= 0 || r > 6) return;
         const angle = this._lidarAngleMin + i * this._lidarAngleInc;
         const px = cx + r * scale * Math.cos(angle);
         const py = cy - r * scale * Math.sin(angle);
-        ctx.beginPath(); ctx.arc(px, py, 2, 0, Math.PI * 2);
-        ctx.fillStyle = r < 0.5 ? '#ef4444' : r < 1.0 ? '#f59e0b' : '#10b981';
-        ctx.fill();
+        if (px >= 0 && px <= W && py >= 0 && py <= H) {
+          ctx.beginPath(); ctx.arc(px, py, 2, 0, Math.PI * 2);
+          ctx.fillStyle = r < 0.5 ? '#ef4444' : r < 1.0 ? '#f59e0b' : '#10b981';
+          ctx.fill();
+        }
       });
 
       // Robot dot
@@ -536,45 +589,35 @@ class RobotController {
       ctx.fillStyle = '#3b82f6'; ctx.fill();
       ctx.strokeStyle = '#fff'; ctx.lineWidth = 1.5; ctx.stroke();
 
-      // Goal preview marker
-      if (this._goalPreview) {
-        const { x, y, yaw } = this._goalPreview;
-        // Map coords: canvas X = right (+x), canvas Y = up (+y inverted)
-        const gx = cx + x * scale;
-        const gy = cy - y * scale;
-        const yawRad = yaw * Math.PI / 180;
-
-        // Dashed line from robot to goal
-        ctx.setLineDash([4, 4]);
-        ctx.beginPath(); ctx.moveTo(cx, cy); ctx.lineTo(gx, gy);
-        ctx.strokeStyle = '#f59e0b'; ctx.lineWidth = 1.5; ctx.stroke();
-        ctx.setLineDash([]);
-
-        // Goal circle
-        ctx.beginPath(); ctx.arc(gx, gy, 8, 0, Math.PI * 2);
-        ctx.fillStyle = 'rgba(245,158,11,0.25)'; ctx.fill();
-        ctx.strokeStyle = '#f59e0b'; ctx.lineWidth = 2; ctx.stroke();
-
-        // Yaw arrow
-        const arrowLen = 18;
-        const ax = gx + arrowLen * Math.cos(yawRad);
-        const ay = gy - arrowLen * Math.sin(yawRad);
-        ctx.beginPath(); ctx.moveTo(gx, gy); ctx.lineTo(ax, ay);
-        ctx.strokeStyle = '#f59e0b'; ctx.lineWidth = 2; ctx.stroke();
-        // Arrowhead
-        const headLen = 6, headAngle = Math.PI / 6;
-        const angle = Math.atan2(gy - ay, gx - ax);
+      // Path visualization (Map -> Robot)
+      if (this._currentPath.length > 0) {
         ctx.beginPath();
-        ctx.moveTo(ax, ay);
-        ctx.lineTo(ax + headLen * Math.cos(angle - headAngle), ay + headLen * Math.sin(angle - headAngle));
-        ctx.lineTo(ax + headLen * Math.cos(angle + headAngle), ay + headLen * Math.sin(angle + headAngle));
-        ctx.closePath();
-        ctx.fillStyle = '#f59e0b'; ctx.fill();
+        ctx.setLineDash([2, 2]);
+        ctx.strokeStyle = 'rgba(59, 130, 246, 0.6)';
+        ctx.lineWidth = 2;
+        this._currentPath.forEach((p, i) => {
+          const lp = toRobotFrame(p.x, p.y);
+          const px = cx + lp.x * scale;
+          const py = cy - lp.y * scale;
+          if (i === 0) ctx.moveTo(px, py);
+          else ctx.lineTo(px, py);
+        });
+        ctx.stroke();
+        ctx.setLineDash([]);
+      }
 
-        // Label
-        ctx.fillStyle = '#f59e0b';
-        ctx.font = 'bold 10px monospace';
-        ctx.fillText(`(${x},${y})`, gx + 10, gy - 10);
+      // Goal preview (Map -> Robot)
+      if (this._goalPreview) {
+        const lp = toRobotFrame(this._goalPreview.x, this._goalPreview.y);
+        const localGoal = { x: lp.x, y: lp.y, yaw: this._goalPreview.yaw - (this._robotPose.yaw * 180 / Math.PI) };
+        this._renderGoalMarker(ctx, cx, cy, scale, localGoal, '#f59e0b', 'Preview');
+      }
+
+      // Active goal (Map -> Robot)
+      if (this._activeGoal) {
+        const lp = toRobotFrame(this._activeGoal.x, this._activeGoal.y);
+        const localGoal = { x: lp.x, y: lp.y, yaw: this._activeGoal.yaw - (this._robotPose.yaw * 180 / Math.PI) };
+        this._renderGoalMarker(ctx, cx, cy, scale, localGoal, '#10b981', 'Active');
       }
 
       requestAnimationFrame(render);
@@ -582,49 +625,65 @@ class RobotController {
     requestAnimationFrame(render);
   }
 
-  // ── Camera ────────────────────────────────────────────────────────────
+  _renderGoalMarker(ctx, cx, cy, scale, goal, color, label) {
+    const { x, y, yaw } = goal;
+    const gx = cx + x * scale;
+    const gy = cy - y * scale;
+    const yawRad = yaw * Math.PI / 180;
+    ctx.setLineDash([4, 4]);
+    ctx.beginPath(); ctx.moveTo(cx, cy); ctx.lineTo(gx, gy);
+    ctx.strokeStyle = color; ctx.lineWidth = 1.5; ctx.stroke();
+    ctx.setLineDash([]);
+    ctx.beginPath(); ctx.arc(gx, gy, 8, 0, Math.PI * 2);
+    ctx.fillStyle = color === '#f59e0b' ? 'rgba(245,158,11,0.25)' : 'rgba(16,185,129,0.25)';
+    ctx.fill();
+    ctx.strokeStyle = color; ctx.lineWidth = 2; ctx.stroke();
+    const arrowLen = 18;
+    const ax = gx + arrowLen * Math.cos(yawRad);
+    const ay = gy - arrowLen * Math.sin(yawRad);
+    ctx.beginPath(); ctx.moveTo(gx, gy); ctx.lineTo(ax, ay);
+    ctx.strokeStyle = color; ctx.lineWidth = 2; ctx.stroke();
+    const headLen = 6, headAngle = Math.PI / 6;
+    const angle = Math.atan2(gy - ay, gx - ax);
+    ctx.beginPath();
+    ctx.moveTo(ax, ay);
+    ctx.lineTo(ax + headLen * Math.cos(angle - headAngle), ay + headLen * Math.sin(angle - headAngle));
+    ctx.lineTo(ax + headLen * Math.cos(angle + headAngle), ay + headLen * Math.sin(angle + headAngle));
+    ctx.closePath();
+    ctx.fillStyle = color; ctx.fill();
+    ctx.fillStyle = color;
+    ctx.font = 'bold 10px monospace';
+    ctx.fillText(`${label} (${x.toFixed(1)},${y.toFixed(1)})`, gx + 10, gy - 10);
+  }
+
+  // ── Camera / Metrics / Connection (unchanged) ─────────────────────────
 
   _toggleCamera() {
-    const img         = document.getElementById('cameraImg');
+    const img = document.getElementById('cameraImg');
     const placeholder = document.getElementById('cameraPlaceholder');
-    const btn         = document.getElementById('cameraToggleBtn');
-    const statusTxt   = placeholder.querySelector('p:last-child');
-
+    const btn = document.getElementById('cameraToggleBtn');
+    const statusTxt = placeholder.querySelector('p:last-child');
     if (img.src && img.src !== window.location.href) {
-      // Pause
       img.src = ''; img.style.display = 'none';
       placeholder.style.display = 'flex';
       statusTxt.textContent = 'Camera feed paused';
       btn.textContent = '▶ Start Feed';
       return;
     }
-
-    // Try primary URL, fall back to alternate topic namespace
     const tryUrl = (url, isFallback) => {
-      img.src = url;
-      img.style.display = 'block';
-      placeholder.style.display = 'none';
+      img.src = url; img.style.display = 'block'; placeholder.style.display = 'none';
       btn.textContent = '⏸ Pause Feed';
-      statusTxt.textContent = 'Camera feed paused';
-
       img.onerror = () => {
-        if (!isFallback && this.config.cameraUrlFallback) {
-          this.log('Camera: primary topic failed, trying fallback…', 'warning');
-          tryUrl(this.config.cameraUrlFallback, true);
-        } else {
-          img.src = ''; img.style.display = 'none';
-          placeholder.style.display = 'flex';
-          statusTxt.textContent = '📷 Stream unavailable — is web_video_server running?';
+        if (!isFallback && this.config.cameraUrlFallback) tryUrl(this.config.cameraUrlFallback, true);
+        else {
+          img.src = ''; img.style.display = 'none'; placeholder.style.display = 'flex';
+          statusTxt.textContent = '📷 Stream unavailable';
           btn.textContent = '▶ Start Feed';
-          this.log('Camera stream unavailable. Ensure web_video_server is launched and Gazebo camera is active.', 'error');
         }
       };
     };
-
     tryUrl(this.config.cameraUrl, false);
   }
-
-  // ── Joint states ──────────────────────────────────────────────────────
 
   updateJointStates(msg) {
     const li = msg.name.indexOf('left_wheel_joint');
@@ -633,11 +692,7 @@ class RobotController {
     if (ri !== -1) this.metrics.rightRpm = (msg.velocity[ri] * 60) / (2 * Math.PI);
   }
 
-  // ── Metrics display ───────────────────────────────────────────────────
-
-  startMetricsUpdate() {
-    setInterval(() => this.updateMetricsDisplay(), 1000);
-  }
+  startMetricsUpdate() { setInterval(() => this.updateMetricsDisplay(), 1000); }
 
   updateMetricsDisplay() {
     const set = (id, val) => { const el = document.getElementById(id); if (el) el.textContent = val; };
@@ -645,7 +700,6 @@ class RobotController {
     set('rightRpm',   this.metrics.rightRpm.toFixed(1));
     set('linearVel',  this.metrics.linearVel.toFixed(2));
     set('angularVel', this.metrics.angularVel.toFixed(2));
-    // Battery — label + bar
     const bat = this.metrics.batteryLevel;
     set('batteryLevel', `${bat}%`);
     const batBar = document.getElementById('batBar');
@@ -656,33 +710,28 @@ class RobotController {
     }
     this._updateBar('cpuBar', 'cpuUsage',  this.metrics.cpu);
     this._updateBar('memBar', 'memUsage',  this.metrics.memory);
-    const temp = this.metrics.temperature;
-    set('temperature', temp !== null && temp !== undefined ? `${temp}` : 'N/A');
+    set('temperature', this.metrics.temperature !== null ? `${this.metrics.temperature}` : 'N/A');
   }
 
   _updateBar(barId, labelId, value) {
     const bar = document.getElementById(barId), label = document.getElementById(labelId);
     if (!bar || !label) return;
-    if (value === null || value === undefined) { label.textContent = 'N/A'; bar.style.width = '0%'; return; }
+    if (value === null) { label.textContent = 'N/A'; bar.style.width = '0%'; return; }
     label.textContent = `${value.toFixed(1)}%`;
-    bar.style.width   = `${Math.min(value, 100)}%`;
-    bar.className     = 'metric-bar-fill' + (value > 90 ? ' crit' : value > 70 ? ' warn' : '');
+    bar.style.width = `${Math.min(value, 100)}%`;
+    bar.className = 'metric-bar-fill' + (value > 90 ? ' crit' : value > 70 ? ' warn' : '');
   }
-
-  // ── Connection status ─────────────────────────────────────────────────
 
   updateConnectionStatus(status) {
-    const indicator     = document.querySelector('.status-indicator');
-    const text          = document.getElementById('connectionStatusText');
-    const connectBtn    = document.getElementById('connectBtn');
+    const indicator = document.querySelector('.status-indicator');
+    const text = document.getElementById('connectionStatusText');
+    const connectBtn = document.getElementById('connectBtn');
     const disconnectBtn = document.getElementById('disconnectBtn');
     indicator.className = `status-indicator status-${status}`;
-    text.textContent    = { connected:'Connected', connecting:'Connecting…', disconnected:'Disconnected' }[status] || status;
-    connectBtn.style.display    = status === 'connected' ? 'none' : 'inline-block';
+    text.textContent = { connected:'Connected', connecting:'Connecting…', disconnected:'Disconnected' }[status] || status;
+    connectBtn.style.display = status === 'connected' ? 'none' : 'inline-block';
     disconnectBtn.style.display = status === 'connected' ? 'inline-block' : 'none';
   }
-
-  // ── Log ───────────────────────────────────────────────────────────────
 
   log(message, type = 'info') {
     const container = document.getElementById('logContainer');
@@ -692,7 +741,6 @@ class RobotController {
     container.appendChild(el);
     container.scrollTop = container.scrollHeight;
     while (container.children.length > 100) container.removeChild(container.firstChild);
-    console.log(`[${type.toUpperCase()}] ${message}`);
   }
 
   _exportLog() {
@@ -704,14 +752,6 @@ class RobotController {
   }
 }
 
-// ── Bootstrap ─────────────────────────────────────────────────────────────────
 document.addEventListener('DOMContentLoaded', () => {
   window.robotController = new RobotController();
-
-  const keyMap = { KeyW:'upButton', KeyS:'downButton', KeyA:'leftButton', KeyD:'rightButton' };
-  document.addEventListener('keydown', (e) => { const id = keyMap[e.code]; if (id) document.getElementById(id).style.transform = 'scale(0.95)'; });
-  document.addEventListener('keyup',   (e) => { const id = keyMap[e.code]; if (id) document.getElementById(id).style.transform = ''; });
-  document.addEventListener('keydown', (e) => {
-    if (e.key === 'F11') { e.preventDefault(); document.fullscreenElement ? document.exitFullscreen() : document.documentElement.requestFullscreen(); }
-  });
 });

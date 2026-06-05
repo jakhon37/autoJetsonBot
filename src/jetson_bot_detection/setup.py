@@ -2,7 +2,7 @@ from setuptools import find_packages, setup
 import os
 from glob import glob
 
-package_name = 'object_detection'
+package_name = 'jetson_bot_detection'
 
 setup(
     name=package_name,
@@ -12,7 +12,9 @@ setup(
         ('share/ament_index/resource_index/packages',
             ['resource/' + package_name]),
         ('share/' + package_name, ['package.xml']),
-        (os.path.join('share', package_name, 'resource'), glob('resource/*')),
+        # Include MobileNetSSD models
+        (os.path.join('share', package_name, 'resource'), 
+         ['resource/MobileNetSSD_deploy.caffemodel', 'resource/MobileNetSSD_deploy.prototxt.txt']),
     ],
     install_requires=['setuptools'],
     zip_safe=True,
@@ -23,8 +25,8 @@ setup(
     tests_require=['pytest'],
     entry_points={
         'console_scripts': [
-            'object_detection_node = object_detection.object_detection_node:main',
-            'camera_go = object_detection.camera_go:main',
+            'jetson_bot_detection_node = jetson_bot_detection.jetson_bot_detection_node:main',
+            'camera_go = jetson_bot_detection.camera_go:main',
         ],
     },
 )

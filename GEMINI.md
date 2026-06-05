@@ -28,7 +28,15 @@ This project is a ROS 2 Foxy-based autonomous mobile robot platform designed for
 *   **Wheel Radius:** 0.035 m
 *   **Encoder Resolution:** 3436 counts/rev
 *   **Serial Port:** `/dev/ttyACM0` @ 115200 baud
-*   **Frame Root:** Always use `base_link` (No `base_footprint`).
+*   **Frame Root:** Always use `base_footprint` as the root of the robot tree (REP 120).
+
+## 🛡️ Model Behavior & Safety Mandates
+These rules are **MANDATORY** for all AI agents to prevent technical debt and history loss.
+
+1.  **Historical Integrity:** NEVER delete or overwrite existing entries in `SESSION_LOG.md`. Always append or surgically update specific parts. The log is our primary defense against repeating past errors.
+2.  **The "Rule of Two":** If a configuration change or fix fails twice, **STOP**. Do not attempt a third variation. Re-read the source code, check `AGENTS.md`, and verify your assumptions.
+3.  **Active but Silent Paradox:** If a node is "Active" but topic frequency is 0, it is always a naming or interface mismatch. Use `ros2 param dump` to verify internal state.
+4.  **Clock First, TF Second:** Never debug "Unknown Frame" or TF errors until you have verified that the simulation clock is ticking and `use_sim_time: true` is globally set.
 
 ## 🧠 Multi-Session Continuity
 To maintain context efficiency across models and sessions, always consult:

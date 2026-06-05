@@ -167,6 +167,20 @@ def launch_setup(context, *args, **kwargs):
         output='screen'
     ))
 
+    # Camera MJPEG stream — serves /camera/image_raw on port 8080
+    # Guarded: skip gracefully if web_video_server is not installed
+    try:
+        get_package_share_directory('web_video_server')
+        entities.append(Node(
+            package='web_video_server',
+            executable='web_video_server',
+            parameters=[{'port': 8080}],
+            output='screen'
+        ))
+    except Exception:
+        print("Warning: web_video_server not found — camera stream disabled. "
+              "Install with: apt install ros-foxy-web-video-server")
+
     # 5. Activity (Mapping vs Navigation)
     if final_mode == 'mapping':
         entities.append(TimerAction(period=120.0 if final_use_sim else 2.0, actions=[

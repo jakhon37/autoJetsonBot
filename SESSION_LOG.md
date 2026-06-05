@@ -105,3 +105,13 @@ Append concise summaries of work done here. For technical details on *why* thing
 - **Fix (RViz):** Eliminated the `rviz_common/Time` loading error by removing the problematic panel from `default.rviz`.
 - **Documentation:** formalizing technical insights in `AGENTS.md` regarding frame standards and parameter formats.
 - **Status:** Simulation is now 100% stable with functional path planning and motion control.
+
+---
+
+## Session: 2026-06-05 @ 10:00 (UI Upgrade & Script Hardening)
+- **Bug Fix:** Resolved a syntax error in `robot.sh` by cleaning up the case dispatcher and removing potentially problematic multibyte characters.
+- **Feature:** Added `auto` command to `robot.sh` to automatically install missing system dependencies (like `web_video_server`) and rebuild the workspace.
+- **Docker:** Updated `Dockerfile.foxy` to include `ros-foxy-web-video-server` as a default system package.
+- **Launch:** Verified that `main.launch.py` correctly handles `web_video_server` startup with a graceful fallback if the package is missing.
+- **UI:** Confirmed implementation of Phase 1 and Phase 2 of the `UI_UPGRADE_PLAN.md`, including telemetry wiring and Nav2 goal controls.
+- **Git:** Standardized repository on uppercase `README.md` and resolved case-sensitivity conflicts.

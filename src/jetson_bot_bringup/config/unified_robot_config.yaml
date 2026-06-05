@@ -6,7 +6,7 @@ global:
     use_sim: true              # true: Gazebo simulation | false: Real hardware (Serial/IMU)
     mode: "navigation"            # options: "mapping", "navigation"
     viz: true                  # true: Open RViz2
-    headless: true            # true: Run Gazebo in background (fast test) | false: Show Gazebo window
+    headless: false            # true: Run Gazebo in background (fast test) | false: Show Gazebo window
     use_sim_time: true         # Always true for simulation, false for hardware
 
     map_name: "lab_map_v2"        # Base name for saved/loaded maps
@@ -14,7 +14,7 @@ global:
     map_dir: "/autonomous_ROS/src/jetson_bot_bringup/worlds" # Absolute path for persistence
     gazebo_world: "lab_small_light.world"  # World file to load in simulation
     # gazebo_world: "demo.world"  # World file to load in simulation
-    rviz_config: "default.rviz" # RViz config file to use
+    rviz_config: "default_nav2.rviz" # RViz config file to use
 
     # 📍 Initial Spawn Pose (Gazebo only)
     spawn_x: 0.0

@@ -2,9 +2,9 @@
   "use_sim": true,
   "mode": "navigation",
   "viz": true,
-  "headless": true,
+  "headless": false,
   "map_name": "lab_map_v2",
   "map_dir": "/autonomous_ROS/src/jetson_bot_bringup/worlds",
   "gazebo_world": "lab_small_light.world",
-  "rviz_config": "default.rviz"
+  "rviz_config": "default_nav2.rviz"
 }

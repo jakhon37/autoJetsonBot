@@ -37,5 +37,5 @@ The robot has been fully refactored to the **Industry Standard (REP 120)**. All 
 - [ ] **EKF Integration:** Implement `robot_localization` to fuse IMU and Odometry.
 - [ ] **Physical Bringup:** Validate serial communication with the ESP32/Arduino base.
 
-## 🛠️ Active Context (2026-06-04)
-The system is now "Mapping Ready" and highly stable in simulation. We have successfully restored the Navigation Stack configurations. The primary bottleneck has shifted to **Physical Hardware Integration** due to the missing motor controller plugin and the need for finalized hardware launch logic.
+## 🛠️ Active Context (2026-06-05)
+The system is now "Mapping Ready" and highly stable in simulation. We have successfully restored the Navigation Stack configurations and resolved critical startup bugs related to AMCL pose formats and TF tree synchronization. The UI has been upgraded with real-time telemetry and camera streaming support. The primary bottleneck remains **Physical Hardware Integration**.

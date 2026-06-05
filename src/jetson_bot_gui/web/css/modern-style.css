@@ -13,6 +13,192 @@
   --shadow: 0 10px 25px rgba(0, 0, 0, 0.3);
 }
 
+/* ── Light / Dark theme toggle ─────────────────────────────────────── */
+[data-theme="light"] {
+  --primary-bg: #f1f5f9;
+  --secondary-bg: #ffffff;
+  --accent-bg: #e2e8f0;
+  --primary-text: #0f172a;
+  --secondary-text: #475569;
+  --accent-color: #2563eb;
+  --shadow: 0 10px 25px rgba(0, 0, 0, 0.1);
+}
+
+[data-theme="light"] body {
+  background: linear-gradient(135deg, #e2e8f0 0%, #f1f5f9 100%);
+}
+
+[data-theme="light"] .config-input {
+  border-color: #cbd5e1;
+}
+
+[data-theme="light"] .log-container {
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+}
+
+/* ── Nav2 status badge ─────────────────────────────────────────────── */
+.nav2-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.3rem 0.75rem;
+  border-radius: 20px;
+  font-size: 0.78rem;
+  font-weight: 600;
+  background: var(--accent-bg);
+  color: var(--secondary-text);
+  margin-left: 0.75rem;
+  transition: background 0.3s, color 0.3s;
+}
+.nav2-badge.idle       { background: var(--accent-bg);    color: var(--secondary-text); }
+.nav2-badge.executing  { background: rgba(16,185,129,.2); color: #10b981; }
+.nav2-badge.recovering { background: rgba(245,158,11,.2); color: #f59e0b; }
+.nav2-badge.succeeded  { background: rgba(59,130,246,.2); color: #3b82f6; }
+.nav2-badge.failed     { background: rgba(239,68,68,.2);  color: #ef4444; }
+
+/* ── Nav goal panel ────────────────────────────────────────────────── */
+.nav-goal-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+  gap: 0.5rem;
+  margin-bottom: 0.75rem;
+}
+.nav-goal-grid input {
+  width: 100%;
+  padding: 0.6rem 0.5rem;
+  background: var(--accent-bg);
+  border: 1px solid #475569;
+  border-radius: 8px;
+  color: var(--primary-text);
+  font-size: 0.85rem;
+  text-align: center;
+}
+.nav-goal-grid input:focus {
+  outline: none;
+  border-color: var(--accent-color);
+}
+.nav-goal-actions {
+  display: flex;
+  gap: 0.4rem;
+  flex-wrap: wrap;
+}
+.nav-goal-actions .btn {
+  flex: 1;
+  min-width: 80px;
+  padding: 0.6rem 0.4rem;
+  font-size: 0.82rem;
+  white-space: nowrap;
+}
+
+/* ── Lidar canvas ──────────────────────────────────────────────────── */
+.lidar-canvas-wrap {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  background: #0a0f1e;
+  border-radius: 8px;
+  padding: 0.5rem;
+}
+#lidarCanvas {
+  border-radius: 50%;
+  display: block;
+}
+
+/* ── Camera panel ──────────────────────────────────────────────────── */
+.camera-wrap {
+  background: #000;
+  border-radius: 8px;
+  overflow: hidden;
+  min-height: 120px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+}
+.camera-wrap img {
+  width: 100%;
+  display: block;
+}
+.camera-placeholder {
+  color: var(--secondary-text);
+  text-align: center;
+  padding: 1rem;
+  font-size: 0.85rem;
+}
+.camera-controls {
+  display: flex;
+  gap: 0.5rem;
+  margin-top: 0.5rem;
+}
+.camera-controls .btn {
+  flex: 1;
+  padding: 0.4rem;
+  font-size: 0.8rem;
+}
+
+/* ── Metric bar (for CPU/Mem) ──────────────────────────────────────── */
+.metric-bar-wrap {
+  background: var(--accent-bg);
+  border-radius: 8px;
+  padding: 0.75rem 1rem;
+  margin-bottom: 0.5rem;
+}
+.metric-bar-header {
+  display: flex;
+  justify-content: space-between;
+  font-size: 0.82rem;
+  margin-bottom: 0.4rem;
+  color: var(--secondary-text);
+}
+.metric-bar-header span:last-child {
+  font-weight: 700;
+  color: var(--primary-text);
+}
+.metric-bar-track {
+  height: 6px;
+  background: #1e293b;
+  border-radius: 3px;
+  overflow: hidden;
+}
+.metric-bar-fill {
+  height: 100%;
+  border-radius: 3px;
+  transition: width 0.8s ease, background 0.5s;
+  background: var(--accent-color);
+}
+.metric-bar-fill.warn  { background: var(--warning-color); }
+.metric-bar-fill.crit  { background: var(--danger-color); }
+
+/* ── Log export button ─────────────────────────────────────────────── */
+.log-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 0.75rem;
+}
+.log-header .btn {
+  padding: 0.3rem 0.75rem;
+  font-size: 0.78rem;
+}
+
+/* ── Theme toggle button ───────────────────────────────────────────── */
+#themeToggle {
+  position: fixed;
+  top: 1rem;
+  right: 1rem;
+  background: var(--accent-bg);
+  border: none;
+  border-radius: 50%;
+  width: 40px;
+  height: 40px;
+  cursor: pointer;
+  font-size: 1.2rem;
+  z-index: 1000;
+  transition: background 0.2s;
+}
+#themeToggle:hover { background: var(--accent-color); }
+
 * {
   margin: 0;
   padding: 0;

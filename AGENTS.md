@@ -17,54 +17,52 @@ The `diff_drive_controller` in ROS 2 Foxy is extremely sensitive.
 *   ❌ **Don't:** Let Gazebo run on its own clock while ROS nodes use system time. This creates "disconnected islands" in the TF tree.
 *   ✅ **Do:** Ensure `use_sim_time: true` is set globally in the controller YAML and passed to nodes like RViz2.
 
-### 4. Frame Source of Truth
-*   ❌ **Don't:** Use `base_footprint` as a root link.
-*   ✅ **Do:** Use `base_link`. All SLAM and Nav2 configs are now standardized to this root to prevent "split-tree" errors.
+### 4. Frame Source of Truth (REP 120)
+*   ❌ **Don't:** Use `base_link` as the odometry root.
+*   ✅ **Do:** Use `base_footprint`. 
+*   **Context:** The system is standardized to `map -> odom -> base_footprint -> base_link`. `base_footprint` is the floor projection, and `base_link` is the physical chassis center. Standardizing to `base_footprint` ensures Lidar data is correctly projected to the Map.
 
 ### 5. Wait for Physics (Gazebo Startup)
 *   ❌ **Don't:** Launch controller spawners or SLAM/Navigation nodes immediately after starting Gazebo.
-*   ✅ **Do:** On Docker-on-Mac, Gazebo takes 25-35s to initialize its physics engine. Set a delay of at least **60s** (90s recommended) for controller spawners and **120s** for higher-level stacks like AMCL.
+*   ✅ **Do:** On Docker-on-Mac, Gazebo takes 25-35s to initialize its physics engine. Set a delay of at least **90s** for controller spawners and **120s** for higher-level stacks like AMCL/Nav2.
 
 ### 6. Foxy Parameter Redeclaration
 *   ❌ **Don't:** Blindly use `declare_parameter('use_sim_time')` in Python nodes.
 *   ✅ **Do:** ROS 2 Foxy sometimes pre-declares this via `ros-args`. Use `if not self.has_parameter('use_sim_time'):` to prevent crashes.
 
-### 3. Fast Testing: Headless Mode
+### 7. Configuration Priority (YAML vs CLI)
+*   **Discovery:** ROS 2 Launch arguments with defaults were overriding the `unified_robot_config.yaml` even when not passed.
+*   ✅ **Fix Applied:** Refactored `main.launch.py` to use empty defaults for CLI arguments. 
+*   **Behavior:** The system now correctly treats the YAML as the "Source of Truth" for `./robot.sh up`. CLI arguments (like `./robot.sh nav`) still act as temporary overrides.
+
+## 🚀 Performance & UI Optimization
+
+### 8. Fast Testing: Headless Mode
 *   **Discovery:** Gazebo rendering (`gzclient`) is the main CPU bottleneck.
 *   ✅ **Do:** Set `headless: true` in `unified_robot_config.yaml` to run physics in the background.
 *   **RViz Synergy:** You can keep `viz: true` while `headless: true`. This gives you the RViz interface for path planning verification without the heavy Gazebo overhead.
 
-### 4. Navigation: The "Missing Map Frame" Startup Bug
+### 9. Navigation: The "Missing Map Frame" Startup Bug
 *   **Discovery:** RViz often reports "Frame [map] does not exist" on startup, even if the map is loaded.
 *   **Cause:** AMCL waits for an `initial_pose` before it publishes the `map -> odom` transform.
 *   ⚠️ **Foxy Warning:** AMCL in ROS 2 Foxy requires the array format: `initial_pose: [0.0, 0.0, 0.0, 0.0]`. Using a dictionary (`x: 0, y: 0...`) will fail silently.
 *   ✅ **Fix Applied:** Updated `nav2_params.yaml` with the correct array structure.
 
-### 5. TF Tree & Frame Standardization (REP 120)
-*   **Discovery:** A "Split Tree" error occurred where `map -> odom` existed but was disconnected from the robot.
-*   **Cause:** Mismatch between URDF root (`base_footprint`) and Controller root (`base_link`).
-*   ✅ **Standard:** Always use `base_footprint` as the `base_frame_id` in `diff_drive_controller`.
-*   **Result:** TF Chain: `map -> odom -> base_footprint -> base_link`. This ensures Lidar data (relative to `base_link`) is correctly projected to the Map (relative to `base_footprint`).
-
-### 6. Movement & Topic Remapping
+### 10. Movement & Topic Remapping
 *   **Discovery:** Navigation was active and planning paths, but the robot wouldn't move.
 *   **Cause:** Nav2 talks on `/cmd_vel`, but `ros2_control` listens on `/diff_cont/cmd_vel_unstamped` by default.
 *   ✅ **Fix:** Added remapping in `ros2_control.xacro` and updated Web UI to use the industry standard `/cmd_vel`.
 
-### 7. RViz Panel Stability
+### 11. RViz Panel Stability
 *   **Discovery:** RViz failed to load specific configurations with an error regarding `rviz_common/Time`.
 *   **Fix:** Surgically removed the `Time` panel from `.rviz` config files. In containerized environments (Xvfb), non-essential panels can cause plugin loading crashes.
 
-### 5. Configuration Priority (YAML vs CLI)
-*   **Discovery:** ROS 2 Launch arguments with defaults were overriding the `unified_robot_config.yaml` even when not passed.
-*   ✅ **Fix Applied:** Refactored `main.launch.py` to use empty defaults for CLI arguments. 
-*   **Behavior:** The system now correctly treats the YAML as the "Source of Truth" for `./robot.sh up`. CLI arguments (like `./robot.sh nav`) still act as temporary overrides.
-
 ## 🛡️ Efficient Debugging & Loop Prevention
+These rules are mirrored as foundational mandates in **`GEMINI.md`**.
 
-1.  **The "Rule of Two":** If a configuration change or fix fails twice, **STOP**. Re-read the source code.
+1.  **The "Rule of Two":** If a configuration change or fix fails twice, **STOP**. Do not attempt a third variation. Re-read the source code and verify your assumptions.
 2.  **Verify the "Active but Silent" Paradox:** If topic hz is 0 but status is Active, it's a naming/interface mismatch. Use `ros2 param dump`.
-3.  **Clock First, TF Second:** Never debug "Unknown Frame" errors until you have verified that the Gazebo clock is ticking.
+3.  **Clock First, TF Second:** Never debug "Unknown Frame" errors until you have verified that the simulation clock is ticking and `use_sim_time` is correctly propagated.
 
 ## 🔍 Technical Implementation Notes
 
@@ -75,17 +73,8 @@ Since macOS Docker Desktop cannot forward X11 correctly, we use:
 *   `openbox` as the window manager.
 *   **Env Vars:** `QT_X11_NO_MITSHM=1`, `LIBGL_ALWAYS_SOFTWARE=1`, `GALLIUM_DRIVER=softpipe`.
 
-### X11/VNC Display Access
-RViz/Gazebo requires `XAUTHORITY` and `xhost +local:` to render to `Xvfb`. If rendering fails, ensure these environment variables are correctly passed in `docker exec` calls and that the display server is initialized before launching ROS nodes.
-
 ### Process Lifecycle & "Zombies"
 If `robot.sh stop` fails to terminate Gazebo, it is usually because `gzserver` is still holding the socket. Use `pkill -9 -f gzserver` to clear the slate. A port being open on the host (5900) only means Docker is listening; it doesn't guarantee the internal service is alive.
-
----
-
-### 💡 Quick Tips for Container Scripts
-*   **Scoping:** Use single quotes `'` for `docker exec bash -c` to prevent the host shell from expanding variables meant for the container.
-*   **Health:** Always verify internal process status (`pgrep`) rather than just checking host ports.
 
 ## 🧩 Hardware & Dependency Insights
 
@@ -94,14 +83,8 @@ If `robot.sh stop` fails to terminate Gazebo, it is usually because `gzserver` i
 *   ⚠️ **Critical Discovery:** The plugin source is currently missing from the workspace. Without `libdiffdrive_arduino.so`, the `controller_manager` will fail to spawn the `diff_cont` in `mode:=robot`. 
 *   **Mitigation:** Sourcing the original repository or migrating to a standard `ros2_control` hardware interface for the ESP32 is required before physical testing.
 
-### 2. Telemetry Parity
-*   **Simulated Battery:** The `telemetry_node.py` publishes synthetic data to `/telemetry/battery` to allow UI development without a real battery connected.
-*   **Validation:** Always verify the Web UI via the ROS topic rather than direct host-port checks to ensure end-to-end data flow.
-
-### 3. Gazebo Physics: Ground Clipping
+### 2. Gazebo Physics: Ground Clipping
 *   **Discovery:** The robot appeared "stuck" even with active nodes. RViz showed wheels underground and chassis touching the floor.
 *   **Cause:** Mismatch between URDF origin and the floor plane.
 *   ✅ **Permanent Fix:** Refactored URDF so `base_footprint` is at the floor level ($z=0$) with `base_link` offset 55mm above it. 
-*   **Benefit:** We can now spawn at `spawn_z: 0.0` (set in `unified_robot_config.yaml`), and the robot sits perfectly on its wheels.
-lane, locking it with infinite friction.
-*   ✅ **Fix:** Updated `main.launch.py` to spawn with `-z 0.06`. This ensures the wheels clear the ground and the physics engine can apply traction.
+*   ✅ **Spawn Fix:** Updated `main.launch.py` to spawn with `-z 0.06`. This ensures the wheels clear the ground and the physics engine can apply traction.

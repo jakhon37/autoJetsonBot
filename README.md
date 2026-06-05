@@ -32,7 +32,28 @@ The project is decomposed into specialized ROS 2 packages within the `src/` dire
 | **`jetson_bot_slam`** | Environment Mapping| `slam_toolbox` configurations for asynchronous mapping. |
 | **`jetson_bot_navigation`**| Path Planning | Nav2 parameters, Behavior Trees, and Local/Global planners. |
 | **`jetson_bot_imu`** | Sensor Driver | Python driver for MPU6050 I2C communication. |
+| **`jetson_bot_diffdrive`**| HW Interface | `ros2_control` hardware interface for physical motors (Plugin Recovery in progress). |
 | **`object_detection`** | Computer Vision | Image processing node for real-time detection. |
+
+### Project Directory Layout
+```text
+autoJetsonBot/
+├── README.md               # You are here
+├── robot.sh                # Unified CLI Control Script
+├── unified_robot_config.yaml # Global Source of Truth
+├── Dockerfile.foxy         # Foxy/Ubuntu 20.04 Container Definition
+├── src/                    # ROS 2 Source Workspace
+│   ├── jetson_bot_bringup/  # Master Launch & Configs
+│   ├── jetson_bot_description/ # URDF & Physical Model
+│   ├── jetson_bot_gui/      # Web UI & Telemetry
+│   ├── jetson_bot_navigation/ # Nav2 Stack Configs
+│   ├── jetson_bot_slam/     # SLAM Toolbox Configs
+│   ├── jetson_bot_imu/      # MPU6050 Driver
+│   └── object_detection/    # Vision Processing
+├── maps/                   # Saved Occupancy Grid Maps (.yaml, .pgm)
+├── assets/                 # Project images and diagrams
+└── test_suite/             # Integration & Hardware Verification
+```
 
 ---
 
@@ -65,6 +86,7 @@ We utilize a unified control script to manage the dockerized environment efficie
 | Command | Result |
 | :--- | :--- |
 | `./robot.sh build` | Rebuilds the modular workspace inside the container. |
+| `./robot.sh auto` | **[NEW]** Auto-installs missing dependencies and builds. |
 | `./robot.sh sim` | Launches Gazebo simulation + Web UI in **Mapping Mode**. |
 | `./robot.sh nav` | Launches simulation + Nav2 in **Navigation Mode**. |
 | `./robot.sh status` | Deep-inspects ROS nodes, topics, and port health. |

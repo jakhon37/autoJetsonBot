@@ -88,3 +88,10 @@ If `robot.sh stop` fails to terminate Gazebo, it is usually because `gzserver` i
 *   **Cause:** Mismatch between URDF origin and the floor plane.
 *   ✅ **Permanent Fix:** Refactored URDF so `base_footprint` is at the floor level ($z=0$) with `base_link` offset 55mm above it. 
 *   ✅ **Spawn Fix:** Updated `main.launch.py` to spawn with `-z 0.06`. This ensures the wheels clear the ground and the physics engine can apply traction.
+
+## 🛡️ Physics & UI Lessons (Added 2026-06-05)
+
+*   **The Overlap Paradox:** Gazebo Classic can handle internal geometry overlaps IF stiffness (\`kp\`) is extremely high (1M+). If you lower \`kp\` to "optimize" performance, the collision energy is unlocked, causing sliding. Fix geometry FIRST before softening physics.
+*   **AMCL-Centric UI:** When visualizing paths or goals in a robot-relative UI, always transform from the Map frame using \`/amcl_pose\`, not \`/odom\`. Odometry drift will cause the path to "float" away from the Lidar walls; AMCL keeps them anchored.
+*   **Build Synchronization:** Changes to \`.yaml\`, \`.xacro\`, or \`.js\` files in the \`src/\` directory are NOT visible to the simulation until a modular build (\`./robot.sh build\`) is executed. Always rebuild after changing parameters.
+*   **Inflation Scaling:** A \`cost_scaling_factor\` below 5.0 results in thick, "bloated" walls. For precise navigation in narrow spaces, use a value around 3.5 for smooth gradients or 10.0 for sharp boundaries.

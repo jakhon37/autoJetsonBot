@@ -154,3 +154,16 @@ Append concise summaries of work done here. For technical details on *why* thing
 - **Navigation:** Optimized costmap parameters in `nav2_params.yaml`. Reduced `inflation_radius` from `0.55` to `0.25` and increased `cost_scaling_factor` to `3.5`.
 - **Result:** Resolved the "Dark Pink Collision Illusion" where the entire room appeared as a high-cost obstacle zone. The robot now has clear paths to plan and maneuver.
 - **Physics:** Verified that residual forward-right drift is still present (~0.0007 m/s) and planned for final $k_p$ adjustment to `100,000`.
+
+---
+
+## Session: 2026-06-05 @ 14:00 (Stability Restoration & Tactical UI)
+- **Physics Fix:** Eliminated "Ghost Movement" by identifying a latent 1.3cm wheel-chassis overlap in the URDF. 
+- **Clean Geometry:** Moved wheel joints to ±0.11m (7mm clearance) and updated controller separation to 0.22m.
+- **Baseline Sync:** Restored high-stiffness overrides (kp=1,000,000) from v1.0.4 to ensure absolute stability in Gazebo Classic.
+- **Nav2 Tuning:** Hardened inflation layer (radius: 0.25m, scaling: 3.5) to restore clear planning paths in the small lab world.
+- **Tactical UI v5:** 
+    - Upgraded Lidar view to a full 280x280 square tactical grid.
+    - Implemented real-time Planned Path and Goal visualization.
+    - Switched transformation source to \`/amcl_pose\` to ensure world-locked items remain anchored to the map regardless of odometry drift.
+- **Deployment:** Enforced modular builds (\`./robot.sh build\`) to prevent stale binaries in the install directory.

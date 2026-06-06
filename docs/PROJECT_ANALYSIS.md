@@ -2,17 +2,17 @@
 
 This is the primary status board. Consult this file to understand the current operational health and the immediate roadmap.
 
-## 📊 Current Status: Navigation Active 🚀
+## 📊 Current Status: Navigation & UI Hardened 🛡️🚀
 
-The robot has been fully refactored to the **Industry Standard (REP 120)**. All core systems are synchronized to the `base_footprint` root.
+The robot has been fully refactored to the **Industry Standard (REP 120)**. All core systems are synchronized to the `base_footprint` root. The UI now features a real-time Tactical Display with Map-locked path visualization.
 
 ### System Health
 | System | Status | Note |
 | :--- | :--- | :--- |
 | **TF Tree** | ✅ Standardized | `map -> odom -> base_footprint -> base_link` (REP 120). |
 | **Control** | ✅ Active | Remapped to standard `/cmd_vel` for Nav2 compatibility. |
-| **Navigation** | ✅ Active | AMCL auto-localizing via correct `initial_pose` array. |
-| **UI** | ✅ Hardened | `./robot.sh status` now performs deep internal health checks. |
+| **Navigation** | ✅ Active | AMCL auto-localizing; Costmaps optimized for 6m lab world. |
+| **UI v5** | ✅ Hardened | Full Square Tactical Grid with AMCL-synced Path & Goal visualization. |
 
 **Primary Focus:** Validating physical hardware integration and sourcing the `diffdrive_arduino` plugin.
 

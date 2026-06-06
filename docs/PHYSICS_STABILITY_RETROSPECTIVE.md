@@ -70,3 +70,19 @@ The **Deep Audit** revealed a fundamental geometry overlap in the URDF:
 
 ---
 *Documentation revised and finalized on 2026-06-05.*
+
+---
+
+## 7. Web UI: Tactical Square Display & Coordination
+**Update:** 2026-06-05 (Session End)
+
+The Web UI was upgraded from a static circular radar to a **Dynamic Square Tactical Grid** (280x280).
+
+### Key Upgrades:
+1.  **Coordinate Synchronization:** Implemented real-time **Map-to-Robot frame transformations**. World-locked elements (Nav2 Global Path and Goal Points) now correctly "slide" and rotate on the dashboard as the robot moves, while the robot stays centered.
+2.  **Visual Expansion:** Removed the CSS and Canvas circular clipping. The rendering area now utilizes the full rectangular bounds of the tactical grid.
+3.  **Robust Rendering:** Added defensive bound-checking and try-catch blocks to the animation loop to ensure UI stability during complex path-planning events.
+
+### Technical Requirement:
+- **Build Sync:** Full modular build (\`./robot.sh build\`) required to synchronize CSS/JS assets.
+- **Cache Invalidation:** Users must perform a **Hard Refresh** (Ctrl+F5) to clear cached JavaScript when upgrading the UI.

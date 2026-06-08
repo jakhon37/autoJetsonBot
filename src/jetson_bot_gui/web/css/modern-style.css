@@ -526,6 +526,40 @@ body {
 .log-warning { background: rgba(245, 158, 11, 0.1); }
 .log-error { background: rgba(239, 68, 68, 0.1); }
 
+/* ── Global Map ─────────────────────────────────────────────────────── */
+.map-canvas-wrap {
+  position: relative;
+  background: #0f172a;
+  border-radius: 8px;
+  border: 1px solid rgba(59, 130, 246, 0.2);
+  overflow: hidden;
+  height: 400px;
+  width: 100%;
+  cursor: grab;
+}
+
+.map-canvas-wrap:active {
+  cursor: grabbing;
+}
+
+#mapCanvas {
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+
+.map-controls-hint {
+  position: absolute;
+  bottom: 10px;
+  right: 10px;
+  background: rgba(15, 23, 42, 0.7);
+  padding: 4px 8px;
+  border-radius: 4px;
+  font-size: 0.7rem;
+  color: var(--secondary-text);
+  pointer-events: none;
+}
+
 /* Responsive Design */
 @media (max-width: 1200px) {
   .app-container {

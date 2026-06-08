@@ -171,32 +171,36 @@ start_openbox() {
 # ── Utility Commands ──────────────────────────────────────────────────────────
 
 stop_robot() {
-    log_info "Stopping all processes..."
+    log_info "Stopping all processes (Aggressive Cleanup)..."
     
     if ! docker ps --format '{{.Names}}' | grep -q "^$CONTAINER_NAME$"; then
         log_warn "Container $CONTAINER_NAME is not running."
         return 0
     fi
 
+    # Kill everything inside container
     docker exec "$CONTAINER_NAME" bash -c '
+        # 1. Kill ROS Launch and nodes
         pkill -9 -f "ros2 launch"      || true
         pkill -9 -f "ros2 run"         || true
+        pkill -9 -f "node"             || true
+        pkill -9 -f "python3"          || true
+        
+        # 2. Kill core physics/viz
         pkill -9 -f gzserver           || true
         pkill -9 -f gzclient           || true
         pkill -9 -f gazebo             || true
         pkill -9 -f rviz2              || true
+        
+        # 3. Kill bridges and servers
         pkill -9 -f rosbridge          || true
         pkill -9 -f web_server         || true
-        pkill -9 -f telemetry_node     || true
-        pkill -9 -f web_video_server   || true
-        pkill -9 -f slam_toolbox       || true
-        pkill -9 -f controller_manager || true
-        pkill -9 -f spawner            || true
+        pkill -9 -f socat              || true
     ' || true
     
     _cleanup_ports
-    log_success "Processes stopped"
-    sleep 4
+    log_success "All processes terminated."
+    sleep 2
 }
 
 _cleanup_ports() {
@@ -230,12 +234,9 @@ show_status() {
     log_info "Status:"
     docker ps -f "name=$CONTAINER_NAME" --format "table {{.Names}}\t{{.Status}}"
 
-    if command -v hostname &> /dev/null && hostname -I &> /dev/null 2>&1; then
-        LOCAL_IP=$(hostname -I | awk '{print $1}')
-    else
-        LOCAL_IP=$(ipconfig getifaddr en0 2>/dev/null || ipconfig getifaddr en1 2>/dev/null || echo "localhost")
-    fi
-
+    # Mac compatibility: use localhost as primary for display
+    LOCAL_IP="localhost"
+    
     if curl -s --connect-timeout 1 http://localhost:8000 >/dev/null 2>&1; then
         echo -e "Web UI:    ${GREEN}OK${NC}  http://${LOCAL_IP}:8000"
     else
@@ -248,46 +249,39 @@ show_status() {
         echo -e "VNC:       ${RED}Offline${NC}"
     fi
 
-    if curl -s --connect-timeout 1 http://localhost:8080 >/dev/null 2>&1; then
-        echo -e "Camera:    ${GREEN}OK${NC}  http://${LOCAL_IP}:8080"
-    else
-        echo -e "Camera:    ${YELLOW}Offline${NC}"
-    fi
-
     echo "--- ROS Health ---"
-
     if ! docker exec "$CONTAINER_NAME" pgrep -f "main.launch.py" >/dev/null 2>&1; then
         echo -e "Launch:    ${RED}Crashed/Stop${NC}"
         return 0
     fi
-
     echo -e "Launch:    ${GREEN}Running${NC}"
 
     NODE_COUNT=$(docker exec "$CONTAINER_NAME" bash -c "source /opt/ros/foxy/setup.bash && ros2 node list 2>/dev/null | wc -l" 2>/dev/null || echo "0")
     echo -e "Nodes:     ${GREEN}${NODE_COUNT}${NC}"
 
+    USE_SIM=$(docker exec "$CONTAINER_NAME" python3 -c "import json,os; p='/autonomous_ROS/src/jetson_bot_gui/web/config.json'; print(json.load(open(p))['use_sim']) if os.path.exists(p) else print('unknown')" 2>/dev/null || echo "unknown")
     CURRENT_MODE=$(docker exec "$CONTAINER_NAME" python3 -c "import json,os; p='/autonomous_ROS/src/jetson_bot_gui/web/config.json'; print(json.load(open(p))['mode']) if os.path.exists(p) else print('unknown')" 2>/dev/null || echo "unknown")
-    echo -e "Mode:      ${BLUE}${CURRENT_MODE}${NC}"
+    echo -e "Mode:      ${BLUE}${CURRENT_MODE}${NC} ($( [[ "$USE_SIM" == "False" ]] && echo "Hardware" || echo "Sim" ))"
 
-    if docker exec "$CONTAINER_NAME" bash -c "source /opt/ros/foxy/setup.bash && ros2 node list 2>/dev/null | grep -q controller_manager" 2>/dev/null; then
-        echo -e "Control:   ${GREEN}OK${NC}"
+    if [[ "$USE_SIM" == "False" ]]; then
+        if docker exec "$CONTAINER_NAME" bash -c "source /opt/ros/foxy/setup.bash && ros2 node list 2>/dev/null | grep -q diffdrive_bridge" 2>/dev/null; then
+            echo -e "Control:   ${GREEN}OK (HW Bridge)${NC}"
+        else
+            echo -e "Control:   ${RED}Bridge Offline/Crashed${NC}"
+        fi
     else
-        echo -e "Control:   ${YELLOW}Starting...${NC}"
+        if docker exec "$CONTAINER_NAME" bash -c "source /opt/ros/foxy/setup.bash && ros2 node list 2>/dev/null | grep -q controller_manager" 2>/dev/null; then
+            echo -e "Control:   ${GREEN}OK (Simulation)${NC}"
+        else
+            echo -e "Control:   ${YELLOW}Starting...${NC}"
+        fi
     fi
 
-    if [[ "$CURRENT_MODE" == "navigation" ]]; then
-        IS_ACTIVE=$(docker exec "$CONTAINER_NAME" bash -c "source /opt/ros/foxy/setup.bash && ros2 lifecycle get /bt_navigator 2>/dev/null" 2>/dev/null | grep -q "active" && echo "yes" || echo "no")
-        if [[ "$IS_ACTIVE" == "yes" ]]; then
-            echo -e "Nav:       ${GREEN}OK${NC}"
-        else
-            echo -e "Nav:       ${YELLOW}Activating...${NC}"
-        fi
-    elif [[ "$CURRENT_MODE" == "mapping" ]]; then
-        if docker exec "$CONTAINER_NAME" bash -c "source /opt/ros/foxy/setup.bash && ros2 node list 2>/dev/null | grep -q slam_toolbox" 2>/dev/null; then
-            echo -e "SLAM:      ${GREEN}OK${NC}"
-        else
-            echo -e "SLAM:      ${YELLOW}Activating...${NC}"
-        fi
+    echo "--- Hardware Audit (from logs) ---"
+    if docker exec "$CONTAINER_NAME" [ -f /tmp/sim.log ]; then
+        docker exec "$CONTAINER_NAME" awk '/🔍 HARDWARE AUDIT STARTING.../,/==================================================/' /tmp/sim.log | sed 's/🔍//g; s/❌//g; s/✅//g; s/🛑//g; s/🚀//g'
+    else
+        echo -e "${YELLOW}No audit data available yet.${NC}"
     fi
 }
 

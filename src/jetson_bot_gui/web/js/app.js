@@ -3,6 +3,7 @@ import { TelemetryManager } from './telemetry.js';
 import { ControlsManager } from './controls.js';
 import { NavigationManager } from './navigation.js';
 import { LidarRenderer } from './lidar.js';
+import { MapManager } from './map.js';
 
 class RobotController {
   constructor() {
@@ -58,10 +59,11 @@ class RobotController {
     this._lastScanWarn = 0;
 
     // Instantiate sub-managers
-    this.telemetry = new TelemetryManager(this);
-    this.controls = new ControlsManager(this);
+    this.telemetry  = new TelemetryManager(this);
+    this.controls   = new ControlsManager(this);
     this.navigation = new NavigationManager(this);
-    this.lidar = new LidarRenderer(this);
+    this.lidar      = new LidarRenderer(this);
+    this.map        = new MapManager(this);
 
     this.init();
   }
@@ -78,6 +80,7 @@ class RobotController {
     this.fetchConfig();
     this.startMetricsUpdate();
     this.lidar.start();
+    this.map.start();
     this.log('Robot Controller initialized', 'info');
   }
 
@@ -173,6 +176,8 @@ class RobotController {
     document.getElementById('previewGoalBtn').addEventListener('click', () => this.navigation.previewNavGoal());
     document.getElementById('sendGoalBtn').addEventListener('click',   () => this.navigation.sendNavGoal());
     document.getElementById('cancelGoalBtn').addEventListener('click', () => this.navigation.cancelNavGoal());
+    
+    document.getElementById('resetMapView').addEventListener('click',  () => this.map.resetView());
     
     document.getElementById('cameraToggleBtn').addEventListener('click', () => this._toggleCamera());
     document.getElementById('themeToggle').addEventListener('click',   () => this._toggleTheme());
@@ -296,6 +301,7 @@ class RobotController {
     this.telemetry.setupTopics();
     this.lidar.setupTopics();
     this.navigation.setupTopics();
+    this.map.setupTopics();
     this.log('ROS topics initialized', 'info');
   }
 
@@ -304,6 +310,7 @@ class RobotController {
     this.telemetry.teardownTopics();
     this.lidar.teardownTopics();
     this.navigation.teardownTopics();
+    this.map.teardownTopics();
   }
 
   // ── Camera feed toggler ──────────────────────────────────────────────────

@@ -89,9 +89,37 @@ If `robot.sh stop` fails to terminate Gazebo, it is usually because `gzserver` i
 *   ✅ **Permanent Fix:** Refactored URDF so `base_footprint` is at the floor level ($z=0$) with `base_link` offset 55mm above it. 
 *   ✅ **Spawn Fix:** Updated `main.launch.py` to spawn with `-z 0.06`. This ensures the wheels clear the ground and the physics engine can apply traction.
 
-## 🛡️ Physics & UI Lessons (Added 2026-06-05)
+## 🛡️ Physics & UI Lessons (Added 2026-06-05/06)
 
-*   **The Overlap Paradox:** Gazebo Classic can handle internal geometry overlaps IF stiffness (\`kp\`) is extremely high (1M+). If you lower \`kp\` to "optimize" performance, the collision energy is unlocked, causing sliding. Fix geometry FIRST before softening physics.
-*   **AMCL-Centric UI:** When visualizing paths or goals in a robot-relative UI, always transform from the Map frame using \`/amcl_pose\`, not \`/odom\`. Odometry drift will cause the path to "float" away from the Lidar walls; AMCL keeps them anchored.
-*   **Build Synchronization:** Changes to \`.yaml\`, \`.xacro\`, or \`.js\` files in the \`src/\` directory are NOT visible to the simulation until a modular build (\`./robot.sh build\`) is executed. Always rebuild after changing parameters.
-*   **Inflation Scaling:** A \`cost_scaling_factor\` below 5.0 results in thick, "bloated" walls. For precise navigation in narrow spaces, use a value around 3.5 for smooth gradients or 10.0 for sharp boundaries.
+*   **Finalized Digital Twin (2026-06-07):** The system is now 100% synchronized with manual measurements of the physical hardware.
+    *   **Wheel Separation:** 0.212m (Center-to-center)
+    *   **Wheel Radius:** 0.034m (3.4cm)
+    *   **Ground Clearance:** 0.056m (5.6cm floor-to-chassis)
+    *   **Total Weight:** 1.4kg (Physics-accurate inertial values)
+*   **URDF Structural Standard:** 
+    *   `base_footprint` is at floor level ($z=0$).
+    *   `base_link` is at the **bottom-center of the chassis floor** ($z=0.056$).
+    *   This standard simplifies height calculations: component $Z$ origin = $Ground\_Clearance + Height\_from\_floor$.
+*   **Lidar Offset Logic:** The RPLidar A1 is positioned at `x=0.064` (forward of axle) and `z=0.161` (16.1cm from floor). This accounts for the 9.7cm chassis height plus the 6.4cm mount height.
+*   **Clearance Check:** With `wheel_separation: 0.212m` and a 17.8cm chassis, the per-side clearance is **1.7cm**. This eliminates numerical jitter and "explosive" repulsion in Gazebo.
+*   **The Overlap Paradox:** Gazebo Classic can handle internal geometry overlaps IF stiffness (`kp`) is extremely high (1M+). If you lower `kp` to "optimize" performance, the collision energy is unlocked, causing sliding. Fix geometry FIRST before softening physics.
+*   **AMCL-Centric UI:** When visualizing paths or goals in a robot-relative UI, always transform from the Map frame using `/amcl_pose`, not `/odom`. Odometry drift will cause the path to "float" away from the Lidar walls; AMCL keeps them anchored.
+*   **Build Synchronization:** Changes to `.yaml`, `.xacro`, or `.js` files in the `src/` directory are NOT visible to the simulation until a modular build (`./robot.sh build`) is executed. Always rebuild after changing parameters.
+*   **Inflation Scaling:** A `cost_scaling_factor` below 5.0 results in thick, "bloated" walls. For precise navigation in narrow spaces, use a value around 3.5 for smooth gradients or 10.0 for sharp boundaries.
+*   **Modular Architecture (ES6):** The Web UI now uses native ES6 modules. 
+    *   ❌ **Don't:** Mix `import` statements with legacy script tags in `index.html`. Use `type="module"`.
+    *   ✅ **Do:** Maintain the `app.js` as the central orchestrator to prevent circular dependencies between sub-managers.
+*   **The Pose Fallback Rule:** UI components that transform Map coordinates (like Goals or Paths) must have a fallback. If `/amcl_pose` is empty, the UI should use `/odom` relative to the map origin to prevent "Zero-coordinate jumping."
+*   **Initial Settings Sync:** Always sync UI input values to the internal JS `config` object during `init()`. Relying solely on `change` events means the first connection will use incorrect defaults if the user doesn't touch the inputs.
+*   **Lidar Front Sector:** For safety metrics, calculate "Front Distance" using a narrow sector (±10°) rather than the whole scan. This prevents peripheral walls from triggering false emergency stops during hallway navigation.
+*   **Python Serial Bridge:** Use `serial.readline()` with a reasonable timeout (0.1s) to prevent blocking the main ROS execution thread. Ensure the ESP32 protocol is human-readable (`m v_l v_r\r`) for easy debugging with tools like `minicom` or `screen`.
+*   **Odometry Calculation:** When implementing a bridge, ensure TF (`odom -> base_footprint`) is broadcast at the same frequency as the Odometry message. Jitter between these two will cause "shaking" visualizations in the Web UI or RViz.
+
+## 🍎 macOS & ESP32-S3 Stability (Added 2026-06-08)
+
+*   **Serial Thread-Safety:** On ESP32-S3, never call `Serial.print` from a high-priority FreeRTOS task on a different core than the main loop. This causes race conditions that make the USB device "drop" from the Mac host, leading to "Device not configured" errors.
+*   **Mac Socat Flags:** For stable serial-to-network bridging on Mac, use `ispeed=115200,ospeed=115200` and `raw` mode. Avoid the legacy `b115200` flag.
+*   **Bridge Auto-Healing:** Physical USB ports on Mac often reset after a firmware flash. Always run bridges in a monitor loop (`while true; do socat... done`) to ensure the Docker container doesn't lose connectivity permanently.
+*   **The "Nuclear" Clean:** When changing package installation paths (via `setup.cfg`), a standard `colcon build` is not enough. You must run `./robot.sh clean` to delete the old `install/` symlinks, or ROS will try to execute non-existent binaries and crash the whole launch.
+*   **JointState Velocities:** Web-based RPM displays usually depend on the `velocity` array in `/joint_states`. If your hardware bridge only publishes `position`, the UI will show `NaN`. Always populate both arrays.
+*   **Hardware Audit Guard:** To prevent "Total Launch Failure" on machines without sensors, wrap hardware node launches in `os.path.exists()` checks and disable downstream stacks (SLAM/Nav) if critical topics won't be available.

@@ -11,7 +11,6 @@ import time
 import rclpy
 from rclpy.node import Node
 from sensor_msgs.msg import Imu
-from smbus2 import SMBus
 
 # MPU6050 Registers and Addresses
 MPU6050_ADDR = 0x68
@@ -41,17 +40,24 @@ class MPU6050Node(Node):
         self.publish_rate = self.get_parameter('publish_rate').get_parameter_value().integer_value
         self.timer = self.create_timer(1.0 / self.publish_rate, self.timer_callback)
         self.get_logger().info("MPU6050 IMU node started.")
-        self.bus = SMBus(1)  # Use I2C bus 1 (common on Raspberry Pi)
-        self.init_sensor()
+        try:
+            from smbus2 import SMBus
+            self.bus = SMBus(1)  # Use I2C bus 1 (common on Raspberry Pi)
+            self.init_sensor()
+        except Exception as e:
+            self.get_logger().error(f"Failed to initialize MPU6050 hardware: {e}. IMU data will not be published.")
+            self.bus = None
 
     def init_sensor(self):
         """Initialize the MPU6050 registers."""
+        if not self.bus: return
         # Wake up MPU6050
         self.bus.write_byte_data(MPU6050_ADDR, PWR_MGMT_1, 0)
         time.sleep(0.1)
 
     def timer_callback(self):
         """Read data and publish IMU message."""
+        if not self.bus: return
         imu_msg = Imu()
         imu_msg.header.stamp = self.get_clock().now().to_msg()
         imu_msg.header.frame_id = "imu_link"

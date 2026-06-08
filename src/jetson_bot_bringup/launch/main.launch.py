@@ -107,7 +107,9 @@ def launch_setup(context, *args, **kwargs):
     ))
 
     # 3. Hardware vs Simulation Logic
+    hardware_active = False
     if final_use_sim:
+        hardware_active = True # Simulation always counts as active
         # --- GAZEBO STACK ---
         entities.append(IncludeLaunchDescription(
             PythonLaunchDescriptionSource([os.path.join(
@@ -135,15 +137,63 @@ def launch_setup(context, *args, **kwargs):
         ]))
     else:
         # --- REAL HARDWARE STACK ---
-        # IMU Driver
+        print("\n" + "="*50)
+        print("🔍 HARDWARE AUDIT STARTING...")
+        
+        # 1. IMU Driver (MPU6050)
         entities.append(Node(
             package='jetson_bot_imu',
             executable='mpu6050_node',
             output='screen',
             parameters=[{'use_sim_time': False}]
         ))
-        # Hardware Interface (Claimed by same controllers but talking to serial)
-        # Note: Controllers for hardware would be spawned here without the Gazebo plugin
+        
+        # 2. Python Serial Bridge (Check if port exists)
+        motor_port = '/dev/ttyACM0'
+        if os.path.exists(motor_port):
+            hardware_active = True
+            entities.append(Node(
+                package='jetson_bot_diffdrive',
+                executable='diffdrive_node',
+                output='screen',
+                parameters=[{
+                    'use_sim_time': False,
+                    'port': motor_port,
+                    'baud': 115200,
+                    'wheel_separation': 0.212, # Manual Measurement
+                    'wheel_radius': 0.034,
+                    'encoder_cpr': 3436
+                }]
+            ))
+            print(f"✅ [HARDWARE] Motor Bridge: FOUND at {motor_port}")
+        else:
+            print(f"❌ [HARDWARE ERROR] Motor port {motor_port} NOT FOUND. Connect ESP32 via USB.")
+
+        # 3. RPLidar A1 (Check if port exists)
+        lidar_port = '/dev/ttyUSB0'
+        if os.path.exists(lidar_port):
+            hardware_active = True
+            entities.append(Node(
+                package='rplidar_ros',
+                executable='rplidar_composition',
+                output='screen',
+                parameters=[{
+                    'serial_port': lidar_port,
+                    'serial_baudrate': 115200,
+                    'frame_id': 'laser_frame',
+                    'inverted': False,
+                    'angle_compensate': True,
+                }]
+            ))
+            print(f"✅ [HARDWARE] RPLidar: FOUND at {lidar_port}")
+        else:
+            print(f"❌ [HARDWARE ERROR] Lidar port {lidar_port} NOT FOUND. Connect RPLidar via USB.")
+        
+        if not hardware_active:
+            print("🛑 [FATAL WARNING] No critical sensors found. SLAM/Navigation will be DISABLED to prevent crash.")
+            print("🚀 [INFO] Web UI and Telemetry will remain active for debugging.")
+        
+        print("="*50 + "\n")
 
     # 4. Global Infrastructure
     entities.append(Node(
@@ -178,33 +228,33 @@ def launch_setup(context, *args, **kwargs):
             output='screen'
         ))
     except Exception:
-        print("Warning: web_video_server not found — camera stream disabled. "
-              "Install with: apt install ros-foxy-web-video-server")
+        print("Warning: web_video_server not found — camera stream disabled.")
 
     # 5. Activity (Mapping vs Navigation)
-    if final_mode == 'mapping':
-        entities.append(TimerAction(period=120.0 if final_use_sim else 2.0, actions=[
-            IncludeLaunchDescription(
-                PythonLaunchDescriptionSource([os.path.join(
-                    get_package_share_directory('slam_toolbox'), 'launch', 'online_async_launch.py')]),
-                launch_arguments={
-                    'use_sim_time': 'true' if final_use_sim else 'false',
-                    'params_file': os.path.join(pkg_slam, 'config', 'mapper_params.yaml')
-                }.items()
-            )
-        ]))
-    else:
-        entities.append(TimerAction(period=120.0 if final_use_sim else 2.0, actions=[
-            IncludeLaunchDescription(
-                PythonLaunchDescriptionSource([os.path.join(
-                    get_package_share_directory('nav2_bringup'), 'launch', 'bringup_launch.py')]),
-                launch_arguments={
-                    'use_sim_time': 'true' if final_use_sim else 'false',
-                    'params_file': os.path.join(pkg_navigation, 'config', 'nav2_params.yaml'),
-                    'map': final_map_path
-                }.items()
-            )
-        ]))
+    if hardware_active:
+        if final_mode == 'mapping':
+            entities.append(TimerAction(period=120.0 if final_use_sim else 2.0, actions=[
+                IncludeLaunchDescription(
+                    PythonLaunchDescriptionSource([os.path.join(
+                        get_package_share_directory('slam_toolbox'), 'launch', 'online_async_launch.py')]),
+                    launch_arguments={
+                        'use_sim_time': 'true' if final_use_sim else 'false',
+                        'params_file': os.path.join(pkg_slam, 'config', 'mapper_params.yaml')
+                    }.items()
+                )
+            ]))
+        else:
+            entities.append(TimerAction(period=120.0 if final_use_sim else 2.0, actions=[
+                IncludeLaunchDescription(
+                    PythonLaunchDescriptionSource([os.path.join(
+                        get_package_share_directory('nav2_bringup'), 'launch', 'bringup_launch.py')]),
+                    launch_arguments={
+                        'use_sim_time': 'true' if final_use_sim else 'false',
+                        'params_file': os.path.join(pkg_navigation, 'config', 'nav2_params.yaml'),
+                        'map': final_map_path
+                    }.items()
+                )
+            ]))
 
     # 6. Visualization (RViz2)
     if final_viz:

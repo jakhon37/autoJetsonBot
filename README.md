@@ -13,10 +13,10 @@ The robot has been fully refactored to the **Industry Standard (REP 120)**. All 
 ### System Health Snapshot
 | System | Status | Technical Detail |
 | :--- | :--- | :--- |
-| **TF Tree** | ✅ Standardized | `map -> odom -> base_footprint -> base_link` chain. |
-| **Control** | ✅ Active | Remapped internal controller to standard `/cmd_vel` topic. |
-| **Navigation** | ✅ Active | AMCL auto-localization with array-based `initial_pose`. |
-| **UI** | ✅ Hardened | Integrated deep health checks into the CLI control script. |
+| **TF Tree** | ✅ Standardized | `map -> odom -> base_footprint -> base_link` (REP 120). |
+| **Hardware** | ✅ Ready | Python Serial Bridge (`diffdrive_node`) active. |
+| **Navigation** | ✅ Active | AMCL auto-localization + DWB Local Planner. |
+| **Simulation** | ✅ Calibrated | 1:1 Digital Twin of physical hardware dimensions. |
 
 ---
 
@@ -32,7 +32,7 @@ The project is decomposed into specialized ROS 2 packages within the `src/` dire
 | **`jetson_bot_slam`** | Environment Mapping| `slam_toolbox` configurations for asynchronous mapping. |
 | **`jetson_bot_navigation`**| Path Planning | Nav2 parameters, Behavior Trees, and Local/Global planners. |
 | **`jetson_bot_imu`** | Sensor Driver | Python driver for MPU6050 I2C communication. |
-| **`jetson_bot_diffdrive`**| HW Interface | `ros2_control` hardware interface for physical motors (Plugin Recovery in progress). |
+| **`jetson_bot_diffdrive`**| HW Interface | **Python Serial Bridge** for ESP32/Arduino communication. |
 | **`jetson_bot_detection`** | Computer Vision | Image processing node for real-time detection. |
 
 ### Project Directory Layout
@@ -57,24 +57,32 @@ autoJetsonBot/
 
 ---
 
-## 🏎️ Hardware Specification
+## 🏎️ Hardware Specification (The "Digital Twin" Standard)
 
-The physical platform is an advanced continuation of the [Autonomous ROS](https://github.com/jakhon37/autonomous_ROS) baseline, optimized for the Jetson Nano.
+The platform is meticulously calibrated to a **1:1 Digital Twin standard**. Every parameter in the simulation exactly matches the physical hardware audit conducted on **2026-06-07**.
 
-### 1. Compute & Intelligence
+### 1. Physical Metrics & Kinematics
+*   **Wheel Separation:** 0.212m (Center-to-center)
+*   **Wheel Radius:** 0.034m (3.4cm)
+*   **Ground Clearance:** 0.056m (Floor to chassis floor)
+*   **Chassis Dimensions:** 19.4cm (L) x 17.8cm (W) x 9.7cm (H)
+*   **Total Weight:** 1.4kg (Physics-accurate inertial distribution)
+
+### 2. Compute & Intelligence
 *   **Main Brain:** NVIDIA Jetson Nano B01 (4GB) – Executes the full ROS 2 stack and vision processing.
-*   **Low-Level Controller:** ESP32 / Arduino – Acts as the real-time bridge for motor PWM and encoder interrupts.
-*   **Serial Communication:** 115200 Baud rate via `/dev/ttyACM0` or `/dev/ttyUSB0`.
+*   **Low-Level Controller:** ESP32 / Arduino – Real-time PID bridge for motors and encoders.
+*   **HW Interface:** `jetson_bot_diffdrive` – A high-performance Python bridge using a human-readable serial protocol (`m v_l v_r\r`).
 
-### 2. Sensing & Perception
-*   **Lidar:** RPLidar A1/A2 – Provides 360° laser scans for mapping and obstacle avoidance.
-*   **IMU:** MPU6050 – Fuses 6-DOF data for improved odometry via EKF integration.
-*   **Encoders:** Hall-effect sensors (3436 counts/rev) – High-resolution wheel position feedback.
-*   **Vision:** Raspberry Pi Camera v2 – Integrated for object detection and visual servoing.
+### 3. Sensing & Perception
+*   **Lidar:** RPLidar A1 – Positioned at `x=0.064` (forward of axle) and `z=0.161` (from floor).
+*   **IMU:** MPU6050 – Fuses 6-DOF data for improved odometry via future EKF integration.
+*   **Encoders:** Hall-effect sensors (3436 counts/rev) – High-resolution position feedback.
+*   **Vision:** Raspberry Pi Camera v2 – Serves MJPEG stream on port 8080 via `web_video_server`.
 
-### 3. Chassis & Power
-*   **Drive:** Differential drive system (Wheel Radius: 0.035m, Separation: 0.18m).
-*   **Power:** 12V Li-ion battery with dual buck converters for isolated 5V (Jetson) and 5V/3.3V (Sensors) rails.
+### 4. Power Management
+*   **Battery:** 12V Li-ion (3S)
+*   **Regulation:** Dual buck converters for isolated 5V (Jetson) and 5V/3.3V (Sensors) rails.
+*   **Failsafe:** Software-defined Emergency Stop integrated into the Nav2 action stack.
 
 ---
 

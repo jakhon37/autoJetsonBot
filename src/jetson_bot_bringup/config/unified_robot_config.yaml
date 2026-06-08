@@ -3,11 +3,11 @@
 # 🌍 Global Operational Parameters (The Robot's "Source of Truth")
 global:
   ros__parameters:
-    use_sim: true              # true: Gazebo simulation | false: Real hardware (Serial/IMU)
-    mode: "navigation"            # options: "mapping", "navigation"
-    viz: true                  # true: Open RViz2
+    use_sim: false              # true: Gazebo simulation | false: Real hardware (Serial/IMU)
+    mode: "mapping"            # options: "mapping", "navigation"
+    viz: false                  # true: Open RViz2
     headless: false            # true: Run Gazebo in background (fast test) | false: Show Gazebo window
-    use_sim_time: true         # Always true for simulation, false for hardware
+    use_sim_time: false         # Always true for simulation, false for hardware
 
     map_name: "lab_map_v2"        # Base name for saved/loaded maps
     # map_name: "demo_map"        # Base name for saved/loaded maps
@@ -27,7 +27,7 @@ global:
 controller_manager:
   ros__parameters:
     update_rate: 100
-    use_sim_time: true
+    use_sim_time: false
     
     diff_cont:
       type: diff_drive_controller/DiffDriveController
@@ -38,11 +38,11 @@ controller_manager:
 # 🚗 Differential drive controller parameters
 diff_cont:
   ros__parameters:
-    use_sim_time: true
+    use_sim_time: false
     left_wheel_names: ["left_wheel_joint"]
     right_wheel_names: ["right_wheel_joint"]
-    wheel_separation: 0.18
-    wheel_radius: 0.035
+    wheel_separation: 0.212
+    wheel_radius: 0.034
     publish_rate: 100.0
     base_frame_id: "base_footprint"
     odom_frame_id: "odom"
@@ -71,7 +71,7 @@ diff_cont:
 # 🛠️ Joint state broadcaster parameters
 joint_broad:
   ros__parameters:
-    use_sim_time: true
+    use_sim_time: false
     joints:
       - left_wheel_joint
       - right_wheel_joint

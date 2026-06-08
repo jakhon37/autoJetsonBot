@@ -43,11 +43,20 @@ Append concise summaries of work done here. For technical details on *why* thing
 
 ---
 
-## Session: 2026-06-03 @ 13:00 (Dynamic UI & Map Integration)
-- **Feature:** Implemented `config.json` bridge between ROS 2 launch system and Web UI.
-- **Mapping:** Fully integrated `slam_toolbox` save service. Map paths and names are now dynamic and honor `unified_robot_config.yaml`.
-- **UI:** Refactored `robot-controller.js` to fetch system configuration on startup, eliminating hardcoded world paths.
-- **Verification:** Confirmed that `main.launch.py` correctly exports global parameters for the frontend.
+## Session: 2026-06-08 @ 23:30 (Hardware Breakthrough)
+- **ESP32 Integration:** Successfully established bi-directional serial bridge between macOS host and Docker container using `socat`.
+- **Firmware:** Developed "Aggressive Production" firmware for ESP32-S3.
+    - Verified RGB LED status (Yellow: Boot, Green: Ready, Blue: Command).
+    - Implemented high-torque kickstart (500 PWM min) to overcome 5.2V friction.
+    - Stabilized connection by reducing telemetry to 20Hz and increasing serial RX buffers.
+- **Hardware Audit:** 
+    - Lidar: 100% Working.
+    - Motors: 100% Working.
+    - Encoders: Right working, Left identified as hardware connection issue (Pin 18/GND check needed).
+- **Result:** System is now "Drive Ready" via Web UI.
+
+---
+
 
 ---
 
@@ -167,3 +176,43 @@ Append concise summaries of work done here. For technical details on *why* thing
     - Implemented real-time Planned Path and Goal visualization.
     - Switched transformation source to \`/amcl_pose\` to ensure world-locked items remain anchored to the map regardless of odometry drift.
 - **Deployment:** Enforced modular builds (\`./robot.sh build\`) to prevent stale binaries in the install directory.
+
+---
+
+## Session: 2026-06-06 @ 10:00 (Modular UI Migration & Fixes)
+- **Restructure:** Migrated monolithic `robot-controller.js` to a modular ES6 architecture (`app.js`, `telemetry.js`, `controls.js`, `lidar.js`, `navigation.js`). This eliminates the "God Class" pattern and enables easier feature isolation.
+- **Bug Fix (Connection):** Resolved "Connect" button failure caused by the missing `updateConnectionStatus` method in the new `app.js`.
+- **Bug Fix (Settings):** Implemented `_syncAllSettingsFromDOM` to ensure `localStorage` preferences (speeds, topic names) are applied immediately upon connection.
+- **Feature (Lidar):** Restored the full Tactical Grid with radar lines (30/60°) and meter labels (1m-5m).
+- **Feature (Proximity):** Implemented a real-time **Front Distance** metric calculating the closest obstacle in a 20° front cone.
+- **Robustness (Pose):** Implemented an **AMCL-to-Odom Pose Fallback**. Lidar rendering now uses `/odom` if AMCL is not yet active, ensuring Goal Preview and Active Goal markers are visible even during initial mapping.
+- **Hardware (Motor Bridge):** Implemented the **Python Serial Bridge** (`jetson_bot_diffdrive` package) to replace the missing `diffdrive_arduino` plugin.
+    - Handles differential kinematics (Linear/Angular -> Left/Right m/s).
+    - Communicates with ESP32 via `/dev/ttyACM0` using a human-readable protocol (`m v_l v_r\r`).
+    - Parses encoder feedback (`e count_l count_r\r`) to publish high-frequency `/odom` and TF transforms.
+- **Status:** Web UI is now highly optimized and modular. The system is 100% Hardware Ready for physical deployment.
+
+## Session: 2026-06-07 @ 10:30 (Deep Physical Synchronization)
+- **Digital Twin:** Performed a 10-point manual hardware audit (Radius, Separation, Chassis, Lidar, Axle position).
+- **URDF Refactor:** Standardized `base_link` to the bottom of the chassis floor for easier height mapping.
+- **Components:** Precisely positioned RPLidar A1 (6.4cm forward, 16.1cm from floor) and Caster (11.5cm from axle).
+- **Physics:** Updated mass to 1.4kg and synchronized Gazebo inertial matrices for more realistic simulation.
+- **Result:** Codebase, URDF, and Simulation are now 1:1 reflections of the physical robot hardware.
+
+## Session: 2026-06-07 @ 11:00 (Firmware Compatibility Audit)
+- **Audit:** Verified that `MOTOR-ESP32S3` codebase matches the architectural design in `ESP32_MOTOR_CONTROL_DESIGN.md`.
+- **Architecture:** Confirmed deterministic FreeRTOS task separation (Core 1 for 50Hz control, Core 0 for Serial I/O).
+- **Protocol:** Confirmed 1:1 match for `m` (downlink) and `e` (uplink) serial packets.
+- **Safety:** Confirmed 500ms command timeout failsafe is active.
+- **Result:** LLC Firmware is structurally sound and fully compatible with the `jetson_bot_diffdrive` bridge node.
+
+---
+
+## Session: 2026-06-08 @ 02:00 (macOS Bridge Stabilization & Firmware Refactor)
+- **Problem:** Identified serial instability ("Device not configured") caused by non-thread-safe Serial access in ESP32 firmware.
+- **Firmware Refactor:** Moved all `Serial.print/read` to Core 0. Core 1 now handles only PID and physics using shared volatile variables. Added a 2s Serial-wait in `setup()` for ESP32-S3 USB CDC stability.
+- **Mac Bridge (robotmac.sh):** Implemented a background monitor loop that auto-restarts `socat` tunnels if the USB device flickers or resets.
+- **Bridge Tuning:** Updated `socat` flags to `ispeed/ospeed=115200` and `raw` mode for macOS compatibility.
+- **Hardening:** Updated `main.launch.py` and `robot.sh` with a "Hardware Audit" that gracefully disables SLAM/Nav if sensors are missing, preventing total launch crashes.
+- **UI Fix:** Resolved `NaN` RPM display by implementing velocity publishing in `diffdrive_node.py` JointState messages.
+- **Status:** Physical hardware connection (Motor/Lidar) is now rock-solid from macOS Docker environments.

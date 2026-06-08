@@ -165,6 +165,20 @@
           <button id="cancelGoalBtn"  class="btn btn-danger" style="display:none;">✖ Cancel [C]</button>
         </div>
       </div>
+
+      <!-- 5. Global Map -->
+      <div class="map-section" style="width:100%; margin-top:2rem;">
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:0.5rem;">
+          <h3 class="status-title" style="margin-bottom:0;">🗺️ Global Map</h3>
+          <button id="resetMapView" class="btn btn-primary" style="padding:0.4rem 0.8rem; font-size:0.8rem;">🎯 Center Map</button>
+        </div>
+        <div class="map-canvas-wrap">
+          <canvas id="mapCanvas"></canvas>
+          <div class="map-controls-hint">
+            🖱️ Drag to Pan | 🎡 Scroll to Zoom
+          </div>
+        </div>
+      </div>
     </main>
 
     <!-- ── Status Panel ────────────────────────────────────────────────── -->

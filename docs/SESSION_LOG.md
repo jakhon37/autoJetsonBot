@@ -43,20 +43,11 @@ Append concise summaries of work done here. For technical details on *why* thing
 
 ---
 
-## Session: 2026-06-08 @ 23:30 (Hardware Breakthrough)
-- **ESP32 Integration:** Successfully established bi-directional serial bridge between macOS host and Docker container using `socat`.
-- **Firmware:** Developed "Aggressive Production" firmware for ESP32-S3.
-    - Verified RGB LED status (Yellow: Boot, Green: Ready, Blue: Command).
-    - Implemented high-torque kickstart (500 PWM min) to overcome 5.2V friction.
-    - Stabilized connection by reducing telemetry to 20Hz and increasing serial RX buffers.
-- **Hardware Audit:** 
-    - Lidar: 100% Working.
-    - Motors: 100% Working.
-    - Encoders: Right working, Left identified as hardware connection issue (Pin 18/GND check needed).
-- **Result:** System is now "Drive Ready" via Web UI.
-
----
-
+## Session: 2026-06-03 @ 13:00 (Dynamic UI & Map Integration)
+- **Feature:** Implemented `config.json` bridge between ROS 2 launch system and Web UI.
+- **Mapping:** Fully integrated `slam_toolbox` save service. Map paths and names are now dynamic and honor `unified_robot_config.yaml`.
+- **UI:** Refactored `robot-controller.js` to fetch system configuration on startup, eliminating hardcoded world paths.
+- **Verification:** Confirmed that `main.launch.py` correctly exports global parameters for the frontend.
 
 ---
 
@@ -192,12 +183,16 @@ Append concise summaries of work done here. For technical details on *why* thing
     - Parses encoder feedback (`e count_l count_r\r`) to publish high-frequency `/odom` and TF transforms.
 - **Status:** Web UI is now highly optimized and modular. The system is 100% Hardware Ready for physical deployment.
 
+---
+
 ## Session: 2026-06-07 @ 10:30 (Deep Physical Synchronization)
 - **Digital Twin:** Performed a 10-point manual hardware audit (Radius, Separation, Chassis, Lidar, Axle position).
 - **URDF Refactor:** Standardized `base_link` to the bottom of the chassis floor for easier height mapping.
 - **Components:** Precisely positioned RPLidar A1 (6.4cm forward, 16.1cm from floor) and Caster (11.5cm from axle).
 - **Physics:** Updated mass to 1.4kg and synchronized Gazebo inertial matrices for more realistic simulation.
 - **Result:** Codebase, URDF, and Simulation are now 1:1 reflections of the physical robot hardware.
+
+---
 
 ## Session: 2026-06-07 @ 11:00 (Firmware Compatibility Audit)
 - **Audit:** Verified that `MOTOR-ESP32S3` codebase matches the architectural design in `ESP32_MOTOR_CONTROL_DESIGN.md`.
@@ -216,3 +211,36 @@ Append concise summaries of work done here. For technical details on *why* thing
 - **Hardening:** Updated `main.launch.py` and `robot.sh` with a "Hardware Audit" that gracefully disables SLAM/Nav if sensors are missing, preventing total launch crashes.
 - **UI Fix:** Resolved `NaN` RPM display by implementing velocity publishing in `diffdrive_node.py` JointState messages.
 - **Status:** Physical hardware connection (Motor/Lidar) is now rock-solid from macOS Docker environments.
+
+---
+
+## Session: 2026-06-08 @ 23:30 (Hardware Breakthrough)
+- **ESP32 Integration:** Successfully established bi-directional serial bridge between macOS host and Docker container using `socat`.
+- **Firmware:** Developed "Aggressive Production" firmware for ESP32-S3.
+    - Verified RGB LED status (Yellow: Boot, Green: Ready, Blue: Command).
+    - Implemented high-torque kickstart (500 PWM min) to overcome 5.2V friction.
+    - Stabilized connection by reducing telemetry to 20Hz and increasing serial RX buffers.
+- **Hardware Audit:** 
+    - Lidar: 100% Working.
+    - Motors: 100% Working.
+    - Encoders: Right working, Left identified as hardware connection issue (Pin 18/GND check needed).
+- **Result:** System is now "Drive Ready" via Web UI.
+
+---
+
+## Session: 2026-06-09 @ 00:30 (IMU Integration Prep)
+- **Dependency:** Resolved `smbus2` missing module error in Docker container.
+- **Architecture:** Decided to integrate MPU6050 IMU via ESP32-S3 to leverage real-time processing and the existing serial bridge.
+- **Plan:** Scheduled I2C wiring (GPIO 1/21) and firmware update for accel/gyro telemetry.
+
+---
+
+## Session: 2026-06-09 @ 23:40 (IMU Dashboard Bug Fix & UI Refactor)
+- **Bug Fixes:**
+    - Resolved critical connection blockage by renaming the global variable `status` to `statusBadge` to avoid conflict with the browser's reserved `window.status` namespace.
+    - Fixed undefined `az` parameter in the WebSocket message handler which was causing `NaN` propagation inside the filter.
+- **Robot Axes & Aesthetics:** Restored the local robot coordinate axes using `THREE.ArrowHelper` (rendering arrows for X, Y, and Z axes) and restored the red "Front" marker box on the chassis.
+- **Coordinate Mapping:** Added mathematical mapping from the Z-up sensor coordinate system ($X_{sensor} \leftrightarrow -Z_{three}$, $Y_{sensor} \leftrightarrow -X_{three}$, $Z_{sensor} \leftrightarrow Y_{three}$) to the Three.js $Y$-up coordinate system.
+- **Filter Stabilization:** Completely rewrote the buggy/incorrect manual algebraic expansions for the gradient descent vector ($s_1$, $s_2$, $s_3$, $s_4$) with standard, clean, and mathematically verified Madgwick AHRS IMU equations, and corrected the sign of the first term in $s_0$ to matching derivative physics.
+- **WebSocket Safety:** Resolved the duplicate socket reconnection timer bug by implementing robust timer cleanup (`clearTimeout` and event listener unbinding).
+- **UI Upgrade:** Redesigned the HTML/CSS layout with a premium glassmorphic dark theme, clear layout division, card-hover states, glowing status badges, and proper semantic HTML.

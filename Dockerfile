@@ -35,6 +35,10 @@ RUN  rm -rf /var/lib/apt/lists/* && \
     ros-humble-nav2-bringup \
     ros-humble-ros-gz \
     ros-humble-rosbridge-server \
+    ros-humble-imu-filter-madgwick \
+    ros-humble-robot-localization \
+    ros-humble-slam-toolbox \
+    ros-humble-tf2-tools \
     nano \
     && rm -rf /var/lib/apt/lists/*
 

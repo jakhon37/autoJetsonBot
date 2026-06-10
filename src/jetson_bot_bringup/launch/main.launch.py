@@ -140,15 +140,45 @@ def launch_setup(context, *args, **kwargs):
         print("\n" + "="*50)
         print("🔍 HARDWARE AUDIT STARTING...")
         
-        # 1. IMU Driver (MPU6050)
+        # 1. IMU Bridge & Filter
         entities.append(Node(
             package='jetson_bot_imu',
-            executable='mpu6050_node',
+            executable='imu_bridge_node',
             output='screen',
             parameters=[{'use_sim_time': False}]
         ))
         
-        # 2. Python Serial Bridge (Check if port exists)
+        # Madgwick Filter to convert raw IMU -> Orientation
+        entities.append(Node(
+            package='imu_filter_madgwick',
+            executable='imu_filter_madgwick_node',
+            name='imu_filter',
+            output='screen',
+            parameters=[{
+                'use_sim_time': False,
+                'stateless': True,
+                'use_mag': False,
+                'publish_tf': False,
+                'world_frame': 'enu',
+                'fixed_frame': 'odom'
+            }],
+            remappings=[
+                ('/imu/data_raw', '/imu/data_raw'),
+                ('/imu/data', '/imu/data')
+            ]
+        ))
+
+        # 2. EKF Sensor Fusion
+        entities.append(Node(
+            package='robot_localization',
+            executable='ekf_node',
+            name='ekf_filter_node',
+            output='screen',
+            parameters=[os.path.join(pkg_bringup, 'config', 'ekf.yaml'), {'use_sim_time': False}],
+            remappings=[('/odometry/filtered', '/odom_filtered')]
+        ))
+        
+        # 3. Python Serial Bridge (Check if port exists)
         motor_port = '/dev/ttyACM0'
         if os.path.exists(motor_port):
             hardware_active = True
@@ -162,7 +192,8 @@ def launch_setup(context, *args, **kwargs):
                     'baud': 115200,
                     'wheel_separation': 0.212, # Manual Measurement
                     'wheel_radius': 0.034,
-                    'encoder_cpr': 3436
+                    'encoder_cpr': 3436,
+                    'publish_tf': False # Disable for EKF compatibility
                 }]
             ))
             print(f"✅ [HARDWARE] Motor Bridge: FOUND at {motor_port}")

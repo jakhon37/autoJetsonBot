@@ -21,6 +21,7 @@ setup(
     entry_points={
         'console_scripts': [
             'mpu6050_node = jetson_bot_imu.mpu6050_node:main',
+            'imu_bridge_node = jetson_bot_imu.imu_bridge_node:main',
         ],
     },
 

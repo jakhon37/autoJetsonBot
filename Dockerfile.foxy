@@ -46,6 +46,10 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     ros-foxy-ros2-controllers \
     ros-foxy-gazebo-ros2-control \
     ros-foxy-web-video-server \
+    ros-foxy-imu-filter-madgwick \
+    ros-foxy-robot-localization \
+    ros-foxy-slam-toolbox \
+    ros-foxy-tf2-tools \
     python3-serial \
     nano \
     mesa-utils \

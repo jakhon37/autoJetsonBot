@@ -40,8 +40,11 @@ sudo apt install -y \
     ros-foxy-ros2-control \
     ros-foxy-ros2-controllers \
     ros-foxy-gazebo-ros2-control \
-    ros-foxy-web-video-server \
-    ros-foxy-tf2-tools
+    ros-foxy-tf2-tools \
+    ros-foxy-image-transport-plugins \
+    ros-foxy-rqt-image-view
+
+    # ros-foxy-web-video-server \
 
 # 5. Install Infrastructure for Headless VNC (Optional but recommended)
 sudo apt install -y \

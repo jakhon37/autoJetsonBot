@@ -206,7 +206,7 @@ def launch_setup(context, *args, **kwargs):
             hardware_active = True
             entities.append(Node(
                 package='rplidar_ros',
-                executable='rplidar_node', # Switched from composition
+                executable='rplidar_composition', # Reverted
                 output='screen',
                 parameters=[{
                     'channel_type': 'serial',

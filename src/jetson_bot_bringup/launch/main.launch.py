@@ -206,9 +206,10 @@ def launch_setup(context, *args, **kwargs):
             hardware_active = True
             entities.append(Node(
                 package='rplidar_ros',
-                executable='rplidar_composition',
+                executable='rplidar_node', # Switched from composition
                 output='screen',
                 parameters=[{
+                    'channel_type': 'serial',
                     'serial_port': lidar_port,
                     'serial_baudrate': 115200,
                     'frame_id': 'laser_frame',

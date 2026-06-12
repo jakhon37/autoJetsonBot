@@ -206,7 +206,7 @@ def launch_setup(context, *args, **kwargs):
             hardware_active = True
             entities.append(Node(
                 package='rplidar_ros',
-                executable='rplidar_composition', # Reverted
+                executable='rplidar_composition',
                 output='screen',
                 parameters=[{
                     'channel_type': 'serial',
@@ -215,6 +215,7 @@ def launch_setup(context, *args, **kwargs):
                     'frame_id': 'laser_frame',
                     'inverted': False,
                     'angle_compensate': True,
+                    'scan_mode': 'Standard'  # Force standard mode for A1
                 }]
             ))
             print(f"✅ [HARDWARE] RPLidar: FOUND at {lidar_port}")

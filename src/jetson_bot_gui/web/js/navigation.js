@@ -89,20 +89,23 @@ export class NavigationManager {
       x, y, yaw: (parseFloat(document.getElementById('goalYaw').value) || 0)
     };
     
-    const t = new ROSLIB.Topic({
-      ros: this.app.ros,
-      name: '/goal_pose',
-      messageType: 'geometry_msgs/PoseStamped'
-    });
-    t.publish(new ROSLIB.Message({
-      header: { frame_id: 'map' },
-      pose: {
-        position: { x, y, z: 0 },
-        orientation: { x: 0, y: 0, z: qz, w: qw }
+    // NEW: Proper Action Client Goal
+    const goal = new ROSLIB.Goal({
+      actionClient: this.navActionClient,
+      goalMessage: {
+        pose: {
+          header: { frame_id: 'map' },
+          pose: {
+            position: { x, y, z: 0 },
+            orientation: { x: 0, y: 0, z: qz, w: qw }
+          }
+        }
       }
-    }));
+    });
+
+    goal.send();
     
-    this.app.log(`Nav goal → x:${x} y:${y} yaw:${(yaw * 180 / Math.PI).toFixed(1)}°`, 'info');
+    this.app.log(`Nav goal sent via Action → x:${x} y:${y} yaw:${(yaw * 180 / Math.PI).toFixed(1)}°`, 'info');
     
     const cancelBtn = document.getElementById('cancelGoalBtn');
     if (cancelBtn) cancelBtn.style.display = 'inline-block';

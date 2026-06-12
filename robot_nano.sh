@@ -52,9 +52,9 @@ _launch() {
     stop_robot || true
     
     # 2. Virtual Display & VNC (Optional for headless)
-    start_virtual_display
-    start_vnc_server
-    start_openbox
+    # start_virtual_display
+    # start_vnc_server
+    # start_openbox
 
     # 3. Launch ROS Stack
     export DISPLAY="${XVFB_DISPLAY}"

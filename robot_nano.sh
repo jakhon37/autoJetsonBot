@@ -102,22 +102,22 @@ start_openbox() {
 # ── Utility Commands ──────────────────────────────────────────────────────────
 
 stop_robot() {
-    log_info "Stopping all robot processes..."
+    log_info "Stopping all robot processes (Aggressive Sudo Cleanup)..."
     
-    # 1. Kill ROS Launch and nodes
-    pkill -9 -f "ros2 launch"      || true
-    pkill -9 -f "ros2 run"         || true
-    pkill -9 -f "node"             || true
-    pkill -9 -f "python3"          || true
+    # 1. Kill ROS Launch and nodes (Using sudo to clear zombie processes)
+    sudo pkill -9 -f "ros2 launch"      || true
+    sudo pkill -9 -f "ros2 run"         || true
+    sudo pkill -9 -f "node"             || true
+    sudo pkill -9 -f "python3"          || true
     
     # 2. Kill infrastructure
-    pkill -9 -f gzserver           || true
-    pkill -9 -f gzclient           || true
-    pkill -9 -f rviz2              || true
-    pkill -9 -f rosbridge          || true
-    pkill -9 -f web_server         || true
-    pkill -9 -f x11vnc             || true
-    pkill -9 -f Xvfb               || true
+    sudo pkill -9 -f gzserver           || true
+    sudo pkill -9 -f gzclient           || true
+    sudo pkill -9 -f rviz2              || true
+    sudo pkill -9 -f rosbridge          || true
+    sudo pkill -9 -f web_server         || true
+    sudo pkill -9 -f x11vnc             || true
+    sudo pkill -9 -f Xvfb               || true
     
     log_success "All processes terminated."
 }

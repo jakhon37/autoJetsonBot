@@ -5,7 +5,7 @@ global:
   ros__parameters:
     use_sim: false              # true: Gazebo simulation | false: Real hardware (Serial/IMU)
     mode: "mapping"            # options: "mapping", "navigation"
-    viz: false                  # true: Open RViz2
+    viz: true                  # true: Open RViz2
     headless: false            # true: Run Gazebo in background (fast test) | false: Show Gazebo window
     use_sim_time: false         # Always true for simulation, false for hardware
 

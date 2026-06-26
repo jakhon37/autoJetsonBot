@@ -1,6 +1,6 @@
 amcl:
   ros__parameters:
-    use_sim_time: True
+    use_sim_time: false
     alpha1: 0.2
     alpha2: 0.2
     alpha3: 0.2
@@ -43,18 +43,20 @@ amcl:
 
 amcl_map_client:
   ros__parameters:
-    use_sim_time: True
+    use_sim_time: false
 
 amcl_rclcpp_node:
   ros__parameters:
-    use_sim_time: True
+    use_sim_time: false
 
 bt_navigator:
   ros__parameters:
-    use_sim_time: True
+    use_sim_time: false
     global_frame: map
     robot_base_frame: base_footprint
     odom_frame: odom
+    odom_topic: /odom_filtered
+    # EKF fused odom (Phase 3/4 complete) - see imu_nav2_roadmap_v2.md for details
     default_bt_xml_filename: "navigate_w_replanning_and_recovery.xml"
     plugin_lib_names:
     - nav2_compute_path_to_pose_action_bt_node
@@ -78,13 +80,14 @@ bt_navigator:
 
 bt_navigator_rclcpp_node:
   ros__parameters:
-    use_sim_time: True
+    use_sim_time: false
 
 controller_server:
   ros__parameters:
-    use_sim_time: True
+    use_sim_time: false
     controller_frequency: 20.0
     odom_topic: /odom_filtered
+    # EKF fused odom (Phase 3/4 complete) - see imu_nav2_roadmap_v2.md for details
     min_x_velocity_threshold: 0.001
     min_y_velocity_threshold: 0.5
     min_theta_velocity_threshold: 0.001
@@ -143,7 +146,7 @@ controller_server:
 
 controller_server_rclcpp_node:
   ros__parameters:
-    use_sim_time: True
+    use_sim_time: false
 
 local_costmap:
   local_costmap:
@@ -152,7 +155,7 @@ local_costmap:
       publish_frequency: 2.0
       global_frame: odom
       robot_base_frame: base_footprint
-      use_sim_time: True
+      use_sim_time: false
       rolling_window: true
       width: 3
       height: 3
@@ -179,10 +182,10 @@ local_costmap:
       always_send_full_costmap: True
   local_costmap_client:
     ros__parameters:
-      use_sim_time: True
+      use_sim_time: false
   local_costmap_rclcpp_node:
     ros__parameters:
-      use_sim_time: True
+      use_sim_time: false
 
 global_costmap:
   global_costmap:
@@ -191,7 +194,7 @@ global_costmap:
       publish_frequency: 1.0
       global_frame: map
       robot_base_frame: base_footprint
-      use_sim_time: True
+      use_sim_time: false
       robot_radius: 0.15
       resolution: 0.05
       plugins: ["static_layer", "obstacle_layer", "inflation_layer"]
@@ -215,19 +218,19 @@ global_costmap:
       always_send_full_costmap: True
   global_costmap_client:
     ros__parameters:
-      use_sim_time: True
+      use_sim_time: false
   global_costmap_rclcpp_node:
     ros__parameters:
-      use_sim_time: True
+      use_sim_time: false
 
 map_server:
   ros__parameters:
-    use_sim_time: True
+    use_sim_time: false
     yaml_filename: "lab_map.yaml"
 
 map_saver:
   ros__parameters:
-    use_sim_time: True
+    use_sim_time: false
     save_map_timeout: 5.0
     free_thresh_default: 0.25
     occupied_thresh_default: 0.65
@@ -236,7 +239,7 @@ map_saver:
 planner_server:
   ros__parameters:
     expected_planner_frequency: 20.0
-    use_sim_time: True
+    use_sim_time: false
     planner_plugins: ["GridBased"]
     GridBased:
       plugin: "nav2_navfn_planner/NavfnPlanner"
@@ -246,7 +249,7 @@ planner_server:
 
 planner_server_rclcpp_node:
   ros__parameters:
-    use_sim_time: True
+    use_sim_time: false
 
 recoveries_server:
   ros__parameters:
@@ -263,11 +266,11 @@ recoveries_server:
     global_frame: odom
     robot_base_frame: base_footprint
     transform_timeout: 0.1
-    use_sim_time: true
+    use_sim_time: false
 
 robot_state_publisher:
   ros__parameters:
-    use_sim_time: True
+    use_sim_time: false
 
 waypoint_follower:
   ros__parameters:
@@ -281,7 +284,7 @@ waypoint_follower:
 
 lifecycle_manager_navigation:
   ros__parameters:
-    use_sim_time: True
+    use_sim_time: false
     autostart: true
     node_names: ['controller_server',
                 'planner_server',
@@ -291,6 +294,6 @@ lifecycle_manager_navigation:
 
 lifecycle_manager_localization:
   ros__parameters:
-    use_sim_time: True
+    use_sim_time: false
     autostart: true
     node_names: ['map_server', 'amcl']

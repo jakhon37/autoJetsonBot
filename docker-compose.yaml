@@ -1,48 +1,21 @@
-
 version: "3.9"
 services:
-  ros2:
-    build: .
+  autojetsonbot:
+    build:
+      context: .
+      dockerfile: Dockerfile.foxy
+    image: auto_ros:foxy
+    container_name: auto_ros_foxy
     network_mode: host
     ipc: host
     volumes:
-      - /home/kev/ros:/home/ros
-      - /home/kev/cubie-1:/ros2
-      - ./maps:/ros2/maps
-    # devices:
-    #   - /dev/ttyUSB0:/dev/ttyUSB0
+      - .:/autonomous_ROS
     privileged: true
     tty: true
     environment:
-      - DISPLAY
-
-
-
-
-
-# # version: "3"
-# services:
-#   autonomous_ros:
-#     # build:
-#     #   context: .
-#     #   dockerfile: Dockerfile  
-#     image: autonomous_ros_project3
-#     # container_name: auto_ros3
-#     network_mode: "host"
-#     restart: always
-#     # command: bash -c '. /opt/ros/humble/setup.bash && \
-#     #   . /autonomous_ROS/install/setup.bash && \
-#     #   ros2 launch my_robot_launch launchpr.py'
-
-#     # command: ros2 launch my_robot_launch launchpr.py
-
-
-
-
-# # services:
-# #     autonomous_ros:
-# #         image: autonomous_ros_project
-# #         container_name: autonomous_ros_project
-# #         network_mode: "host"
-# #         restart: always
-
+      - DISPLAY=${DISPLAY:-:0}
+    # For hardware USB passthrough (uncomment and adjust):
+    # devices:
+    #   - /dev/ttyACM0:/dev/ttyACM0
+    #   - /dev/ttyUSB0:/dev/ttyUSB0
+    # Ports via host network: 5900 (VNC), 8000 (Web UI), 9090 (rosbridge)

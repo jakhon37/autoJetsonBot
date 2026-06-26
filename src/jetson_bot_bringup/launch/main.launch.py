@@ -27,7 +27,7 @@ def launch_setup(context, *args, **kwargs):
     headless = False
     use_sim_time = True
     map_name = 'lab_map'
-    map_dir = os.path.join(pkg_bringup, 'worlds')
+    map_dir = '/autonomous_ROS/maps'  # Hardware + sim friendly persistent location
     gazebo_world = 'lab.world'
     rviz_config_file = 'default.rviz'
     spawn_x = 0.0
@@ -62,14 +62,28 @@ def launch_setup(context, *args, **kwargs):
     cli_mode = LaunchConfiguration('mode', default='').perform(context)
     cli_viz = LaunchConfiguration('viz', default='').perform(context)
     cli_headless = LaunchConfiguration('headless', default='').perform(context)
+    cli_x = LaunchConfiguration('x', default='').perform(context)
+    cli_y = LaunchConfiguration('y', default='').perform(context)
+    cli_z = LaunchConfiguration('z', default='').perform(context)
+    cli_yaw = LaunchConfiguration('yaw', default='').perform(context)
 
     # Final variables to use (CLI takes precedence over YAML)
     final_use_sim = (cli_use_sim.lower() == 'true') if cli_use_sim != '' else use_sim
     final_mode = cli_mode if cli_mode != '' else mode
     final_viz = (cli_viz.lower() == 'true') if cli_viz != '' else viz
     final_headless = (cli_headless.lower() == 'true') if cli_headless != '' else headless
+    if cli_x != '': spawn_x = float(cli_x)
+    if cli_y != '': spawn_y = float(cli_y)
+    if cli_z != '': spawn_z = float(cli_z)
+    if cli_yaw != '': spawn_yaw = float(cli_yaw)
+    
+    # Choose appropriate rviz config based on mode
+    if final_mode == 'mapping':
+        rviz_config_file = 'lab_slam.rviz'
+    # else keep loaded from yaml (e.g. default_nav2.rviz for navigation)
     
     # Map full path
+    os.makedirs(map_dir, exist_ok=True)
     final_map_path = os.path.join(map_dir, f"{map_name}.yaml")
     
     # Export config for Web UI
@@ -106,6 +120,27 @@ def launch_setup(context, *args, **kwargs):
         launch_arguments={'sim_mode': 'true' if final_use_sim else 'false'}.items()
     ))
 
+    # Explicit static TF broadcasters for the full fixed chain from URDF.
+    # rsp SHOULD publish these from robot.xacro + lidar.xacro, but in practice (use_sim_time,
+    # launch timing, docker Gazebo clock, message filters in slam/rviz) the frames can be
+    # "Unknown" causing all laser drops and "no transform" for robot model.
+    # We publish the chain explicitly + early (0-stamp statics) so TF is always resolvable:
+    # base_footprint -> base_link (0.056) -> chassis -> laser_frame (0.064,0,0.161)
+    # This makes slam receive scans and rviz show robot + map.
+    for args, nm in [
+        (['0', '0', '0.056', '0', '0', '0', 'base_footprint', 'base_link'], 'base_link_broadcaster'),
+        (['0', '0', '0', '0', '0', '0', 'base_link', 'chassis'], 'chassis_broadcaster'),
+        (['0.064', '0', '0.161', '0', '0', '0', 'chassis', 'laser_frame'], 'laser_frame_broadcaster'),
+    ]:
+        entities.append(Node(
+            package='tf2_ros',
+            executable='static_transform_publisher',
+            name=nm,
+            arguments=args,
+            parameters=[{'use_sim_time': final_use_sim}],
+            output='screen'
+        ))
+
     # 3. Hardware vs Simulation Logic
     hardware_active = False
     if final_use_sim:
@@ -120,12 +155,19 @@ def launch_setup(context, *args, **kwargs):
             }.items()
         ))
         
-        # Spawn Entity (Delayed)
+        # Spawn Entity (Delayed) — respects unified config spawn pose
         entities.append(TimerAction(period=5.0, actions=[
             Node(
                 package='gazebo_ros',
                 executable='spawn_entity.py',
-                arguments=['-topic', 'robot_description', '-entity', 'jetson_bot', '-z', '0.06'],
+                arguments=[
+                    '-topic', 'robot_description',
+                    '-entity', 'jetson_bot',
+                    '-x', str(spawn_x),
+                    '-y', str(spawn_y),
+                    '-z', str(spawn_z),
+                    '-Y', str(spawn_yaw)
+                ],
                 output='screen'
             )
         ]))
@@ -134,6 +176,23 @@ def launch_setup(context, *args, **kwargs):
         entities.append(TimerAction(period=90.0, actions=[
             Node(package="controller_manager", executable="spawner.py", arguments=["diff_cont"]),
             Node(package="controller_manager", executable="spawner.py", arguments=["joint_broad"])
+        ]))
+
+        # EKF in sim too: fuses gazebo odom + imu into /odom_filtered
+        # This makes slam (and nav) consistent with hardware path (uses filtered odom)
+        # Gazebo imu published on /imu (remapped in urdf), odom on /odom
+        entities.append(TimerAction(period=15.0, actions=[
+            Node(
+                package='robot_localization',
+                executable='ekf_node',
+                name='ekf_filter_node',
+                output='screen',
+                parameters=[
+                    os.path.join(pkg_bringup, 'config', 'ekf.yaml'),
+                    {'use_sim_time': True, 'imu0': '/imu'}
+                ],
+                remappings=[('/odometry/filtered', '/odom_filtered')]
+            )
         ]))
     else:
         # --- REAL HARDWARE STACK ---
@@ -177,6 +236,10 @@ def launch_setup(context, *args, **kwargs):
             parameters=[os.path.join(pkg_bringup, 'config', 'ekf.yaml'), {'use_sim_time': False}],
             remappings=[('/odometry/filtered', '/odom_filtered')]
         ))
+
+        # NOTE: imu_link TF is provided by robot_state_publisher from URDF (imu.xacro joint).
+        # No explicit static publisher to avoid TF_REPEATED_DATA warnings.
+        # EKF uses the TF tree (footprint -> base_link -> imu_link) for lever arm.
         
         # 3. Python Serial Bridge (Check if port exists)
         motor_port = '/dev/ttyACM0'
@@ -225,6 +288,10 @@ def launch_setup(context, *args, **kwargs):
         if not hardware_active:
             print("🛑 [FATAL WARNING] No critical sensors found. SLAM/Navigation will be DISABLED to prevent crash.")
             print("🚀 [INFO] Web UI and Telemetry will remain active for debugging.")
+        
+        if final_mode == 'mapping' and not final_use_sim:
+            print("💡 [HARDWARE MAPPING] Use Web UI 'Save Map' (or ./robot.sh map2nav) before switching to navigation.")
+            print("   Maps go to map_dir (default /autonomous_ROS/maps). Always ./robot.sh build after yaml edits.")
         
         print("="*50 + "\n")
 
@@ -318,5 +385,9 @@ def generate_launch_description():
         DeclareLaunchArgument('mode', default_value='', description='mapping or navigation'),
         DeclareLaunchArgument('viz', default_value='', description='Open RViz (true/false)'),
         DeclareLaunchArgument('headless', default_value='', description='Gazebo GUI off (true/false)'),
+        DeclareLaunchArgument('x', default_value='', description='Spawn X position'),
+        DeclareLaunchArgument('y', default_value='', description='Spawn Y position'),
+        DeclareLaunchArgument('z', default_value='', description='Spawn Z position'),
+        DeclareLaunchArgument('yaw', default_value='', description='Spawn yaw (radians)'),
         OpaqueFunction(function=launch_setup)
     ])

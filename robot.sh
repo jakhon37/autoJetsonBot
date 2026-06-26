@@ -35,7 +35,8 @@ CORE COMMANDS:
     up          Start system using config file defaults (YAML)
     sim         Force Simulation Mode (sim:=true viz:=true)
     robot       Force Hardware Mode (sim:=false viz:=false)
-    nav         Force Navigation Mode (mode:=navigation)
+    nav         Force Navigation Mode (auto-saves map if was mapping)
+    map2nav     Save current map (if mapping) + switch to Nav2 (recommended for hardware)
     stop        Stop all robot processes and clean up ports
 
 UTILITY COMMANDS:
@@ -45,6 +46,7 @@ UTILITY COMMANDS:
     watch       Auto-refresh status every 10s
     logs        Tail the live ROS launch log (/tmp/sim.log)
     shell       Enter container (or run command: ./robot.sh shell "ls")
+    verify      Run EKF/fusion + basic health checks (inside Docker)
     clean       Delete build, install, and log folders
     help        Show this help
 
@@ -52,6 +54,9 @@ EXAMPLES:
     ./robot.sh sim
     ./robot.sh sim mode:=navigation
     ./robot.sh up
+    ./robot.sh nav
+    ./robot.sh map2nav          # save map + switch to nav (real hardware friendly)
+    ./robot.sh sim x:=0.5 y:=0 z:=0.06 yaw:=0.0   # spawn pose (passed to launch)
 EOH
 }
 
@@ -59,8 +64,19 @@ EOH
 
 check_container() {
     if ! docker ps -a | grep -q "$CONTAINER_NAME"; then
-        log_error "Container $CONTAINER_NAME does not exist."
-        exit 1
+        log_warn "Container $CONTAINER_NAME does not exist. Attempting basic creation..."
+        docker run -d \
+            --name "$CONTAINER_NAME" \
+            --network host \
+            -v "$(pwd)":/autonomous_ROS \
+            -p 5900:5900 -p 8000:8000 -p 9090:9090 \
+            --privileged \
+            auto_ros:foxy \
+            bash -c "while true; do sleep 3600; done" || {
+                log_error "Create failed. Run: docker build -f Dockerfile.foxy -t auto_ros:foxy ."
+                exit 1
+            }
+        sleep 3
     fi
 
     if ! docker ps | grep -q "$CONTAINER_NAME"; then
@@ -178,6 +194,8 @@ stop_robot() {
         return 0
     fi
 
+    attempt_save_map || true
+
     # Kill everything inside container
     docker exec "$CONTAINER_NAME" bash -c '
         # 1. Kill ROS Launch and nodes
@@ -201,6 +219,57 @@ stop_robot() {
     _cleanup_ports
     log_success "All processes terminated."
     sleep 2
+}
+
+# Attempt to save map via slam_toolbox if we are in mapping mode and slam is running.
+# This provides lightweight auto-save before mode switches / stops.
+attempt_save_map() {
+    if ! docker ps --format '{{.Names}}' | grep -q "^$CONTAINER_NAME$"; then
+        return 0
+    fi
+
+    # Detect current mode from the exported config (written by launch)
+    local cur_mode
+    cur_mode=$(docker exec "$CONTAINER_NAME" python3 -c "
+import json,os
+p='/autonomous_ROS/src/jetson_bot_gui/web/config.json'
+print(json.load(open(p)).get('mode','') if os.path.exists(p) else '')
+" 2>/dev/null || echo "")
+
+    if [[ "$cur_mode" != "mapping" ]]; then
+        return 0
+    fi
+
+    # Quick check if slam_toolbox is present
+    if ! docker exec "$CONTAINER_NAME" bash -c "source /opt/ros/foxy/setup.bash && ros2 node list 2>/dev/null | grep -q slam_toolbox" 2>/dev/null; then
+        return 0
+    fi
+
+    local map_name map_dir full_path
+    map_name=$(docker exec "$CONTAINER_NAME" python3 -c "
+import json,os
+p='/autonomous_ROS/src/jetson_bot_gui/web/config.json'
+print(json.load(open(p)).get('map_name','lab_map_v2') if os.path.exists(p) else 'lab_map_v2')
+" 2>/dev/null || echo "lab_map_v2")
+
+    map_dir=$(docker exec "$CONTAINER_NAME" python3 -c "
+import json,os
+p='/autonomous_ROS/src/jetson_bot_gui/web/config.json'
+print(json.load(open(p)).get('map_dir','/autonomous_ROS/maps') if os.path.exists(p) else '/autonomous_ROS/maps')
+" 2>/dev/null || echo "/autonomous_ROS/maps")
+
+    full_path="${map_dir}/${map_name}"
+
+    log_info "Auto-saving current map before switch/stop: ${full_path}"
+
+    docker exec "$CONTAINER_NAME" bash -c "
+        source /opt/ros/foxy/setup.bash 2>/dev/null || true
+        source /autonomous_ROS/install/setup.bash 2>/dev/null || true
+        ros2 service call /slam_toolbox/save_map slam_toolbox/srv/SaveMap \"{name: {data: '${full_path}'}}\" 2>/dev/null || \
+        ros2 service call /slam_toolbox/save_map slam_toolbox/srv/SaveMap \"{name: '${full_path}'}\" 2>/dev/null || true
+    " || true
+
+    sleep 1
 }
 
 _cleanup_ports() {
@@ -285,17 +354,48 @@ show_status() {
     fi
 }
 
+verify_fusion() {
+    log_info "Running EKF/fusion + health verification inside Docker..."
+    docker exec "$CONTAINER_NAME" bash -c '
+        source /opt/ros/foxy/setup.bash 2>/dev/null || true
+        source /autonomous_ROS/install/setup.bash 2>/dev/null || true
+        echo "=== Odom rates ==="
+        timeout 5 ros2 topic hz /odom 2>/dev/null | head -3 || echo "no /odom (start stack)"
+        timeout 5 ros2 topic hz /odom_filtered 2>/dev/null | head -3 || echo "no /odom_filtered (launch with EKF)"
+        echo "=== TF / IMU link ==="
+        ros2 topic echo /tf_static --once 2>/dev/null | grep -E "imu_link|base_link" | head -3 || echo "check rsp or launch"
+        echo "=== Fusion nodes (if running) ==="
+        ros2 node list 2>/dev/null | grep -E "ekf|diffdrive|imu_filter" | head -5 || echo "no fusion nodes active"
+    '
+}
+
 # ── Main Dispatcher ───────────────────────────────────────────────────────────
 
 case "${1:-help}" in
     up)              shift; stop_robot; _launch "$@" ;;
     sim)             shift; stop_robot; _launch "sim:=true viz:=true $@" ;;
     robot)           shift; stop_robot; _launch "sim:=false viz:=false $@" ;;
-    nav)             shift; stop_robot; _launch "mode:=navigation $@" ;;
+    nav)             shift; attempt_save_map || true; stop_robot; _launch "mode:=navigation $@" ;;
+    map2nav)         shift; attempt_save_map || true; stop_robot; _launch "mode:=navigation $@" ;;
     build)           build_workspace ;;
     auto)            install_deps; build_workspace ;;
     status)          show_status ;;
     logs)            docker exec "$CONTAINER_NAME" tail -f /tmp/sim.log ;;
+    verify)          verify_fusion ;;
+    watch)
+        log_info "Running EKF/fusion + health verification inside Docker..."
+        docker exec "$CONTAINER_NAME" bash -c '
+            source /opt/ros/foxy/setup.bash 2>/dev/null || true
+            source /autonomous_ROS/install/setup.bash 2>/dev/null || true
+            echo "=== Odom rates ==="
+            timeout 5 ros2 topic hz /odom 2>/dev/null | head -3 || echo "no /odom"
+            timeout 5 ros2 topic hz /odom_filtered 2>/dev/null | head -3 || echo "no /odom_filtered (launch stack first)"
+            echo "=== TF / IMU ==="
+            ros2 topic echo /tf_static --once 2>/dev/null | grep -E "imu_link|base_link" || echo "check TF"
+            echo "=== Nodes (if stack running) ==="
+            ros2 node list 2>/dev/null | grep -E "ekf|diffdrive|imu" | head -5 || echo "no fusion nodes (use ./robot.sh sim/robot)"
+        '
+        ;;
     watch)
         log_info "Watching status (Ctrl+C to stop)..."
         while true; do

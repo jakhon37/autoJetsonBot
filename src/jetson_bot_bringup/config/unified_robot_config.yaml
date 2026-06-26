@@ -7,11 +7,11 @@ global:
     mode: "mapping"            # options: "mapping", "navigation"
     viz: true                  # true: Open RViz2
     headless: false            # true: Run Gazebo in background (fast test) | false: Show Gazebo window
-    use_sim_time: false         # Always true for simulation, false for hardware
+    use_sim_time: true          # true for sim (default for ./robot.sh sim); hw nodes override to false
 
     map_name: "lab_map_v2"        # Base name for saved/loaded maps
     # map_name: "demo_map"        # Base name for saved/loaded maps
-    map_dir: "/autonomous_ROS/src/jetson_bot_bringup/worlds" # Absolute path for persistence
+    map_dir: "/autonomous_ROS/maps" # Persistent maps dir (hardware + sim friendly). Created if missing.
     gazebo_world: "lab_small_light.world"  # World file to load in simulation
     # gazebo_world: "demo.world"  # World file to load in simulation
     rviz_config: "default_nav2.rviz" # RViz config file to use
@@ -19,7 +19,7 @@ global:
     # 📍 Initial Spawn Pose (Gazebo only)
     spawn_x: 0.0
     spawn_y: 0.0
-    spawn_z: 0.0              # Reset to 0.0 (Standard)
+    spawn_z: 0.06             # 6cm to ensure wheels clear ground (matches physical + AGENTS)
     spawn_yaw: 0.0
 
 
@@ -27,7 +27,7 @@ global:
 controller_manager:
   ros__parameters:
     update_rate: 100
-    use_sim_time: false
+    use_sim_time: true  # sim default; hw path does not launch controller_manager
     
     diff_cont:
       type: diff_drive_controller/DiffDriveController
@@ -38,7 +38,7 @@ controller_manager:
 # 🚗 Differential drive controller parameters
 diff_cont:
   ros__parameters:
-    use_sim_time: false
+    use_sim_time: true  # overridden by launch for hw (false)
     left_wheel_names: ["left_wheel_joint"]
     right_wheel_names: ["right_wheel_joint"]
     wheel_separation: 0.212
@@ -71,7 +71,7 @@ diff_cont:
 # 🛠️ Joint state broadcaster parameters
 joint_broad:
   ros__parameters:
-    use_sim_time: false
+    use_sim_time: true  # overridden by launch for hw (false)
     joints:
       - left_wheel_joint
       - right_wheel_joint

@@ -44,9 +44,9 @@ class RobotConfig:
     MIN_SCAN_FREQUENCY: float = 5.0   # Hz
     MIN_CAMERA_FREQUENCY: float = 5.0  # Hz
     
-    # Robot physical parameters (from config)
-    WHEEL_SEPARATION: float = 0.18  # meters
-    WHEEL_RADIUS: float = 0.035     # meters
+    # Robot physical parameters (Digital Twin - must match URDF + unified_robot_config.yaml)
+    WHEEL_SEPARATION: float = 0.212  # meters (center-to-center)
+    WHEEL_RADIUS: float = 0.034     # meters
     MAX_LINEAR_VEL: float = 1.0     # m/s
     MAX_ANGULAR_VEL: float = 2.0   # rad/s
 
@@ -58,7 +58,7 @@ class TestPaths:
     SRC_DIR: str = "/autonomous_ROS/src"
     INSTALL_DIR: str = "/autonomous_ROS/install"
     LOG_DIR: str = "/autonomous_ROS/log"
-    MAP_FILE: str = "/autonomous_ROS/install/my_robot_launch/share/my_robot_launch/lab_map.yaml"
+    MAP_FILE: str = "/autonomous_ROS/maps/lab_map_v2.yaml"
 
 
 class EnvConfig:

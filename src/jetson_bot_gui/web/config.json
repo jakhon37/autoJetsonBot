@@ -4,7 +4,7 @@
   "viz": false,
   "headless": false,
   "map_name": "lab_map_v2",
-  "map_dir": "/autonomous_ROS/src/jetson_bot_bringup/worlds",
+  "map_dir": "/autonomous_ROS/maps",
   "gazebo_world": "lab_small_light.world",
   "rviz_config": "default_nav2.rviz"
 }

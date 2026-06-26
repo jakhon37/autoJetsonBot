@@ -46,17 +46,24 @@ export class MapManager {
       this._onMap(msg);
     });
 
-    // Service fallback: Fetch map immediately on connection
-    this.fetchMapViaService();
+    // Only attempt a service-based initial map fetch in navigation mode.
+    // In mapping mode slam_toolbox builds and publishes /map on the fly.
+    const isMapping = this.app.config.mode === 'mapping';
+    if (!isMapping) {
+      this.fetchMapViaService();
+    }
   }
 
   fetchMapViaService() {
     if (!this.app.isConnected) return;
     
-    this.app.log('Requesting map via service...', 'info');
+    const isMapping = this.app.config.mode === 'mapping';
+    const serviceName = isMapping ? '/slam_toolbox/dynamic_map' : '/map_server/map';
+    
+    this.app.log(`Requesting map via ${serviceName}...`, 'info');
     const mapService = new ROSLIB.Service({
       ros: this.app.ros,
-      name: '/map_server/map',
+      name: serviceName,
       serviceType: 'nav_msgs/srv/GetMap'
     });
 
@@ -67,16 +74,6 @@ export class MapManager {
       }
     }, (error) => {
       this.app.log(`Map service call failed: ${error}`, 'warning');
-      
-      // Fallback for mapping mode (slam_toolbox uses a different service name)
-      const slamMapService = new ROSLIB.Service({
-        ros: this.app.ros,
-        name: '/slam_toolbox/get_map',
-        serviceType: 'nav_msgs/srv/GetMap'
-      });
-      slamMapService.callService(new ROSLIB.ServiceRequest({}), (res) => {
-        if (res && res.map) this._onMap(res.map);
-      }, () => {});
     });
   }
 

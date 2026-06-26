@@ -83,8 +83,15 @@ class TestDockerEnvironment(unittest.TestCase):
         )
         self.assertEqual(code, 0, "ROS2 install directory not found - packages not built")
         
-        # Check for key packages
-        packages = ["my_robot_launch", "web_gui_control", "slam_launch"]
+        # Check for current jetson_bot packages (the Dockerized modular packages)
+        packages = [
+            "jetson_bot_bringup",
+            "jetson_bot_description",
+            "jetson_bot_diffdrive",
+            "jetson_bot_gui",
+            "jetson_bot_navigation",
+            "jetson_bot_slam",
+        ]
         for pkg in packages:
             code, _, _ = DockerClient.exec_in_container(
                 self.container_name,

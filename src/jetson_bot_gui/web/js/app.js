@@ -91,7 +91,10 @@ class RobotController {
       const cfg = await res.json();
       if (cfg.map_name) this.config.map_name = cfg.map_name;
       if (cfg.map_dir)  this.config.map_dir  = cfg.map_dir;
-      if (cfg.mode)     this._setModeBadge(cfg.mode, cfg.use_sim);
+      if (cfg.mode) {
+        this.config.mode = cfg.mode;
+        this._setModeBadge(cfg.mode, cfg.use_sim);
+      }
       this.log(`Config loaded — mode: ${cfg.mode || '?'}, map: ${cfg.map_name || '?'}`, 'info');
     } catch (e) {
       this.log(`Config fetch failed: ${e}`, 'warning');
@@ -128,6 +131,12 @@ class RobotController {
     if (!badge) return;
     badge.textContent = `${isSim ? 'SIM' : 'HW'} · ${mode.toUpperCase()}`;
     badge.style.display = 'inline-flex';
+    // Guidance for physical mapping stability + mode switching
+    if (mode === 'mapping') {
+      badge.title = 'Mapping active — use Save Map button before switching to Nav (./robot.sh nav or map2nav)';
+    } else {
+      badge.title = 'Navigation mode — map must have been saved from a prior mapping run';
+    }
   }
 
   // ── Settings persistence ──────────────────────────────────────────────

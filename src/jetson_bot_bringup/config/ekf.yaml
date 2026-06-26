@@ -16,7 +16,7 @@ ekf_filter_node:
     base_link_frame: base_footprint  # Match existing robot root
     world_frame: odom           # Fusion happens in odom frame
 
-    # 1. Odometry from Wheel Encoders
+    # 1. Odometry from Wheel Encoders (per imu_nav2_roadmap_v2)
     odom0: /odom
     odom0_config: [true,  true,  false, 
                    false, false, false, 
@@ -27,7 +27,7 @@ ekf_filter_node:
     odom0_relative: false
     odom0_queue_size: 10
 
-    # 2. IMU from Madgwick Filter
+    # 2. IMU from Madgwick Filter (per imu_nav2_roadmap_v2)
     imu0: /imu/data
     imu0_config: [false, false, false, 
                   true,  true,  true, 
@@ -39,8 +39,9 @@ ekf_filter_node:
     imu0_queue_size: 10
     imu0_remove_gravitational_acceleration: true
 
-    # Process Noise Covariance (relative trust)
+    # Process Noise Covariance (relative trust) - tuned per imu_nav2_roadmap_v2
     # [x, y, z, roll, pitch, yaw, vx, vy, vz, vroll, vpitch, vyaw, ax, ay, az]
+    # Trust IMU for yaw/yaw-rate, encoders for position/velocity. High cov on IMU accel.
     process_noise_covariance: [0.05, 0.0,    0.0,    0.0,    0.0,    0.0,    0.0,     0.0,     0.0,    0.0,     0.0,     0.0,    0.0,    0.0,    0.0,
                                0.0,  0.05,  0.0,    0.0,    0.0,    0.0,    0.0,     0.0,     0.0,    0.0,     0.0,     0.0,    0.0,    0.0,    0.0,
                                0.0,  0.0,   0.06,   0.0,    0.0,    0.0,    0.0,     0.0,     0.0,    0.0,     0.0,     0.0,    0.0,    0.0,    0.0,

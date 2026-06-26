@@ -181,10 +181,11 @@ export class ControlsManager {
       this.app.log('Not connected', 'warning');
       return;
     }
-    const mapName  = this.app.config.map_name || 'lab_map';
-    const mapDir   = this.app.config.map_dir  || '/autonomous_ROS/src/jetson_bot_bringup/worlds';
+    const mapName  = this.app.config.map_name || 'lab_map_v2';
+    const mapDir   = this.app.config.map_dir  || '/autonomous_ROS/maps';
     const fullPath = `${mapDir}/${mapName}`;
     this.app.log(`Saving map → ${fullPath}`, 'info');
+    this.app.log('Reminder: Save before running ./robot.sh nav or map2nav to switch modes cleanly.', 'info');
     
     const svc = new ROSLIB.Service({
       ros: this.app.ros,

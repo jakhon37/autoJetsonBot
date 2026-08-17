@@ -14,17 +14,17 @@
 
 ## 🤖 Robot Structure
 
-Grey 3D-printed chassis, RPLidar A1 on a raised mount, ESP32 antenna, and a dual-motor undercarriage with a front caster.
+Grey 3D-printed chassis, RPLidar A1 on a raised mount, Jetson WiFi antenna, and a dual-motor undercarriage with a front caster.
 
 <p align="center">
-  <img src="assets/side_rb.jpg" alt="Side view — RPLidar mount and ESP32 antenna" width="32%">
+  <img src="assets/side_rb.jpg" alt="Side view — RPLidar mount and Jetson WiFi antenna" width="32%">
   <img src="assets/upfront_rb.jpg" alt="Front-three-quarter view — chassis and LiDAR" width="32%">
   <img src="assets/front_rb.jpg" alt="Undercarriage — dual geared motors, encoders, caster" width="32%">
 </p>
 
 | View | What it shows |
 | :--- | :--- |
-| **Side** | RPLidar A1 on standoffs, ESP32 SMA antenna, driven wheel |
+| **Side** | RPLidar A1 on standoffs, Jetson WiFi antenna, driven wheel |
 | **Front 3/4** | Compact grey enclosure and top-mounted scanner |
 | **Undercarriage** | Twin N20/GA12-N20 class geared motors, Hall encoders, front caster |
 

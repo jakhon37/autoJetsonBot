@@ -17,3 +17,7 @@ core
 __pycache__/
 *.pyc
 *tmp*
+.DS_Store
+**/.DS_Store
+/.data
+/.posegraph

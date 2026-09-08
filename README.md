@@ -1,6 +1,8 @@
 # autoJetsonBot
 
-**autoJetsonBot** is a high-performance, modular ROS 2 Foxy-based autonomous mobile robot platform designed specifically for the NVIDIA Jetson Nano B01. It bridges the gap between sophisticated simulation and real-world hardware integration, providing a robust framework for SLAM, navigation, and object detection.
+ROS 2 Foxy mobile robot on an NVIDIA Jetson Nano B01. The same URDF, `slam_toolbox`, AMCL, and Nav2 stack run on the chassis and in Gazebo. Low-level control is an ESP32 serial bridge; sensing is RPLidar A1, wheel encoders, and an MPU6050.
+
+Demo: [YouTube](https://youtu.be/JTg8ff2hSGM)
 
 <p align="center">
   <a href="https://youtu.be/JTg8ff2hSGM?si=UqfauM6vN_xyPFOV">
@@ -30,17 +32,14 @@ Grey 3D-printed chassis, RPLidar A1 on a raised mount, Jetson WiFi antenna, and 
 
 ---
 
-## 📊 Project Status: Navigation Active 🚀
+## Status
 
-The robot has been fully refactored to the **Industry Standard (REP 120)**. All core systems are synchronized to the `base_footprint` root projection, ensuring seamless coordinate transformations across the entire stack.
-
-### System Health Snapshot
-| System | Status | Technical Detail |
-| :--- | :--- | :--- |
-| **TF Tree** | ✅ Standardized | `map -> odom -> base_footprint -> base_link` (REP 120). |
-| **Hardware** | ✅ Ready | Python Serial Bridge (`diffdrive_node`) active. |
-| **Navigation** | ✅ Active | AMCL auto-localization + DWB Local Planner. |
-| **Simulation** | ✅ Calibrated | 1:1 Digital Twin of physical hardware dimensions. |
+| System | Detail |
+| :--- | :--- |
+| **TF tree** | `map → odom → base_footprint → base_link` (REP 120) |
+| **Hardware** | Python serial bridge (`diffdrive_node`) to the ESP32 |
+| **Navigation** | AMCL + DWB local planner |
+| **Simulation** | Gazebo model matched to measured chassis dimensions |
 
 ---
 

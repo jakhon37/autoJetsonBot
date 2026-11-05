@@ -287,3 +287,12 @@ Append concise summaries of work done here. For technical details on *why* thing
 - **IMU:** At rest, |a| is 9.77 m/s² and gyro z reads about 0.024 rad/s (1.4°/s). `/odom_filtered` yaw drifted about 0.1°/s, so bias calibration is still needed. Gyro values arrive with only 2 decimals.
 - **Status Fix:** Verified the `./robot.sh status` change against the live bridge.
 - **ESP32-CAM:** On the development PC as a CH340 (`1a86:7523`) at `/dev/ttyUSB0`. Not on the Wi-Fi network after about 50 minutes powered, and no Espressif access point in range. That PC's user isn't in `dialout`, so its serial log hasn't been read.
+
+---
+
+## Session: 2026-11-05 @ 23:35 (ESP32-CAM Network Test)
+- **Firmware:** Custom firmware, source not found under `~/myspace`. It tries `REMOVED` at boot and falls back to its own `ESP32-CAM` hotspot (`192.168.4.1`) if that fails. Endpoints are `/stream`, `/capture` and `/status`. It also has a 0.5 GB SD card.
+- **Boots:** Opening its serial port resets it. Of 3 boots, 2 joined Wi-Fi at `192.168.219.118` in about 4 seconds, and 1 fell back to the hotspot. It wasn't retrying during the 18 seconds watched. After the plain power-up at 22:25 it was on neither network at 23:16, for an unknown reason.
+- **Stream from the Jetson:** MJPEG at 640×480, 9.8 fps, about 97 KB/s, frames about 10 KB. Ping averaged 122 ms (83 to 158 ms). The snapshot was dark and blurry, which may just be where it was pointing.
+- **Correction:** Its CH340 appears as `/dev/ttyUSB*`, so on a Jetson data cable it would collide with the lidar's port discovery, not the motor board's as noted earlier.
+- **Encoders:** The hand test hasn't been done yet. Counts were still L -133,420 and R 0.

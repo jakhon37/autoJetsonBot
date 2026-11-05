@@ -14,7 +14,7 @@ The stack follows **REP 120** and uses a Python Serial Bridge + mature Web UI. C
 | **Web UI + Global Map** | ✅ Mature | Modular ES6, real-time map/pose/goal overlay. |
 | **EKF Fusion** | ✅ Complete | Pipeline + Madgwick + filtered odom + diagnostics ready. |
 | **Simulation** | ✅ Functional | Full when launched. Under Humble, needs an amd64 host. |
-| **Hardware** | ⚠️ Partial | On 2026-11-05 the RPLidar and ESP32-S3 passed read-only checks under Humble (`/scan` at 6.9 Hz, encoders and IMU at 50 Hz, SLAM building a map). Motors haven't been driven, and the ESP32 camera hasn't been reached yet. |
+| **Hardware** | ⚠️ Partial | On 2026-11-05 the RPLidar and ESP32-S3 passed read-only checks under Humble (`/scan` at 6.9 Hz, encoders and IMU at 50 Hz, SLAM building a map). Motors haven't been driven. The ESP32 camera streams to the Jetson over Wi-Fi but isn't connected to ROS yet. |
 
 **Primary Focus:** Phase 4 physical validation — mapping + Nav2 on the Jetson car.
 Optimizations applied (2026-06):
@@ -29,7 +29,7 @@ See AGENTS.md for serial/EKF/physical tuning and robot.sh help.
 
 ## 🚧 Critical Blockers
 * **Motors not driven yet under Humble (2026-11-05).** The ESP32-S3 works on its native USB socket, the one next to the RGB LED (`303a:1001` at `/dev/ttyACM0`). Only read-only checks have run, with 0 motor commands sent.
-* **ESP32 camera not reached yet (2026-11-05).** The camera is an ESP32 Wi-Fi camera, not the Pi Camera v2 the docs assumed, so the kernel's `imx219` errors and the missing `/dev/video*` are expected. It shows up on the development PC's USB through a CH340 adapter (`1a86:7523`), but no Espressif device answered a ping of `192.168.219.0/24` and no Espressif access point was in range. Its serial boot log or address is still needed.
+* **ESP32 camera doesn't come up reliably (2026-11-05).** The camera is an ESP32 Wi-Fi camera, not the Pi Camera v2 the docs assumed, so the kernel's `imx219` errors and the missing `/dev/video*` are expected. It reaches the Jetson at `http://192.168.219.118/stream` (640×480, about 10 fps, about 120 ms ping). One of 3 observed boots failed to join Wi-Fi and fell back to its own `ESP32-CAM` hotspot, which the Jetson can't use. After a plain power-up it was on neither network until its serial port was opened, so test a power cycle.
 * **Nothing publishes camera images.** No launch file starts a camera node, and `camera_go` only opens a local video device, so `/camera/image_raw` has no source. The ESP32 camera needs a node that reads its network stream.
 * **Encoders unverified:** the left was flagged as a connection problem on 2026-06-08 (Pin 18/GND), with no recorded fix. It had counted about 8.6 times as much as the right on 2026-08-21 (429,862 vs 49,727). On 2026-11-05 it read -133,420 with the right at exactly 0, and neither changed during 4 minutes at rest. Test each wheel by hand.
 * **IMU bias not calibrated:** at rest the gyro's z axis reads about 0.024 rad/s (1.4°/s), and `/odom_filtered` yaw drifts about 0.1°/s.

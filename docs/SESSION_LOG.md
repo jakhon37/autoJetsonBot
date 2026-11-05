@@ -320,3 +320,11 @@ Append concise summaries of work done here. For technical details on *why* thing
 - **`encoder_cpr`:** Left at 3,436 for now, because a direction fix in firmware could change the count per turn. Counting all four edges would give 4 times as many.
 - **Left Jumps:** Nothing moved in the log after 02:43:58, so wiggling the wires caused no jump if that was done by then. The -75,118 is still unexplained.
 - **Correction:** "Over 16 minutes" for that jump used the speed from the first test. The fastest hand speed logged is now about 270 counts/s, which makes it about 4.5 minutes of nonstop turning, or about 200 turns.
+
+---
+
+## Session: 2026-11-06 @ 03:15 (Motor Firmware Recheck and Camera Fix)
+- **Motor Firmware:** `MOTOR-ESP32S3` is the motor code. Rechecked on GitHub: `main`, `dev`, tags `v1.0` and `v1.1`, and merged PR #1 have no IMU code. `main` sends `e` lines at 20 Hz and no `i` lines, while the board sends both at 50 Hz, so the version on the board was probably never pushed.
+- **Camera Fix:** Branch `wifi-reliability` in `myESP32CAM-BLACKBOX` turns off Wi-Fi power saving, retries home Wi-Fi every 30 s while on the hotspot with nobody connected, and restarts if the sensor fails to start. It's local only and not flashed yet.
+- **Build:** Compiles with placeholder Wi-Fi settings on espressif32 8.0.0 and Arduino core 3.3.12 (RAM 18.5%, flash 38.4%). The repo doesn't pin a platform version, so this may be newer than what's on the camera. Not tested on hardware yet.
+- **Encoders:** Still waiting on whether the second 5 turns were backward.

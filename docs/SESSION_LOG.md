@@ -269,3 +269,11 @@ Append concise summaries of work done here. For technical details on *why* thing
 - **Recheck:** After reconnecting and rebooting, the ESP32 and camera are still not detected. The ESP32 isn't on the development PC either.
 - **ESP32 History:** `/var/log/kern.log` shows it on this Jetson from 2026-08-18 to about 09-02, last as `303a:1001` (Espressif native USB) on hub port 1-2.1. It also appeared as `1a86:55d3` (QinHeng) on 08-21. Today no connect event was logged, not even a failed one.
 - **Camera History:** The `imx219` probe failed with `-121` on all 20 boots in the log, so no camera has ever been detected on this Jetson and there's no working setup to go back to.
+
+---
+
+## Session: 2026-11-05 @ 22:20 (Camera Correction)
+- **Correction:** The robot's camera is an ESP32 Wi-Fi camera, not the Pi Camera v2 the docs assumed. The `imx219` conclusions in today's earlier entries don't apply, because there's no CSI camera to find.
+- **Camera Search:** It isn't on the Jetson's USB today. One ping of `192.168.219.0/24` found 9 devices, none from Espressif. Its model and address are still unknown.
+- **Motor ESP32:** `MOTOR-ESP32S3` builds with `ARDUINO_USB_CDC_ON_BOOT=1`, so its serial link is the native USB socket. The launch error now says so instead of pointing at the QinHeng/WCH socket.
+- **Serial Discovery:** The container has no `/dev/serial/by-id`, so launch uses the first `/dev/ttyACM*` and `/dev/ttyUSB*`. An ESP32 camera on a data cable could be picked instead of the motor board.

@@ -14,7 +14,7 @@ The stack follows **REP 120** and uses a Python Serial Bridge + mature Web UI. C
 | **Web UI + Global Map** | ✅ Mature | Modular ES6, real-time map/pose/goal overlay. |
 | **EKF Fusion** | ✅ Complete | Pipeline + Madgwick + filtered odom + diagnostics ready. |
 | **Simulation** | ✅ Functional | Full when launched. Under Humble, needs an amd64 host. |
-| **Hardware** | ⚠️ Partial | On 2026-11-05 the RPLidar passed under Humble (health OK, `/scan` at 6.5 Hz). The Jetson doesn't detect the ESP32 or camera. |
+| **Hardware** | ⚠️ Partial | On 2026-11-05 the RPLidar passed under Humble (health OK, `/scan` at 6.5 Hz). The Jetson doesn't detect the motor ESP32, and the ESP32 camera hasn't been reached yet. |
 
 **Primary Focus:** Phase 4 physical validation — mapping + Nav2 on the Jetson car.
 Optimizations applied (2026-06):
@@ -28,9 +28,9 @@ Optimizations applied (2026-06):
 See AGENTS.md for serial/EKF/physical tuning and robot.sh help.
 
 ## 🚧 Critical Blockers
-* **ESP32 not detected on the Jetson (2026-11-05).** The kernel logged no USB event for it, even after a reboot, so check the cable first. `/var/log/kern.log` last shows it around 2026-09-02 as `303a:1001` (Espressif native USB) on hub port 1-2.1. All four hub ports worked in 2026-08. A status file left in the container shows it running here on 2026-08-21 at `/dev/ttyACM0`, with encoder and IMU lines arriving. Motors, encoders and IMU can't be tested until it's back.
-* **Camera not detected (2026-11-05).** The `imx219` driver probes both CSI ports at boot and neither answers (`-121`). This happened on all 20 boots in `/var/log/kern.log`, including one after reseating the ribbon, so no camera has ever been detected on this Jetson. Check the ribbon direction (contacts toward the heatsink), the small connector on the camera board, and the camera model.
-* **Nothing publishes camera images.** No launch file starts `camera_go`, so `/camera/image_raw` has no source even with a detected camera.
+* **Motor ESP32 not detected on the Jetson (2026-11-05).** The kernel logged no USB event for it, even after a reboot, so check the cable first. Its firmware (`MOTOR-ESP32S3`) talks over native USB, so use the socket labelled USB, not COM. `/var/log/kern.log` last shows it around 2026-09-02 as `303a:1001` (Espressif native USB) on hub port 1-2.1. All four hub ports worked in 2026-08. A status file left in the container shows it running here on 2026-08-21 at `/dev/ttyACM0`, with encoder and IMU lines arriving. Motors, encoders and IMU can't be tested until it's back.
+* **ESP32 camera not reached yet (2026-11-05).** The camera is an ESP32 Wi-Fi camera, not the Pi Camera v2 the docs assumed, so the kernel's `imx219` errors and the missing `/dev/video*` are expected. It isn't on the Jetson's USB, and no Espressif device answered a ping of `192.168.219.0/24`. Its address is still needed.
+* **Nothing publishes camera images.** No launch file starts a camera node, and `camera_go` only opens a local video device, so `/camera/image_raw` has no source. The ESP32 camera needs a node that reads its network stream.
 * **Left encoder:** flagged as a connection problem on 2026-06-08 (Pin 18/GND), with no recorded fix. In the 2026-08-21 status file it had counted about 8.6 times as much as the right encoder (429,862 vs 49,727), so test each wheel by hand.
 
 ## 🗺️ Roadmap & Active Tasks — Perfect Phases
@@ -77,11 +77,12 @@ Phases are accurate as of 2026-11-05. See `docs/imu_nav2_roadmap_v2.md` for the 
 - [x] Calibration docs + procedures in roadmap + AGENTS.md.
 - [x] RPLidar on Humble: health OK, `/scan` at 6.5 Hz (2026-11-05).
 - [ ] Check that the front of the scan matches the front of the robot.
-- [ ] Connect the ESP32 and camera, then confirm with `./robot.sh status`.
+- [ ] Connect the motor ESP32, then confirm with `./robot.sh status`.
+- [ ] Bring the ESP32 camera's stream into ROS.
 - [ ] Run `./robot.sh robot` on the Humble stack and do the bias calibration (Phase 2a in roadmap).
 - [ ] Complete a hardware mapping run and a Nav2 goal.
 
 ## 🛠️ Active Context (2026-11-05)
 The Humble Docker port was made on the Jetson in 2026-08 and committed on 2026-11-05 (PR #2). Docker-only dev. Container idle until `./robot.sh sim/robot/nav`.
 
-**Next for physical:** Get the ESP32 and camera detected (see Critical Blockers), start the container only after they're plugged in, then run bias calibration (Phase 2a in roadmap) and validate on hardware. Use `./robot.sh` for everything.
+**Next for physical:** Get the motor ESP32 detected (see Critical Blockers), start the container only after it's plugged in, then run bias calibration (Phase 2a in roadmap) and validate on hardware. Use `./robot.sh` for everything.

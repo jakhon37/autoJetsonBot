@@ -108,7 +108,7 @@ The platform is meticulously calibrated to a **1:1 Digital Twin standard**. Ever
 *   **Lidar:** RPLidar A1 – Positioned at `x=0.064` (forward of axle) and `z=0.161` (from floor).
 *   **IMU:** MPU6050 – Fuses 6-DOF data for improved odometry via EKF (`/odom_filtered`).
 *   **Encoders:** Hall-effect sensors (11 PPR × gear reduction) – High-resolution position feedback.
-*   **Vision:** Raspberry Pi Camera v2 – Serves MJPEG stream on port 8080 via `web_video_server`.
+*   **Vision:** ESP32 camera over Wi-Fi – Not connected to ROS yet. `web_video_server` on port 8080 streams `/camera/image_raw` once a node publishes it.
 
 <p align="center">
   <img src="assets/rplidar.jpg" alt="RPLidar A1 pinout (A1M8-R6)" width="48%">

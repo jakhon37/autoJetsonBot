@@ -85,7 +85,7 @@ If `robot.sh stop` fails to terminate Gazebo, it is usually because `gzserver` i
 *   Launch already switches `spawner.py`→`spawner`, slam `params_file`→`slam_params_file`, and Nav2 to `nav2_params_humble.yaml`.
 *   **Current target:** Jetson Xavier NX (L4T R35, Ubuntu 20.04 host) running the Ubuntu 22.04 Humble image through Docker. **Jetson Nano native** (`setup_jetson.sh` / `robot_nano.sh`) stays Foxy.
 *   **`use_sim_time` for SLAM:** `online_async_launch.py` passes the launch argument after the params file, so it always beats any value in `mapper_params.yaml`. Tested both ways on 2026-11-05, so don't set it in that YAML.
-*   **Serial Ports:** Launch finds the ESP32 and lidar by USB ID (`/dev/serial/by-id`) because `ttyACM` numbers change after an ESP32 reset. The CP2102 adapter is the lidar. Restart the container after plugging in USB devices, or it won't see them.
+*   **Serial Ports:** Launch looks for the ESP32 and lidar by USB ID (`/dev/serial/by-id`) because `ttyACM` numbers change after an ESP32 reset. The CP2102 adapter is the lidar. ⚠️ The current container has no `/dev/serial/by-id`, so launch falls back to the first `/dev/ttyACM*` and `/dev/ttyUSB*` it finds, and a second USB serial device (like an ESP32 camera on a data cable) could be picked by mistake. Restart the container after plugging in USB devices, or it won't see them.
 
 ## 🧩 Hardware & Dependency Insights
 

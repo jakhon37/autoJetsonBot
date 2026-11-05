@@ -4,7 +4,7 @@ This is the primary status board. Consult this file to understand the current op
 
 ## 📊 Current Status (Updated 2026-11-05)
 
-The stack follows **REP 120** and uses a Python Serial Bridge + mature Web UI. Code phases are complete (Docker + sim verified on Foxy). On the Humble stack, only the lidar has been validated on hardware so far. All work happens inside Docker (`./robot.sh`). The current target is a Jetson Xavier NX running ROS 2 Humble in Docker; Foxy stays available with `ROS_DISTRO=foxy`.
+The stack follows **REP 120** and uses a Python Serial Bridge + mature Web UI. Code phases are complete (Docker + sim verified on Foxy). On the Humble stack, the lidar and the ESP32-S3's encoder and IMU streams have been checked on hardware, but the motors haven't been driven yet. All work happens inside Docker (`./robot.sh`). The current target is a Jetson Xavier NX running ROS 2 Humble in Docker; Foxy stays available with `ROS_DISTRO=foxy`.
 
 ### System Health
 | System | Status | Note |
@@ -14,7 +14,7 @@ The stack follows **REP 120** and uses a Python Serial Bridge + mature Web UI. C
 | **Web UI + Global Map** | ✅ Mature | Modular ES6, real-time map/pose/goal overlay. |
 | **EKF Fusion** | ✅ Complete | Pipeline + Madgwick + filtered odom + diagnostics ready. |
 | **Simulation** | ✅ Functional | Full when launched. Under Humble, needs an amd64 host. |
-| **Hardware** | ⚠️ Partial | On 2026-11-05 the RPLidar passed under Humble (health OK, `/scan` at 6.5 Hz). The Jetson doesn't detect the motor ESP32, and the ESP32 camera hasn't been reached yet. |
+| **Hardware** | ⚠️ Partial | On 2026-11-05 the RPLidar and ESP32-S3 passed read-only checks under Humble (`/scan` at 6.9 Hz, encoders and IMU at 50 Hz, SLAM building a map). Motors haven't been driven, and the ESP32 camera hasn't been reached yet. |
 
 **Primary Focus:** Phase 4 physical validation — mapping + Nav2 on the Jetson car.
 Optimizations applied (2026-06):
@@ -28,10 +28,11 @@ Optimizations applied (2026-06):
 See AGENTS.md for serial/EKF/physical tuning and robot.sh help.
 
 ## 🚧 Critical Blockers
-* **Motor ESP32 not detected on the Jetson (2026-11-05).** The kernel logged no USB event for it, even after a reboot, so check the cable first. Its firmware (`MOTOR-ESP32S3`) talks over native USB, so use the socket labelled USB, not COM. `/var/log/kern.log` last shows it around 2026-09-02 as `303a:1001` (Espressif native USB) on hub port 1-2.1. All four hub ports worked in 2026-08. A status file left in the container shows it running here on 2026-08-21 at `/dev/ttyACM0`, with encoder and IMU lines arriving. Motors, encoders and IMU can't be tested until it's back.
-* **ESP32 camera not reached yet (2026-11-05).** The camera is an ESP32 Wi-Fi camera, not the Pi Camera v2 the docs assumed, so the kernel's `imx219` errors and the missing `/dev/video*` are expected. It isn't on the Jetson's USB, and no Espressif device answered a ping of `192.168.219.0/24`. Its address is still needed.
+* **Motors not driven yet under Humble (2026-11-05).** The ESP32-S3 works on its native USB socket, the one next to the RGB LED (`303a:1001` at `/dev/ttyACM0`). Only read-only checks have run, with 0 motor commands sent.
+* **ESP32 camera not reached yet (2026-11-05).** The camera is an ESP32 Wi-Fi camera, not the Pi Camera v2 the docs assumed, so the kernel's `imx219` errors and the missing `/dev/video*` are expected. It shows up on the development PC's USB through a CH340 adapter (`1a86:7523`), but no Espressif device answered a ping of `192.168.219.0/24` and no Espressif access point was in range. Its serial boot log or address is still needed.
 * **Nothing publishes camera images.** No launch file starts a camera node, and `camera_go` only opens a local video device, so `/camera/image_raw` has no source. The ESP32 camera needs a node that reads its network stream.
-* **Left encoder:** flagged as a connection problem on 2026-06-08 (Pin 18/GND), with no recorded fix. In the 2026-08-21 status file it had counted about 8.6 times as much as the right encoder (429,862 vs 49,727), so test each wheel by hand.
+* **Encoders unverified:** the left was flagged as a connection problem on 2026-06-08 (Pin 18/GND), with no recorded fix. It had counted about 8.6 times as much as the right on 2026-08-21 (429,862 vs 49,727). On 2026-11-05 it read -133,420 with the right at exactly 0, and neither changed during 4 minutes at rest. Test each wheel by hand.
+* **IMU bias not calibrated:** at rest the gyro's z axis reads about 0.024 rad/s (1.4°/s), and `/odom_filtered` yaw drifts about 0.1°/s.
 
 ## 🗺️ Roadmap & Active Tasks — Perfect Phases
 
@@ -77,7 +78,8 @@ Phases are accurate as of 2026-11-05. See `docs/imu_nav2_roadmap_v2.md` for the 
 - [x] Calibration docs + procedures in roadmap + AGENTS.md.
 - [x] RPLidar on Humble: health OK, `/scan` at 6.5 Hz (2026-11-05).
 - [ ] Check that the front of the scan matches the front of the robot.
-- [ ] Connect the motor ESP32, then confirm with `./robot.sh status`.
+- [x] ESP32-S3 on Humble: encoders and IMU streaming at 50 Hz, `./robot.sh status` all OK (2026-11-05).
+- [ ] Test each wheel's encoder by hand, then drive the motors with someone present.
 - [ ] Bring the ESP32 camera's stream into ROS.
 - [ ] Run `./robot.sh robot` on the Humble stack and do the bias calibration (Phase 2a in roadmap).
 - [ ] Complete a hardware mapping run and a Nav2 goal.
@@ -85,4 +87,4 @@ Phases are accurate as of 2026-11-05. See `docs/imu_nav2_roadmap_v2.md` for the 
 ## 🛠️ Active Context (2026-11-05)
 The Humble Docker port was made on the Jetson in 2026-08 and committed on 2026-11-05 (PR #2). Docker-only dev. Container idle until `./robot.sh sim/robot/nav`.
 
-**Next for physical:** Get the motor ESP32 detected (see Critical Blockers), start the container only after it's plugged in, then run bias calibration (Phase 2a in roadmap) and validate on hardware. Use `./robot.sh` for everything.
+**Next for physical:** Test both encoders by hand (see Critical Blockers), start the container only after USB devices are plugged in, then run bias calibration (Phase 2a in roadmap) and validate on hardware. Use `./robot.sh` for everything.

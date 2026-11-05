@@ -277,3 +277,13 @@ Append concise summaries of work done here. For technical details on *why* thing
 - **Camera Search:** It isn't on the Jetson's USB today. One ping of `192.168.219.0/24` found 9 devices, none from Espressif. Its model and address are still unknown.
 - **Motor ESP32:** `MOTOR-ESP32S3` builds with `ARDUINO_USB_CDC_ON_BOOT=1`, so its serial link is the native USB socket. The launch error now says so instead of pointing at the QinHeng/WCH socket.
 - **Serial Discovery:** The container has no `/dev/serial/by-id`, so launch uses the first `/dev/ttyACM*` and `/dev/ttyUSB*`. An ESP32 camera on a data cable could be picked instead of the motor board.
+
+---
+
+## Session: 2026-11-05 @ 23:15 (ESP32-S3 Read-Only Bring-up)
+- **ESP32-S3:** Detected on the native USB socket next to the RGB LED (`303a:1001`, `/dev/ttyACM0`). Encoder and IMU lines arrive at 50 Hz each. `/odom`, `/joint_states` and `/imu/data` run at 50 Hz, `/odom_filtered` at 30 Hz. The full TF chain is present and `slam_toolbox` built a map. 0 motor commands were sent.
+- **Odometry Fix:** The bridge treated the ESP32's existing counts as motion on its first reading, which put `/odom` at (-3.13, -2.72) at startup. It now takes its first reading as a baseline. Tested on hardware with the bridge alone: `/odom` starts at zero with the encoders at -133,420, including after a bridge restart. The full launch hasn't been rerun with this fix.
+- **Encoders:** L -133,420 and R 0, unchanged during 4 minutes at rest. How L got there is unknown, so a hand test is next.
+- **IMU:** At rest, |a| is 9.77 m/s² and gyro z reads about 0.024 rad/s (1.4°/s). `/odom_filtered` yaw drifted about 0.1°/s, so bias calibration is still needed. Gyro values arrive with only 2 decimals.
+- **Status Fix:** Verified the `./robot.sh status` change against the live bridge.
+- **ESP32-CAM:** On the development PC as a CH340 (`1a86:7523`) at `/dev/ttyUSB0`. Not on the Wi-Fi network after about 50 minutes powered, and no Espressif access point in range. That PC's user isn't in `dialout`, so its serial log hasn't been read.

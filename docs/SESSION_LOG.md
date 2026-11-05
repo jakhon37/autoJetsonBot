@@ -310,3 +310,13 @@ Append concise summaries of work done here. For technical details on *why* thing
 - **Stream Limits:** The 10 fps is the firmware's default (`/fps`), but asking for 15 or no limit gave 6.3 to 6.6 fps in those runs. Restored to 10. `/status` got no answer for 7 s during a stream while frames kept arriving, so it serves one client at a time. In one run at 1.8 fps, `/status` answered after 2.4 s, so that stream had apparently dropped. Frames carry no timestamps.
 - **SD Card:** It's a Raspberry Pi boot card, and the "0.5 GB" was only its 509 MB boot partition. `/capture` saves a copy to the card on every call, and this session's tests added 2 of the 13 snapshots. Nothing was deleted. The recorder's overwrite only removes `vid_*.avi`.
 - **Picture:** A frame from the stream at 02:03 is clear and well exposed, so last night's dark snapshot came from where the camera was pointing.
+
+---
+
+## Session: 2026-11-06 @ 02:45 (Marked Wheel Test)
+- **Test:** The request was 5 turns forward and then 5 turns backward by hand on each wheel, left first, with the logger on. Left moved first, so left and right aren't swapped.
+- **Scale:** L went from -208,828 to -212,265 (-3,437) and R from 417 to 4,283 (+3,866). Over 10 turns that's about 344 and 387 counts per turn, about 9 to 10 times fewer than the configured 3,436. L's total is almost exactly 3,436, so that value may have been measured over 10 turns and recorded as one. That's unconfirmed.
+- **Direction:** Neither count reversed. L only went down and R only went up, which is what the repo's firmware does when channel B reads high, as an unconnected input would with its pull-up. Earlier readings have the same signs (L -429,862 and R +49,727 on 2026-08-21). The bridge would then report both wheels moving backward whichever way they turn, and a spin in place would read as reversing. This depends on the second 5 turns really being backward, which still needs confirming.
+- **`encoder_cpr`:** Left at 3,436 for now, because a direction fix in firmware could change the count per turn. Counting all four edges would give 4 times as many.
+- **Left Jumps:** Nothing moved in the log after 02:43:58, so wiggling the wires caused no jump if that was done by then. The -75,118 is still unexplained.
+- **Correction:** "Over 16 minutes" for that jump used the speed from the first test. The fastest hand speed logged is now about 270 counts/s, which makes it about 4.5 minutes of nonstop turning, or about 200 turns.

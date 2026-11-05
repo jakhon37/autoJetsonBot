@@ -83,14 +83,15 @@ If `robot.sh stop` fails to terminate Gazebo, it is usually because `gzserver` i
 *   ❌ **Don't:** Reuse a Foxy `install/` tree inside the Humble container. Run `./robot.sh clean && ./robot.sh build` after switching distro.
 *   ✅ **Do:** Install `gazebo-ros-pkgs` + `gazebo-ros2-control` only when apt has them (Humble amd64). On arm64 those debs are unpublished because jammy has no `gazebo11`/`libgazebo-dev`. Hardware, SLAM, and Nav2 still run.
 *   Launch already switches `spawner.py`→`spawner`, slam `params_file`→`slam_params_file`, and Nav2 to `nav2_params_humble.yaml`.
-*   **Jetson Nano native** (`setup_jetson.sh` / `robot_nano.sh`) stays Foxy. Humble Docker needs Ubuntu 22.04.
+*   **Current target:** Jetson Xavier NX (L4T R35, Ubuntu 20.04 host) running the Ubuntu 22.04 Humble image through Docker. **Jetson Nano native** (`setup_jetson.sh` / `robot_nano.sh`) stays Foxy.
+*   **`use_sim_time` for SLAM:** `online_async_launch.py` passes the launch argument after the params file, so it always beats any value in `mapper_params.yaml`. Tested both ways on 2026-11-05, so don't set it in that YAML.
+*   **Serial Ports:** Launch finds the ESP32 and lidar by USB ID (`/dev/serial/by-id`) because `ttyACM` numbers change after an ESP32 reset. The CP2102 adapter is the lidar. Restart the container after plugging in USB devices, or it won't see them.
 
 ## 🧩 Hardware & Dependency Insights
 
-### 1. Missing Hardware Plugin (`diffdrive_arduino`)
-*   **Context:** The physical robot relies on a custom `diffdrive_arduino` hardware interface plugin for `ros2_control`. 
-*   ⚠️ **Critical Discovery:** The plugin source is currently missing from the workspace. Without `libdiffdrive_arduino.so`, the `controller_manager` will fail to spawn the `diff_cont` in `mode:=robot`. 
-*   **Mitigation:** Sourcing the original repository or migrating to a standard `ros2_control` hardware interface for the ESP32 is required before physical testing.
+### 1. Removed Hardware Plugin (`diffdrive_arduino`)
+*   **Context:** The physical robot once relied on a custom `diffdrive_arduino` hardware interface plugin for `ros2_control`, and its source was missing from the workspace.
+*   ✅ **Fix Applied:** The plugin is gone from the non-sim xacro. On hardware, the Python bridge `jetson_bot_diffdrive` talks to the ESP32, so the hardware path no longer needs `libdiffdrive_arduino.so` or `controller_manager`.
 
 ### 2. Gazebo Physics: Ground Clipping
 *   **Discovery:** The robot appeared "stuck" even with active nodes. RViz showed wheels underground and chassis touching the floor.

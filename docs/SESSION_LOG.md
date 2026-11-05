@@ -244,3 +244,12 @@ Append concise summaries of work done here. For technical details on *why* thing
 - **Filter Stabilization:** Completely rewrote the buggy/incorrect manual algebraic expansions for the gradient descent vector ($s_1$, $s_2$, $s_3$, $s_4$) with standard, clean, and mathematically verified Madgwick AHRS IMU equations, and corrected the sign of the first term in $s_0$ to matching derivative physics.
 - **WebSocket Safety:** Resolved the duplicate socket reconnection timer bug by implementing robust timer cleanup (`clearTimeout` and event listener unbinding).
 - **UI Upgrade:** Redesigned the HTML/CSS layout with a premium glassmorphic dark theme, clear layout division, card-hover states, glowing status badges, and proper semantic HTML.
+
+---
+
+## Session: 2026-11-05 @ 18:39 (Humble Port Saved + PR #2 Cleanup)
+- **Discovery:** The `jetson` host is a Jetson Xavier NX (L4T R35.6.5, Ubuntu 20.04), not the Nano B01 the docs described. It held an uncommitted ROS 2 Humble Docker port from 2026-08-18 to 08-21.
+- **Saved:** Committed that work to `jetson-humble-port` (`e119edb`), opened PR #2, and merged `master` into the branch to pick up the README rewrite.
+- **use_sim_time:** Tested `slam_toolbox` in a throwaway Humble container. The launch argument always wins over `mapper_params.yaml`, so the YAML line added in the port had no effect and was removed.
+- **Cleanup:** Removed the unused plain `Dockerfile` (identical to `Dockerfile.humble` apart from blank lines). Updated docs to the Xavier NX + Humble target and corrected stale wheel specs in `GEMINI.md`.
+- **Hardware Audit:** Only the RPLidar's CP2102 adapter is detected. ESP32 and camera are not, so physical validation is still open.

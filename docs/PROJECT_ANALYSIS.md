@@ -2,9 +2,9 @@
 
 This is the primary status board. Consult this file to understand the current operational health and the immediate roadmap.
 
-## 📊 Current Status (Updated 2026-06-26)
+## 📊 Current Status (Updated 2026-11-05)
 
-The stack follows **REP 120** and uses a Python Serial Bridge + mature Web UI. All development phases are complete (Docker + sim verified). All work happens inside Docker (`./robot.sh`).
+The stack follows **REP 120** and uses a Python Serial Bridge + mature Web UI. Code phases are complete (Docker + sim verified on Foxy), but the Humble stack has no recorded hardware validation yet. All work happens inside Docker (`./robot.sh`). The current target is a Jetson Xavier NX running ROS 2 Humble in Docker; Foxy stays available with `ROS_DISTRO=foxy`.
 
 ### System Health
 | System | Status | Note |
@@ -13,9 +13,10 @@ The stack follows **REP 120** and uses a Python Serial Bridge + mature Web UI. A
 | **Motor Driver** | ✅ Active | `jetson_bot_diffdrive` Python bridge. |
 | **Web UI + Global Map** | ✅ Mature | Modular ES6, real-time map/pose/goal overlay. |
 | **EKF Fusion** | ✅ Complete | Pipeline + Madgwick + filtered odom + diagnostics ready. |
-| **Simulation** | ✅ Functional | Full when launched. |
+| **Simulation** | ✅ Functional | Full when launched. Under Humble, needs an amd64 host. |
+| **Hardware** | ⚠️ Partial | As of 2026-11-05 the Jetson detects only the RPLidar's CP2102 adapter. ESP32 and camera are not detected. |
 
-**Primary Focus:** Phase 4 physical validation — mapping + Nav2 on Jetson Nano car.
+**Primary Focus:** Phase 4 physical validation — mapping + Nav2 on the Jetson car.
 Optimizations applied (2026-06):
 - EKF /odom_filtered enforced for mapping (physical stability)
 - Smart mode switching: `./robot.sh map2nav` + auto-save on `nav` / stop (when in mapping)
@@ -27,11 +28,12 @@ Optimizations applied (2026-06):
 See AGENTS.md for serial/EKF/physical tuning and robot.sh help.
 
 ## 🚧 Critical Blockers
-* None. All core phases completed in code + Docker workflow.
+* **ESP32 and camera not detected on the Jetson (2026-11-05).** Motors, encoders, IMU and camera can't be tested until they're connected.
+* **Left encoder:** flagged as a connection problem on 2026-06-08 (Pin 18/GND), with no recorded fix.
 
 ## 🗺️ Roadmap & Active Tasks — Perfect Phases
 
-Phases are accurate as of 2026-06-26. See `docs/imu_nav2_roadmap_v2.md` for the detailed EKF technical plan with verification criteria.
+Phases are accurate as of 2026-11-05. See `docs/imu_nav2_roadmap_v2.md` for the detailed EKF technical plan with verification criteria.
 
 ### Phase 1: Industry Standard (✅ Complete)
 - [x] **URDF Refactor:** `base_footprint` root + measured offsets (lidar, imu_link).
@@ -66,13 +68,16 @@ Phases are accurate as of 2026-06-26. See `docs/imu_nav2_roadmap_v2.md` for the 
 # EKF + Nav2 using fused odom; run with ./robot.sh sim or robot for live check
 ```
 
-### Phase 4: Physical Validation (✅ Complete for Docker/Sim; Ready for Jetson)
+### Phase 4: Physical Validation (✅ Complete for Docker/Sim; 🚧 Hardware pending)
 - [x] Mapping + autonomous goals verified in sim with fused odometry.
 - [x] Jetson-native Docker setup (mac dev uses Xvfb/VNC; native path documented).
 - [x] Tests pass with live stack (Docker-aware).
 - [x] Calibration docs + procedures in roadmap + AGENTS.md.
+- [ ] Connect the ESP32 and camera, then confirm with `./robot.sh status`.
+- [ ] Run `./robot.sh robot` on the Humble stack and do the bias calibration (Phase 2a in roadmap).
+- [ ] Complete a hardware mapping run and a Nav2 goal.
 
-## 🛠️ Active Context (2026-06-26)
-All phases completed in this session. Docker-only dev. Container idle until `./robot.sh sim/robot/nav`.
+## 🛠️ Active Context (2026-11-05)
+The Humble Docker port was made on the Jetson in 2026-08 and committed on 2026-11-05 (PR #2). Docker-only dev. Container idle until `./robot.sh sim/robot/nav`.
 
-**Next for physical:** Deploy to Jetson Nano, run bias calibration (Phase 2a in roadmap), validate on hardware. Use `./robot.sh` for everything.
+**Next for physical:** Connect the ESP32 and camera, restart the container so it sees them, run `./robot.sh build`, then run bias calibration (Phase 2a in roadmap) and validate on hardware. Use `./robot.sh` for everything.

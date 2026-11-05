@@ -262,3 +262,10 @@ Append concise summaries of work done here. For technical details on *why* thing
 - **Camera:** Still not detected. The `imx219` driver is loaded and probed both CSI ports at boot, and neither answered (`-121`). No launch file starts `camera_go`, so `/camera/image_raw` has no publisher yet.
 - **Bug Fix:** `./robot.sh status` read that leftover file as live and reported encoders and IMU OK with no ESP32 attached. It now ignores the file unless it was written in the last 5 seconds (the bridge writes it every second).
 - **Safety:** With no ESP32 the launch doesn't start the bridge, so `/cmd_vel` had no subscriber and nothing could drive. Motors, encoders and IMU remain untested on this date.
+
+---
+
+## Session: 2026-11-05 @ 22:00 (ESP32 and Camera Recheck)
+- **Recheck:** After reconnecting and rebooting, the ESP32 and camera are still not detected. The ESP32 isn't on the development PC either.
+- **ESP32 History:** `/var/log/kern.log` shows it on this Jetson from 2026-08-18 to about 09-02, last as `303a:1001` (Espressif native USB) on hub port 1-2.1. It also appeared as `1a86:55d3` (QinHeng) on 08-21. Today no connect event was logged, not even a failed one.
+- **Camera History:** The `imx219` probe failed with `-121` on all 20 boots in the log, so no camera has ever been detected on this Jetson and there's no working setup to go back to.

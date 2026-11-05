@@ -28,8 +28,8 @@ Optimizations applied (2026-06):
 See AGENTS.md for serial/EKF/physical tuning and robot.sh help.
 
 ## 🚧 Critical Blockers
-* **ESP32 not detected on the Jetson (2026-11-05).** The kernel logged no USB event for it, so check the cable and which USB socket it uses. A status file left in the container shows it running here on 2026-08-21 at `/dev/ttyACM0`, with encoder and IMU lines arriving. Motors, encoders and IMU can't be tested until it's back.
-* **Camera not detected (2026-11-05).** The `imx219` driver probed both CSI ports at boot and neither answered (`-121`). The driver only probes at boot, so reseat the ribbon with the power off and boot again.
+* **ESP32 not detected on the Jetson (2026-11-05).** The kernel logged no USB event for it, even after a reboot, so check the cable first. `/var/log/kern.log` last shows it around 2026-09-02 as `303a:1001` (Espressif native USB) on hub port 1-2.1. All four hub ports worked in 2026-08. A status file left in the container shows it running here on 2026-08-21 at `/dev/ttyACM0`, with encoder and IMU lines arriving. Motors, encoders and IMU can't be tested until it's back.
+* **Camera not detected (2026-11-05).** The `imx219` driver probes both CSI ports at boot and neither answers (`-121`). This happened on all 20 boots in `/var/log/kern.log`, including one after reseating the ribbon, so no camera has ever been detected on this Jetson. Check the ribbon direction (contacts toward the heatsink), the small connector on the camera board, and the camera model.
 * **Nothing publishes camera images.** No launch file starts `camera_go`, so `/camera/image_raw` has no source even with a detected camera.
 * **Left encoder:** flagged as a connection problem on 2026-06-08 (Pin 18/GND), with no recorded fix. In the 2026-08-21 status file it had counted about 8.6 times as much as the right encoder (429,862 vs 49,727), so test each wheel by hand.
 

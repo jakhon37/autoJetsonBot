@@ -338,3 +338,16 @@ Append concise summaries of work done here. For technical details on *why* thing
 - **Search:** 105 `jakhon37` repos and 3 `gachonuz` repos, 277 branches, plus the full history of the 6 firmware repos and this one. No commit has IMU code and encoder interrupts together, so the combined version was never committed. `gh search code` returned nothing, even for text known to be in a public repo, so it isn't usable here.
 - **`encoder_cpr`:** 3,436 goes back to May 2025 and was also in a 2025 firmware for different wheel specs (radius 0.035, separation 0.18). No measurement behind it was found.
 - **Drive Behaviour:** June's notes match `MOTOR-ESP32S3`: open loop, a minimum of 500/1023 power, and a 500 ms timeout. That's probably what's on the board, but it's unconfirmed.
+
+---
+
+## Session: 2026-11-06 @ 04:30 (Camera Firmware Flashed, Stream Collapsed)
+- **Flashed:** `wifi-reliability` (`cc2aea2`, local only) is on the ESP32-CAM. It pins espressif32 6.12.0, which has the same core libraries as the old firmware (IDF 4.4.7, built Mar 5 2024). Unpinned, the repo now resolves to Arduino core 3.3.12. A 4 MB backup of the old firmware is in the session scratchpad and contains the Wi-Fi password.
+- **Retry, Tested on Hardware:** With a network that doesn't exist, it fell back at 10 s and retried every 30 s for 10 s, and the hotspot was seen within the last 8 s throughout. With a 1 ms boot timeout, it fell back, joined `REMOVED` about 1 s after the retry began at 32 s, and the hotspot turned off.
+- **Idle Ping:** Median about 13 ms on the new firmware against 290 to 330 ms on the old, measured within 15 minutes of each other. Turning off power saving removed the delay on small packets.
+- **Stream:** Slow on both. The old firmware managed 0.1 to 0.8 fps (3 to 21 KB/s) at 04:08 and the new 0.1 to 0.2 fps (1 to 5 KB/s) at 04:15, against 7.5 to 9.7 fps from the old firmware at 02:05. It varies over time, so whether the new one is worse is still unknown.
+- **Ruled Out:** Signal (-48 to -55 dBm), other clients (none connected), TCP retransmissions (0 on an 18 KB download), the sensor (that page comes from flash and still downloads at 1.5 to 24 KB/s), and capture load (QQVGA isn't faster in bytes per second). The router and Jetson links are fine (about 2 ms). The camera sends a few segments and then goes silent for 400 to 660 ms.
+- **Wrong Theories:** "Poor for the first minutes after a reset" didn't hold, because the settled stream was still slow. "Large frames starve Wi-Fi" didn't hold either.
+- **Changed Since 02:06:** The camera was re-plugged at 02:41 and has moved, since its view is different. USB power or noise near the PC is the next thing to test, with a phone charger away from the PC.
+- **Boot After Flashing:** The camera was unreachable for about 80 s after the 04:10 flash, which fits a failed first join followed by a successful retry. No serial log was captured for that boot.
+- **Serial Port:** This programmer board stays in reset if DTR and RTS are held active, so clear them before opening the port. Reading flash failed at 921600 baud and worked at 460800.

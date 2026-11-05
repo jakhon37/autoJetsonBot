@@ -1,53 +1,96 @@
 FROM ros:humble-ros-core-jammy
 
-# Install essential tools including add-apt-repository utility
+ENV DEBIAN_FRONTEND=noninteractive \
+    LANG=C.UTF-8 \
+    LC_ALL=C.UTF-8
+
+# Essential build tools + Python utilities
 RUN apt-get update && apt-get install -y --no-install-recommends \
     software-properties-common \
     build-essential \
     git \
+    curl \
     python3-colcon-common-extensions \
     python3-colcon-mixin \
     python3-rosdep \
     python3-vcstool \
-    python3-pip\
-    python3-pymongo\
+    python3-pip \
+    python3-pymongo \
+    python3-serial \
+    python3-psutil \
+    python3-tornado \
+    python3-yaml \
  && rm -rf /var/lib/apt/lists/*
 
-# Enable the Universe repository
+# Enable Universe repository
 RUN add-apt-repository universe && \
-    rm -rf /var/lib/apt/lists/* && \
-    apt-get update
+    apt-get update && \
+    rm -rf /var/lib/apt/lists/*
 
 # Bootstrap rosdep
 RUN rosdep init && rosdep update --rosdistro $ROS_DISTRO
 
-# Setup colcon mixin and metadata
-RUN colcon mixin add default https://raw.githubusercontent.com/colcon/colcon-mixin-repository/master/index.yaml \
+# Colcon mixin and metadata
+RUN colcon mixin add default \
+        https://raw.githubusercontent.com/colcon/colcon-mixin-repository/master/index.yaml \
  && colcon mixin update \
- && colcon metadata add default https://raw.githubusercontent.com/colcon/colcon-metadata-repository/master/index.yaml \
+ && colcon metadata add default \
+        https://raw.githubusercontent.com/colcon/colcon-metadata-repository/master/index.yaml \
  && colcon metadata update
 
-# Install ROS2 packages (desktop, navigation, Gazebo integration) and nano
-RUN  rm -rf /var/lib/apt/lists/* && \
-    apt-get update && apt-get install -y --no-install-recommends \
-    ros-humble-desktop-full* \
+# Keep Gazebo Classic (not ros-gz / Fortress). desktop-full* is avoided.
+# gazebo_ros_pkgs / gazebo_ros2_control are amd64-only on Humble: jammy
+# arm64 has no gazebo11 / libgazebo-dev, so those ROS debs are unpublished.
+ARG TARGETARCH
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    ros-humble-desktop \
     ros-humble-navigation2 \
     ros-humble-nav2-bringup \
-    ros-humble-ros-gz \
+    ros-humble-nav2-msgs \
     ros-humble-rosbridge-server \
+    ros-humble-xacro \
+    ros-humble-joint-state-publisher-gui \
+    ros-humble-rplidar-ros \
+    ros-humble-image-transport-plugins \
+    ros-humble-rqt-image-view \
+    ros-humble-teleop-twist-keyboard \
+    ros-humble-ros2-control \
+    ros-humble-ros2-controllers \
+    ros-humble-web-video-server \
     ros-humble-imu-filter-madgwick \
     ros-humble-robot-localization \
     ros-humble-slam-toolbox \
     ros-humble-tf2-tools \
+    python3-serial \
     nano \
-    && rm -rf /var/lib/apt/lists/*
+    net-tools \
+    iproute2 \
+    xauth \
+    x11-xserver-utils \
+    mesa-utils \
+    libgl1 \
+    libgl1-mesa-dri \
+    libgl1-mesa-glx \
+    xvfb \
+    x11vnc \
+    openbox \
+ && if apt-cache show ros-humble-gazebo-ros-pkgs >/dev/null 2>&1; then \
+        apt-get install -y --no-install-recommends \
+            ros-humble-gazebo-ros-pkgs \
+            ros-humble-gazebo-ros2-control; \
+    else \
+        echo "WARN: Gazebo Classic ROS debs not published for ${TARGETARCH:-unknown}. Hardware/Nav/SLAM work; ./robot.sh sim needs amd64."; \
+    fi \
+ && rm -rf /var/lib/apt/lists/*
 
-#  ros-humble-ros-gz \
+# Python extras used by the web UI / serial bridge (apt covers most of these)
+RUN pip3 install --no-cache-dir \
+    pyserial \
+    psutil \
+    tornado \
+    pymongo
 
-# Add ROS setup to bashrc
+# Source ROS on every shell
 RUN echo "source /opt/ros/humble/setup.bash" >> /root/.bashrc
 
-
-#sudo apt-get install ros-${ROS_DISTRO}-ros-gz
-# ros-humble-xacro \
-# pip install pyserial
+WORKDIR /autonomous_ROS

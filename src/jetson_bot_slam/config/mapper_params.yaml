@@ -20,6 +20,7 @@ slam_toolbox:
     map_frame: map
     base_frame: base_footprint
     scan_topic: /scan
+    use_sim_time: true
     mode: mapping # 'mapping' or 'localization'
 
     # Use EKF fused odometry for better real-world mapping (reduces wheel slip drift)

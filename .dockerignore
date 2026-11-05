@@ -1,0 +1,11 @@
+.git
+.gitignore
+build
+install
+log
+maps
+assets
+docs
+**/*.pyc
+**/__pycache__
+**/.pytest_cache

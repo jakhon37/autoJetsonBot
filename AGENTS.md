@@ -76,6 +76,15 @@ Since macOS Docker Desktop cannot forward X11 correctly, we use:
 ### Process Lifecycle & "Zombies"
 If `robot.sh stop` fails to terminate Gazebo, it is usually because `gzserver` is still holding the socket. Use `pkill -9 -f gzserver` to clear the slate. A port being open on the host (5900) only means Docker is listening; it doesn't guarantee the internal service is alive.
 
+## 🐳 ROS 2 Humble Docker (Added 2026-08-18)
+
+*   **Default image is Humble.** `./robot.sh image` builds `Dockerfile.humble` → `auto_ros:humble`. Foxy is still available: `ROS_DISTRO=foxy ./robot.sh image`.
+*   ❌ **Don't:** Install `ros-humble-ros-gz` in this image. That is Gazebo Fortress. This workspace uses Gazebo Classic plugins (`libgazebo_ros_*.so`, `libgazebo_ros2_control.so`).
+*   ❌ **Don't:** Reuse a Foxy `install/` tree inside the Humble container. Run `./robot.sh clean && ./robot.sh build` after switching distro.
+*   ✅ **Do:** Install `gazebo-ros-pkgs` + `gazebo-ros2-control` only when apt has them (Humble amd64). On arm64 those debs are unpublished because jammy has no `gazebo11`/`libgazebo-dev`. Hardware, SLAM, and Nav2 still run.
+*   Launch already switches `spawner.py`→`spawner`, slam `params_file`→`slam_params_file`, and Nav2 to `nav2_params_humble.yaml`.
+*   **Jetson Nano native** (`setup_jetson.sh` / `robot_nano.sh`) stays Foxy. Humble Docker needs Ubuntu 22.04.
+
 ## 🧩 Hardware & Dependency Insights
 
 ### 1. Missing Hardware Plugin (`diffdrive_arduino`)

@@ -1,14 +1,17 @@
 #!/usr/bin/env python3
+import json
+import math
+import os
+import time
+
 import rclpy
 from rclpy.node import Node
-from geometry_msgs.msg import Twist, TransformStamped, Quaternion
+from geometry_msgs.msg import Quaternion, TransformStamped, Twist
 from nav_msgs.msg import Odometry
 from sensor_msgs.msg import JointState
-from std_msgs.msg import String  # Moved to top for performance
-import tf2_ros
+from std_msgs.msg import String
 import serial
-import math
-import time
+import tf2_ros
 
 class DiffDriveBridge(Node):
     def __init__(self):
@@ -40,6 +43,18 @@ class DiffDriveBridge(Node):
 
         # Serial Connection
         self.ser = None
+        self._rx_buf = b''
+        self._rx_log_left = 8
+        self.last_tx_time = 0.0
+        self.last_rx_time = 0.0
+        self.last_enc_time = 0.0
+        self.last_imu_time = 0.0
+        self.last_rx_line = ''
+        self.last_enc = None
+        self.last_imu = None
+        self.tx_ok = 0
+        self.enc_ok = 0
+        self.imu_ok = 0
         self.connect_serial()
 
         # ROS Infrastructure
@@ -47,20 +62,64 @@ class DiffDriveBridge(Node):
         self.odom_pub = self.create_publisher(Odometry, '/odom', 10)
         self.joint_pub = self.create_publisher(JointState, '/joint_states', 10)
         self.serial_imu_pub = self.create_publisher(String, '/serial_imu_raw', 10)
+        self.status_pub = self.create_publisher(String, '/esp32/status', 10)
         self.tf_broadcaster = tf2_ros.TransformBroadcaster(self)
 
         # Timer for Odom & Feedback loop
         self.timer = self.create_timer(1.0/self.get_parameter('loop_rate').value, self.update_loop)
+        self.status_timer = self.create_timer(1.0, self.publish_status)
         self.get_logger().info("DiffDriveBridge Node Started at 50Hz")
 
-    def connect_serial(self):
-        try:
-            self.ser = serial.Serial(self.port, self.baud, timeout=0.01) # Low timeout for high frequency
-            self.ser.reset_input_buffer()
-            self.get_logger().info(f"✅ Connected to ESP32 on {self.port}")
-        except Exception as e:
-            self.get_logger().error(f"❌ Serial Error: {e}")
+    def _close_serial(self):
+        if self.ser is not None:
+            try:
+                self.ser.close()
+            except Exception:
+                pass
             self.ser = None
+            self._rx_buf = b''
+
+    def connect_serial(self):
+        port = self.port
+        if not os.path.exists(port):
+            alt = self._discover_port()
+            if alt:
+                port = alt
+                self.port = alt
+        try:
+            self.ser = serial.Serial(port, self.baud, timeout=0.01)
+            try:
+                self.ser.dtr = True
+                self.ser.rts = False
+            except Exception:
+                pass
+            self.ser.reset_input_buffer()
+            self._rx_buf = b''
+            self.get_logger().info(f"✅ Connected to ESP32 on {port}")
+        except Exception as e:
+            self.get_logger().error(f"❌ Serial Error ({port}): {e}")
+            self._close_serial()
+
+    def _discover_port(self):
+        by_id = '/dev/serial/by-id'
+        skip = ('cp210', 'silicon_labs', 'rplidar')
+        prefer = ('espressif', 'esp32', 'jtag_serial', '1a86', 'qinheng',
+                  'usb_single_serial', 'wch', 'arduino')
+        try:
+            names = sorted(os.listdir(by_id)) if os.path.isdir(by_id) else []
+        except Exception:
+            names = []
+        for name in names:
+            low = name.lower()
+            if any(s in low for s in skip):
+                continue
+            path = os.path.realpath(os.path.join(by_id, name))
+            if any(s in low for s in prefer) and os.path.exists(path):
+                return path
+        for p in ('/dev/ttyACM0', '/dev/ttyACM1', '/dev/ttyACM2'):
+            if os.path.exists(p):
+                return p
+        return None
 
     def cmd_vel_callback(self, msg):
         if not self.ser: return
@@ -77,9 +136,46 @@ class DiffDriveBridge(Node):
         try:
             self.ser.write(cmd.encode())
             self.ser.flush() # CRITICAL: Ensure data is actually sent
+            self.last_tx_time = time.time()
+            self.tx_ok += 1
             self.get_logger().debug(f"TX: {cmd.strip()}")
         except Exception as e:
             self.get_logger().warn(f"Serial write error: {e}")
+            self._close_serial()
+
+    def _handle_line(self, line):
+        self.last_rx_time = time.time()
+        self.last_rx_line = line[:80]
+        if self._rx_log_left > 0:
+            self._rx_log_left -= 1
+            self.get_logger().info(f"ESP32 RX: {line}")
+
+        low = line.lower()
+        if low.startswith('e ') or low.startswith('e\t'):
+            parts = line.split()
+            if len(parts) >= 3:
+                try:
+                    l_count = int(float(parts[1]))
+                    r_count = int(float(parts[2]))
+                    # FIX: Right encoder inversion to match inverted motor
+                    self.calculate_odometry(l_count, -r_count)
+                    self.last_enc = [l_count, r_count]
+                    self.last_enc_time = time.time()
+                    self.enc_ok += 1
+                except ValueError:
+                    return
+        elif low.startswith('i '):
+            imu_msg = String()
+            imu_msg.data = line
+            self.serial_imu_pub.publish(imu_msg)
+            try:
+                self.last_imu = [round(float(p), 3) for p in line.split()[1:7]]
+            except (ValueError, IndexError):
+                self.last_imu = line
+            self.last_imu_time = time.time()
+            self.imu_ok += 1
+        elif "READY" in line:
+            self.get_logger().info(f"📡 ESP32 Reboot Detected: {line}")
 
     def update_loop(self):
         if not self.ser:
@@ -87,42 +183,58 @@ class DiffDriveBridge(Node):
             return
 
         try:
-            # Drain the buffer to prevent lag
-            while self.ser.in_waiting > 0:
-                raw_line = self.ser.readline()
-                if not raw_line: break
-                
-                try:
-                    line = raw_line.decode('utf-8', errors='ignore').strip()
-                except:
-                    continue
-
-                if not line: continue
-                
-                if line.startswith('e'):
-                    parts = line.split()
-                    if len(parts) >= 3:
-                        try:
-                            l_count = int(parts[1])
-                            r_count = int(parts[2])
-                            
-                            # FIX: Right encoder inversion to match inverted motor
-                            r_count_fixed = -r_count
-                            
-                            self.calculate_odometry(l_count, r_count_fixed)
-                        except ValueError:
-                            continue
-                
-                elif line.startswith('i'):
-                    imu_msg = String()
-                    imu_msg.data = line
-                    self.serial_imu_pub.publish(imu_msg)
-                
-                elif "READY" in line:
-                    self.get_logger().info(f"📡 ESP32 Reboot Detected: {line}")
-
+            n = self.ser.in_waiting
+            if n:
+                self._rx_buf += self.ser.read(n)
+            while True:
+                sep_n = self._rx_buf.find(b'\n')
+                sep_r = self._rx_buf.find(b'\r')
+                seps = [s for s in (sep_n, sep_r) if s >= 0]
+                if not seps:
+                    if len(self._rx_buf) > 256:
+                        line = self._rx_buf.decode('utf-8', errors='ignore').strip()
+                        self._rx_buf = b''
+                        if line:
+                            self._handle_line(line)
+                    break
+                sep = min(seps)
+                raw = self._rx_buf[:sep]
+                self._rx_buf = self._rx_buf[sep + 1:]
+                if self._rx_buf[:1] in (b'\n', b'\r'):
+                    self._rx_buf = self._rx_buf[1:]
+                line = raw.decode('utf-8', errors='ignore').strip()
+                if line:
+                    self._handle_line(line)
         except Exception as e:
-            self.get_logger().debug(f"Loop error: {e}")
+            self.get_logger().warn(f"Serial read error: {e}")
+            self._close_serial()
+
+    def publish_status(self):
+        now = time.time()
+        def age(ts):
+            return -1.0 if ts <= 0.0 else round(now - ts, 3)
+        msg = String()
+        payload = {
+            'connected': self.ser is not None and getattr(self.ser, 'is_open', False),
+            'port': self.port,
+            'tx_ok': self.tx_ok,
+            'enc_ok': self.enc_ok,
+            'imu_ok': self.imu_ok,
+            'tx_age_s': age(self.last_tx_time),
+            'rx_age_s': age(self.last_rx_time),
+            'enc_age_s': age(self.last_enc_time),
+            'imu_age_s': age(self.last_imu_time),
+            'last_rx': self.last_rx_line,
+            'last_enc': self.last_enc,
+            'last_imu': self.last_imu,
+        }
+        msg.data = json.dumps(payload)
+        self.status_pub.publish(msg)
+        try:
+            with open('/tmp/esp32_status.json', 'w') as f:
+                json.dump(payload, f)
+        except Exception:
+            pass
 
     def calculate_odometry(self, l_count, r_count):
         now = self.get_clock().now()

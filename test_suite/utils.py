@@ -8,6 +8,8 @@ from typing import Optional, List, Dict, Any, Tuple
 from dataclasses import dataclass
 from contextlib import contextmanager
 
+from test_suite.config import config, env
+
 # Optional imports - handle gracefully if not available
 try:
     import requests
@@ -74,8 +76,8 @@ class ROS2TestClient:
             # Source ROS2 environment before running the command
             cmd_str = " ".join(command)
             docker_cmd = [
-                "docker", "exec", "-t", "auto_ros_foxy", "bash", "-c",
-                f"source /opt/ros/foxy/setup.bash && source /autonomous_ROS/install/setup.bash 2>/dev/null; {cmd_str}"
+                "docker", "exec", "-t", config.CONTAINER_NAME, "bash", "-c",
+                f"source /opt/ros/{env.ROS_DISTRO}/setup.bash && source /autonomous_ROS/install/setup.bash 2>/dev/null; {cmd_str}"
             ]
             result = subprocess.run(
                 docker_cmd,
@@ -94,8 +96,8 @@ class ROS2TestClient:
         cmd = ["stdbuf", "-oL", "timeout", "8", "ros2", "topic", "hz", topic]
         cmd_str = " ".join(cmd)
         docker_cmd = [
-            "docker", "exec", "-t", "auto_ros_foxy", "bash", "-c",
-            f"source /opt/ros/foxy/setup.bash && source /autonomous_ROS/install/setup.bash 2>/dev/null; {cmd_str}"
+            "docker", "exec", "-t", config.CONTAINER_NAME, "bash", "-c",
+            f"source /opt/ros/{env.ROS_DISTRO}/setup.bash && source /autonomous_ROS/install/setup.bash 2>/dev/null; {cmd_str}"
         ]
         try:
             result = subprocess.run(docker_cmd, capture_output=True, text=True, timeout=12)

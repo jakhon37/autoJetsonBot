@@ -8,12 +8,15 @@ from dataclasses import dataclass
 from typing import Optional
 
 
+_ROS_DISTRO = os.environ.get("ROS_DISTRO", "humble")
+
+
 @dataclass
 class RobotConfig:
     """Robot hardware and simulation configuration"""
     # Docker
-    CONTAINER_NAME: str = "auto_ros_foxy"
-    CONTAINER_IMAGE: str = "auto_ros:foxy"
+    CONTAINER_NAME: str = f"auto_ros_{_ROS_DISTRO}"
+    CONTAINER_IMAGE: str = f"auto_ros:{_ROS_DISTRO}"
     
     # Network
     WEB_PORT: int = 8000
@@ -65,7 +68,7 @@ class EnvConfig:
     """Environment configuration"""
     IS_DOCKER: bool = os.path.exists("/.dockerenv")
     IS_SIMULATION: bool = True
-    ROS_DISTRO: str = "foxy"
+    ROS_DISTRO: str = os.environ.get("ROS_DISTRO", "humble")
     DOMAIN_ID: int = 0
 
 

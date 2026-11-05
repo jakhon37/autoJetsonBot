@@ -3,6 +3,28 @@ services:
   autojetsonbot:
     build:
       context: .
+      dockerfile: Dockerfile.humble
+    image: auto_ros:humble
+    container_name: auto_ros_humble
+    network_mode: host
+    ipc: host
+    volumes:
+      - .:/autonomous_ROS
+    privileged: true
+    tty: true
+    environment:
+      - DISPLAY=${DISPLAY:-:0}
+      - ROS_DISTRO=humble
+    # For hardware USB passthrough (uncomment and adjust):
+    # devices:
+    #   - /dev/ttyACM0:/dev/ttyACM0
+    #   - /dev/ttyUSB0:/dev/ttyUSB0
+    # Ports via host network: 5900 (VNC), 8000 (Web UI), 9090 (rosbridge)
+
+  autojetsonbot-foxy:
+    profiles: ["foxy"]
+    build:
+      context: .
       dockerfile: Dockerfile.foxy
     image: auto_ros:foxy
     container_name: auto_ros_foxy
@@ -14,8 +36,4 @@ services:
     tty: true
     environment:
       - DISPLAY=${DISPLAY:-:0}
-    # For hardware USB passthrough (uncomment and adjust):
-    # devices:
-    #   - /dev/ttyACM0:/dev/ttyACM0
-    #   - /dev/ttyUSB0:/dev/ttyUSB0
-    # Ports via host network: 5900 (VNC), 8000 (Web UI), 9090 (rosbridge)
+      - ROS_DISTRO=foxy

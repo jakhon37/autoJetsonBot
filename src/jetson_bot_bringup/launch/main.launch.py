@@ -320,7 +320,7 @@ def launch_setup(context, *args, **kwargs):
             ))
             print(f"✅ [HARDWARE] Motor Bridge: FOUND at {motor_port} ({motor_id})")
         else:
-            print("❌ [HARDWARE ERROR] ESP32 serial port NOT FOUND. Plug in USB (QinHeng/WCH ACM).")
+            print("❌ [HARDWARE ERROR] Motor ESP32 serial port NOT FOUND. Connect its native USB socket (not COM).")
 
         # 3. RPLidar A1 (CP2102 by-id, not a hardcoded ttyUSB that can collide)
         lidar_port, lidar_id = find_lidar_port()

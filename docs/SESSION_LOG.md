@@ -328,3 +328,13 @@ Append concise summaries of work done here. For technical details on *why* thing
 - **Camera Fix:** Branch `wifi-reliability` in `myESP32CAM-BLACKBOX` turns off Wi-Fi power saving, retries home Wi-Fi every 30 s while on the hotspot with nobody connected, and restarts if the sensor fails to start. It's local only and not flashed yet.
 - **Build:** Compiles with placeholder Wi-Fi settings on espressif32 8.0.0 and Arduino core 3.3.12 (RAM 18.5%, flash 38.4%). The repo doesn't pin a platform version, so this may be newer than what's on the camera. Not tested on hardware yet.
 - **Encoders:** Still waiting on whether the second 5 turns were backward.
+
+---
+
+## Session: 2026-11-06 @ 03:30 (Motor Firmware Traced)
+- **Correction:** The earlier "no known source" note was wrong. `imu_viz` had appeared in the search and was set aside without being reported, and a case-sensitive search of the docs missed `docs/IMU_WIRING.md`.
+- **Where It Came From:** The firmware on the ESP32-S3 is `MOTOR-ESP32S3` with IMU code added from `imu_viz` (the `test_IMU` sandbox). The June 11 plan says to move that code into `MOTOR-ESP32S3`, and `IMU_WIRING.md` says it's in `MOTOR-ESP32S3/src/main.cpp`, but that repo's last code commit is June 9. The plan was deleted the same day and survives in commit `b23068e`.
+- **Evidence:** `imu_viz` has an MPU6050 through the Adafruit driver at 50 Hz, with an α=0.8 filter, ±2 g and ±250°/s, on an ESP32-C3. The board's `i` lines run at 50 Hz with the same field order and units, and the wiring doc names the same filter. Pins on the robot are SDA GPIO 1 and SCL GPIO 21.
+- **Search:** 105 `jakhon37` repos and 3 `gachonuz` repos, 277 branches, plus the full history of the 6 firmware repos and this one. No commit has IMU code and encoder interrupts together, so the combined version was never committed. `gh search code` returned nothing, even for text known to be in a public repo, so it isn't usable here.
+- **`encoder_cpr`:** 3,436 goes back to May 2025 and was also in a 2025 firmware for different wheel specs (radius 0.035, separation 0.18). No measurement behind it was found.
+- **Drive Behaviour:** June's notes match `MOTOR-ESP32S3`: open loop, a minimum of 500/1023 power, and a 500 ms timeout. That's probably what's on the board, but it's unconfirmed.

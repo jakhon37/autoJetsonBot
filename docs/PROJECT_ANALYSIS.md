@@ -2,7 +2,7 @@
 
 This is the primary status board. Consult this file to understand the current operational health and the immediate roadmap.
 
-## 📊 Current Status (Updated 2026-11-05)
+## 📊 Current Status (Updated 2026-11-06)
 
 The stack follows **REP 120** and uses a Python Serial Bridge + mature Web UI. Code phases are complete (Docker + sim verified on Foxy). On the Humble stack, the lidar and the ESP32-S3's encoder and IMU streams have been checked on hardware, but the motors haven't been driven yet. All work happens inside Docker (`./robot.sh`). The current target is a Jetson Xavier NX running ROS 2 Humble in Docker; Foxy stays available with `ROS_DISTRO=foxy`.
 
@@ -14,7 +14,7 @@ The stack follows **REP 120** and uses a Python Serial Bridge + mature Web UI. C
 | **Web UI + Global Map** | ✅ Mature | Modular ES6, real-time map/pose/goal overlay. |
 | **EKF Fusion** | ✅ Complete | Pipeline + Madgwick + filtered odom + diagnostics ready. |
 | **Simulation** | ✅ Functional | Full when launched. Under Humble, needs an amd64 host. |
-| **Hardware** | ⚠️ Partial | On 2026-11-05 the RPLidar and ESP32-S3 passed read-only checks under Humble (`/scan` at 6.9 Hz, encoders and IMU at 50 Hz, SLAM building a map). Motors haven't been driven. The ESP32 camera streams to the Jetson over Wi-Fi but isn't connected to ROS yet. |
+| **Hardware** | ⚠️ Partial | On 2026-11-05 the RPLidar and ESP32-S3 passed read-only checks under Humble (`/scan` at 6.9 Hz, encoders and IMU at 50 Hz, SLAM building a map). On 2026-11-06 both encoders counted by hand, but far fewer per turn than configured. Motors haven't been driven. The ESP32 camera streams to the Jetson over Wi-Fi but isn't connected to ROS yet. |
 
 **Primary Focus:** Phase 4 physical validation — mapping + Nav2 on the Jetson car.
 Optimizations applied (2026-06):
@@ -29,9 +29,11 @@ See AGENTS.md for serial/EKF/physical tuning and robot.sh help.
 
 ## 🚧 Critical Blockers
 * **Motors not driven yet under Humble (2026-11-05).** The ESP32-S3 works on its native USB socket, the one next to the RGB LED (`303a:1001` at `/dev/ttyACM0`). Only read-only checks have run, with 0 motor commands sent.
-* **ESP32 camera doesn't come up reliably (2026-11-05).** The camera is an ESP32 Wi-Fi camera, not the Pi Camera v2 the docs assumed, so the kernel's `imx219` errors and the missing `/dev/video*` are expected. It reaches the Jetson at `http://192.168.219.118/stream` (640×480, about 10 fps, about 120 ms ping). One of 3 observed boots failed to join Wi-Fi and fell back to its own `ESP32-CAM` hotspot, which the Jetson can't use. After a plain power-up it was on neither network until its serial port was opened, so test a power cycle.
-* **Nothing publishes camera images.** No launch file starts a camera node, and `camera_go` only opens a local video device, so `/camera/image_raw` has no source. The ESP32 camera needs a node that reads its network stream.
-* **Encoders unverified:** the left was flagged as a connection problem on 2026-06-08 (Pin 18/GND), with no recorded fix. It had counted about 8.6 times as much as the right on 2026-08-21 (429,862 vs 49,727). On 2026-11-05 it read -133,420 with the right at exactly 0, and neither changed during 4 minutes at rest. Test each wheel by hand.
+* **Flashed motor firmware has no known source (2026-11-06).** `MOTOR-ESP32S3` has no IMU code on `main` or `dev`, but the board sends IMU lines at 50 Hz. The source wasn't found under `~/myspace` on the PC or the Jetson. Don't reflash from that repo, or the IMU stream goes away. How the board reacts to drive commands is unknown, so keep the wheels off the ground for the first drive.
+* **ESP32 camera doesn't come up reliably (2026-11-06).** The camera is an AI-Thinker ESP32-CAM (OV2640) on Wi-Fi, not the Pi Camera v2 the docs assumed, so the kernel's `imx219` errors and the missing `/dev/video*` are expected. Its firmware, [`myESP32CAM-BLACKBOX`](https://github.com/jakhon37/myESP32CAM-BLACKBOX), tries Wi-Fi once for 10 s at boot, then stays on its `ESP32-CAM` hotspot until reset, and the Jetson can't use that hotspot. It halts with no network if the sensor fails to start. Of 3 resets, 1 fell back to the hotspot. Of 2 plain power-ups, 1 joined Wi-Fi and 1 was on neither network.
+* **ESP32 camera stream is slow and uneven (2026-11-06).** At `http://192.168.219.118/stream` (640×480) it ran at 1.8 to 9.7 fps. Idle ping was 120 to 320 ms, while the router and the Jetson's own Wi-Fi are fast, so the camera's radio is the slow part. The firmware leaves Wi-Fi power saving on, which is the likely cause but isn't proven. Video delay hasn't been measured.
+* **Nothing publishes camera images.** No launch file starts a camera node, and `camera_go` only opens a local video device, so `/camera/image_raw` has no source. The ESP32 camera needs a node that reads `/stream`. It must be the stream's only client because the firmware serves one request at a time, reconnect if the stream drops, and stamp frames on arrival because they carry no timestamps. It shouldn't poll `/capture`, since each call saves a file to the SD card.
+* **Encoders unverified (2026-11-06):** both count by hand, but R moved +314 and L -290 for what should have been one turn each, against 3,436 configured. If that holds, odometry reports about 1/11 of real distance. No measurement behind 3,436 was found, and the firmware's older `dev` branch says 360. The signs are the reverse of what the bridge expects if the wheels were turned forward, and left and right may be swapped. L also jumped by -75,118 with no commands sent and R moving 103, after an earlier unexplained -133,420, and it was flagged as a connection problem on 2026-06-08 (Pin 18/GND). Test with marked wheels before changing `encoder_cpr`.
 * **IMU bias not calibrated:** at rest the gyro's z axis reads about 0.024 rad/s (1.4°/s), and `/odom_filtered` yaw drifts about 0.1°/s.
 
 ## 🗺️ Roadmap & Active Tasks — Perfect Phases
@@ -87,4 +89,4 @@ Phases are accurate as of 2026-11-05. See `docs/imu_nav2_roadmap_v2.md` for the 
 ## 🛠️ Active Context (2026-11-05)
 The Humble Docker port was made on the Jetson in 2026-08 and committed on 2026-11-05 (PR #2). Docker-only dev. Container idle until `./robot.sh sim/robot/nav`.
 
-**Next for physical:** Test both encoders by hand (see Critical Blockers), start the container only after USB devices are plugged in, then run bias calibration (Phase 2a in roadmap) and validate on hardware. Use `./robot.sh` for everything.
+**Next for physical:** Test both encoders with marked wheels (see Critical Blockers), start the container only after USB devices are plugged in, then run bias calibration (Phase 2a in roadmap) and validate on hardware. Use `./robot.sh` for everything.

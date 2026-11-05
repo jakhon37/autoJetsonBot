@@ -342,7 +342,7 @@ def launch_setup(context, *args, **kwargs):
             ))
             print(f"✅ [HARDWARE] RPLidar: FOUND at {lidar_port} ({lidar_id})")
         else:
-            print(f"❌ [HARDWARE ERROR] Lidar port {lidar_port} NOT FOUND. Connect RPLidar via USB.")
+            print("❌ [HARDWARE ERROR] Lidar serial port NOT FOUND. Connect RPLidar via USB.")
         
         if not hardware_active:
             print("🛑 [FATAL WARNING] No critical sensors found. SLAM/Navigation will be DISABLED to prevent crash.")

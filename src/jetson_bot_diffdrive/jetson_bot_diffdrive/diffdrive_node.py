@@ -39,6 +39,7 @@ class DiffDriveBridge(Node):
         self.th = 0.0
         self.left_pos = 0.0
         self.right_pos = 0.0
+        self.have_enc_baseline = False
         self.last_time = self.get_clock().now()
 
         # Serial Connection
@@ -95,6 +96,7 @@ class DiffDriveBridge(Node):
                 pass
             self.ser.reset_input_buffer()
             self._rx_buf = b''
+            self.have_enc_baseline = False
             self.get_logger().info(f"✅ Connected to ESP32 on {port}")
         except Exception as e:
             self.get_logger().error(f"❌ Serial Error ({port}): {e}")
@@ -176,6 +178,7 @@ class DiffDriveBridge(Node):
             self.imu_ok += 1
         elif "READY" in line:
             self.get_logger().info(f"📡 ESP32 Reboot Detected: {line}")
+            self.have_enc_baseline = False
 
     def update_loop(self):
         if not self.ser:
@@ -244,6 +247,12 @@ class DiffDriveBridge(Node):
         # Convert counts to meters
         dist_l = (l_count / self.encoder_cpr) * (2 * math.pi * self.wheel_rad)
         dist_r = (r_count / self.encoder_cpr) * (2 * math.pi * self.wheel_rad)
+
+        # The ESP32 keeps its counts while the bridge is down, so start from them.
+        if not self.have_enc_baseline:
+            self.left_pos = dist_l
+            self.right_pos = dist_r
+            self.have_enc_baseline = True
 
         d_l = dist_l - self.left_pos
         d_r = dist_r - self.right_pos

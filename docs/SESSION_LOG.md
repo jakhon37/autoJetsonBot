@@ -253,3 +253,12 @@ Append concise summaries of work done here. For technical details on *why* thing
 - **use_sim_time:** Tested `slam_toolbox` in a throwaway Humble container. The launch argument always wins over `mapper_params.yaml`, so the YAML line added in the port had no effect and was removed.
 - **Cleanup:** Removed the unused plain `Dockerfile` (identical to `Dockerfile.humble` apart from blank lines). Updated docs to the Xavier NX + Humble target and corrected stale wheel specs in `GEMINI.md`.
 - **Hardware Audit:** Only the RPLidar's CP2102 adapter is detected. ESP32 and camera are not, so physical validation is still open.
+
+---
+
+## Session: 2026-11-05 @ 21:40 (Humble Hardware Bring-up: Lidar)
+- **Lidar:** First run on hardware under Humble. Health OK (firmware 1.29, hardware rev 7), `/scan` at 6.46 Hz with 360 points per scan. Only 40% of points were valid, with most returns within 30 cm, so check for obstructions on the chassis. The scan's front direction is not yet checked against the robot.
+- **ESP32:** Still not detected. The lidar is the only USB device to appear since boot, and there was no failed enumeration, which points at the cable or USB socket. A status file left in the container shows it running on this Jetson on 2026-08-21 at `/dev/ttyACM0`, with 356,570 encoder and IMU packets.
+- **Camera:** Still not detected. The `imx219` driver is loaded and probed both CSI ports at boot, and neither answered (`-121`). No launch file starts `camera_go`, so `/camera/image_raw` has no publisher yet.
+- **Bug Fix:** `./robot.sh status` read that leftover file as live and reported encoders and IMU OK with no ESP32 attached. It now ignores the file unless it was written in the last 5 seconds (the bridge writes it every second).
+- **Safety:** With no ESP32 the launch doesn't start the bridge, so `/cmd_vel` had no subscriber and nothing could drive. Motors, encoders and IMU remain untested on this date.

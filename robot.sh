@@ -476,7 +476,7 @@ else:
 PY
 
     docker exec -i "$CONTAINER_NAME" python3 - <<'PY' || echo -e "Bridge:     ${RED}FAIL${NC}  could not query ESP32"
-import json, os, glob
+import json, os, glob, time
 GREEN, YELLOW, RED, NC = "\033[0;32m", "\033[1;33m", "\033[0;31m", "\033[0m"
 
 bridge = False
@@ -493,8 +493,10 @@ print(("Bridge:     %sOK%s  diffdrive_bridge" % (GREEN, NC)) if bridge else
 
 data = {}
 try:
-    with open("/tmp/esp32_status.json") as f:
-        data = json.load(f)
+    # The bridge rewrites this every second. An older file is left over from a past run.
+    if time.time() - os.path.getmtime("/tmp/esp32_status.json") < 5:
+        with open("/tmp/esp32_status.json") as f:
+            data = json.load(f)
 except Exception:
     pass
 

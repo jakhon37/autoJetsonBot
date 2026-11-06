@@ -351,3 +351,16 @@ Append concise summaries of work done here. For technical details on *why* thing
 - **Changed Since 02:06:** The camera was re-plugged at 02:41 and has moved, since its view is different. USB power or noise near the PC is the next thing to test, with a phone charger away from the PC.
 - **Boot After Flashing:** The camera was unreachable for about 80 s after the 04:10 flash, which fits a failed first join followed by a successful retry. No serial log was captured for that boot.
 - **Serial Port:** This programmer board stays in reset if DTR and RTS are held active, so clear them before opening the port. Reading flash failed at 921600 baud and worked at 460800.
+
+---
+
+## Session: 2026-11-06 @ 13:05 (Camera on a Charger: Network Recovered, No Frames at VGA)
+- **Setup:** The ESP32-CAM runs `wifi-reliability` (`cc2aea2`) from a phone charger away from the PC, with no USB data connection. It rejoined `REMOVED` by itself at `192.168.219.118`. Measured over the network only, 12:48 to 13:03.
+- **Network Recovered:** The 18 KB page from flash downloads at a median of 177 KB/s from the PC and 153 KB/s from the Jetson, against about 5 KB/s at 04:30. Idle ping averages 5 to 9 ms from both, with 1 packet lost out of 160. Page speed and ping are the same at QVGA and VGA, so capture load isn't what slowed the page at 04:30.
+- **Cause of the Recovery Unknown:** Power source, position and time of day all changed together.
+- **Stream by Frame Size:** QQVGA runs at 7.2 to 9.6 fps with 3.8 KB frames. QVGA runs at 3.8 to 8.2 fps with 11 KB frames, and stalls for up to 2.8 s. VGA, SVGA and XGA deliver no frames, with 0 bytes and the connection left open.
+- **Where It Fails:** `/capture` at VGA returned HTTP 500 after 4.03 s, which is the driver's frame timeout. `/status` answers while a client holds `/stream`, because the handler has already given up. The handler sends nothing until it has a frame, so the client just waits.
+- **Not Wi-Fi or a Dead Sensor:** QVGA from the same boot gives a clear picture of a room. VGA worked earlier in other views: 7.5 to 9.7 fps with frames of about 12 KB at 02:05, and 0.1 to 0.8 fps with frames of about 24 KB at 04:08.
+- **Frame Size Pattern:** Delivery falls as frames get bigger: 3.8 KB at up to 9.6 fps, 11 KB at up to 8.2 fps, 24 KB under 1 fps, and nothing at VGA now. The view isn't unusual: at the same size and JPEG tables it has 1.2 times the detail of the 04:21 view, so a VGA frame should be about 26 to 45 KB.
+- **Two Possible Causes, Both Untested:** The driver sizes its JPEG buffer once at boot as width × height / 5, which is 61,440 bytes for VGA, and throws away a frame that overflows it (`esp32-camera` at `f0bb429`, the version in this core). That estimate sits under the limit, though, so a failure that grows with frame length is also possible. The driver's task shares core 0 with Wi-Fi and drops the frame if it falls behind. Its overflow warnings are compiled out, so the serial port wouldn't show the first case.
+- **Side Effects:** One `/capture` call failed, so nothing was saved to the SD card. Frame size changes reset on reboot, and the camera was left at VGA.

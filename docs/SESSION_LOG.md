@@ -364,3 +364,24 @@ Append concise summaries of work done here. For technical details on *why* thing
 - **Frame Size Pattern:** Delivery falls as frames get bigger: 3.8 KB at up to 9.6 fps, 11 KB at up to 8.2 fps, 24 KB under 1 fps, and nothing at VGA now. The view isn't unusual: at the same size and JPEG tables it has 1.2 times the detail of the 04:21 view, so a VGA frame should be about 26 to 45 KB.
 - **Two Possible Causes, Both Untested:** The driver sizes its JPEG buffer once at boot as width × height / 5, which is 61,440 bytes for VGA, and throws away a frame that overflows it (`esp32-camera` at `f0bb429`, the version in this core). That estimate sits under the limit, though, so a failure that grows with frame length is also possible. The driver's task shares core 0 with Wi-Fi and drops the frame if it falls behind. Its overflow warnings are compiled out, so the serial port wouldn't show the first case.
 - **Side Effects:** One `/capture` call failed, so nothing was saved to the SD card. Frame size changes reset on reboot, and the camera was left at VGA.
+
+---
+
+## Session: 2026-11-06 @ 13:25 (Camera Lens Test: 640×480 Back, First Boot Unexplained)
+- **Test:** At 640×480 on the charger, frames were logged while the view was changed by hand: lens covered, plain wall, then back to the room.
+- **Simple Views:** The view from the 12:48 test gave no frames until about 13:08:50, when the camera was picked up. After that, frames of 8 to 21 KB ran at a full 10 fps. 8.3 KB looks like the minimum for a flat picture at this size. For about 20 s at that size the rate fell to 2 to 10 fps, which fits a hand near the antenna.
+- **Room View:** 640×480 now works there. It gave 1 to 2 fps at 13:11, with two 5 s gaps, and 3 to 7 fps by 13:14, with frames of 23 to 24 KB.
+- **Not a Size Limit:** In the same view, 800×600 delivered 34 KB frames at 3.2 fps. So neither the 60 KB buffer nor a limit near 23 KB explains this view, and the "stops dead at 23 KB" reading from earlier in this test was wrong.
+
+| Size | Frame | From the PC | From the Jetson |
+| :--- | :--- | :--- | :--- |
+| 160×120 | 2.9 KB | 10.1 fps | Not measured |
+| 320×240 | 8.2 KB | 9.3 fps, 78 KB/s | 9.8 fps, 83 KB/s |
+| 640×480 | 23.6 KB | 4.1 to 4.9 fps, 96 to 118 KB/s | 2.9 fps, 70 KB/s |
+| 800×600 | 34 KB | 3.2 fps, 110 KB/s | Not measured |
+
+- **Stalls at 640×480:** Asking for 2 fps delivered 1.6 fps with one 3.1 s gap, and asking for 5 fps delivered 3.4 fps. So it's more than a fixed throughput ceiling: a stall this long at 46 KB/s isn't explained by bandwidth. Whether it's capture or the link is untested. 320×240 had no gap over 0.5 s in this view.
+- **Still Unexplained:** Why the first boot on the charger gave no frames at 640×480 or larger for 20 minutes. Scaling from this view, its 640×480 frames should have been about 31 KB, smaller than the 34 KB that passes here.
+- **Reboots While Handled:** The camera went offline at about 13:08:43 for up to 7 s, and from 13:10:03 to 13:10:28. "Connection refused" in the second shows a reboot. Whether those were power being pulled is unconfirmed.
+- **Older Photos:** On the SD card, 640×480 photos are 9.4 to 19.9 KB and the largest photo is 28.3 KB at 1024×768, so they don't show bigger frames working in the past. Read for size only, nothing was kept.
+- **Next:** Three plain power-ups in the same view, logging frames next to a 5 Hz ping.

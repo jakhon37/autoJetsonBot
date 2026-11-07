@@ -34,5 +34,16 @@ def test_ekf_is_the_only_odom_tf_publisher_in_sim():
     assert ekf['base_link_frame'] == diff_cont['base_frame_id'] == 'base_footprint'
 
 
+
+def test_sim_odom_covariance_is_not_zero():
+    """Verify that diff_cont gives the EKF real variances, like the bridge on the robot."""
+    diff_cont = _params('unified_robot_config.yaml', 'diff_cont')
+    for name in ('pose_covariance_diagonal', 'twist_covariance_diagonal'):
+        diagonal = diff_cont[name]
+        assert len(diagonal) == 6
+        assert all(isinstance(v, float) and v > 0.0 for v in diagonal)
+
+
 if __name__ == '__main__':
     test_ekf_is_the_only_odom_tf_publisher_in_sim()
+    test_sim_odom_covariance_is_not_zero()

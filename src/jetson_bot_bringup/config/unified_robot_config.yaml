@@ -46,7 +46,7 @@ diff_cont:
     publish_rate: 100.0
     base_frame_id: "base_footprint"
     odom_frame_id: "odom"
-    enable_odom_tf: true
+    enable_odom_tf: false  # the EKF publishes odom -> base_footprint, as on the robot
     use_stamped_vel: false
     open_loop: false 
 

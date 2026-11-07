@@ -94,7 +94,7 @@ Gazebo needs time to start, so the launch staggers things: the robot spawns at 5
 ```mermaid
 flowchart TD
     map["map"] -->|"slam_toolbox or amcl"| odom["odom"]
-    odom -->|"EKF on the robot<br/>diff_cont + EKF in sim"| bf["base_footprint"]
+    odom -->|"EKF, on the robot and in sim"| bf["base_footprint"]
     bf -->|"fixed, z 0.056"| bl["base_link"]
     bl --> ch["chassis"]
     ch -->|"x 0.064, z 0.161"| laser["laser_frame"]
@@ -106,9 +106,8 @@ flowchart TD
     bl --> cw["caster_wheel"]
 ```
 
-- **Moving transforms:** `map → odom` comes from `slam_toolbox` while mapping and from AMCL while navigating. On the robot, `odom → base_footprint` comes from the EKF, because the bridge and Madgwick have TF publishing turned off.
+- **Moving transforms:** `map → odom` comes from `slam_toolbox` while mapping and from AMCL while navigating. `odom → base_footprint` comes from the EKF, on the robot and in simulation, because the bridge, Madgwick and `diff_cont` have TF publishing turned off.
 - **Fixed transforms:** The rest come from `robot_state_publisher`, which reads the wheel angles from `/joint_states`.
-- **Known issue:** In simulation, both `diff_cont` and the EKF publish `odom → base_footprint`. See the status board.
 
 ## Serial Protocol
 

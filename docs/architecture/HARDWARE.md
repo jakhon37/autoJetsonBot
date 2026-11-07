@@ -27,29 +27,26 @@ A two-wheel differential-drive robot with a front caster, built around a Jetson 
 ## How It Connects
 
 ```mermaid
-flowchart LR
-    subgraph robot["Robot"]
-        jetson["Jetson Xavier NX<br/>ROS 2 Humble in Docker"]
-        esp["ESP32-S3<br/>motor and IMU firmware"]
-        driver["TB6612FNG<br/>motor driver"]
-        motorL["Left motor<br/>JGA25-370 + encoder"]
-        motorR["Right motor<br/>JGA25-370 + encoder"]
-        imu["MPU6050 IMU"]
-        lidar["RPLidar A1"]
-        cam["ESP32-CAM<br/>OV2640"]
-    end
+flowchart TB
     op["Laptop or phone<br/>Web UI, SSH, VNC"]
-
-    jetson <-->|"USB serial: m, e, i lines"| esp
+    cam["ESP32-CAM<br/>OV2640"]
+    jetson["Jetson Xavier NX<br/>ROS 2 Humble in Docker"]
+    lidar["RPLidar A1"]
+    esp["ESP32-S3<br/>motor and IMU firmware"]
+    imu["MPU6050 IMU"]
+    driver["TB6612FNG<br/>motor driver"]
+    motorL["Left motor<br/>JGA25-370 + encoder"]
+    motorR["Right motor<br/>JGA25-370 + encoder"]
+    op -.->|"Wi-Fi"| jetson
+    cam -.->|"Wi-Fi MJPEG"| jetson
     lidar -->|"USB, CP2102"| jetson
+    jetson <-->|"USB serial: m, e, i lines"| esp
+    imu -->|"I2C"| esp
     esp -->|"PWM + direction"| driver
     driver --> motorL
     driver --> motorR
     motorL -->|"A/B pulses"| esp
     motorR -->|"A/B pulses"| esp
-    imu -->|"I2C"| esp
-    cam -.->|"Wi-Fi MJPEG"| jetson
-    jetson -.->|"Wi-Fi"| op
 ```
 
 ## ESP32-S3 Pin Map

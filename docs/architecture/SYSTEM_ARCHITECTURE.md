@@ -172,4 +172,4 @@ Ports 9090 and 5900 have no authentication, so keep the robot on a trusted netwo
 
 ## Known Issues
 
-The status board lists what a code review found while these docs were written: the duplicate simulation transform, the EKF's yaw input, odometry speed spikes, the dashboard's ROS 1 goal API and more. See [PROJECT_ANALYSIS.md](../PROJECT_ANALYSIS.md).
+The status board lists what a code review found while these docs were written. The software fixes from 2026-11-07 (the duplicate simulation transform, odometry speed spikes, zero `/odom` covariance, the dashboard's ROS 1 goal API and more) still need a run in simulation or on the robot. The EKF's yaw input, the IMU frame and the Nav2 footprint are among those still open. See [PROJECT_ANALYSIS.md](../PROJECT_ANALYSIS.md).

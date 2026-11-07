@@ -87,9 +87,10 @@ Run `./robot.sh clean && ./robot.sh build` after switching distros, because a Fo
 python3 run_tests.py --quick      # smoke test
 python3 run_tests.py --all        # everything
 python3 run_tests.py --hardware   # needs the robot
+python3 run_tests.py --unit       # no container needed
 ```
 
-These are smoke and presence checks rather than full tests. [test_suite/README.md](../../test_suite/README.md) lists the categories.
+These are smoke and presence checks rather than full tests. The packages' own unit tests, such as the bridge's odometry in `src/jetson_bot_diffdrive/test/`, need no ROS either: run them with `python3 -m pytest` or one file at a time with `python3`. [test_suite/README.md](../../test_suite/README.md) lists the categories.
 
 ## Legacy: Jetson Nano
 

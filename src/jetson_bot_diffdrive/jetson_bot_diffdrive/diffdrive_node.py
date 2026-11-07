@@ -13,6 +13,8 @@ from std_msgs.msg import String
 import serial
 import tf2_ros
 
+from jetson_bot_diffdrive.odometry import WheelOdometry, encoder_dt, parse_encoder_line
+
 class DiffDriveBridge(Node):
     def __init__(self):
         super().__init__('diffdrive_bridge')
@@ -24,6 +26,9 @@ class DiffDriveBridge(Node):
         self.declare_parameter('wheel_radius', 0.034)
         self.declare_parameter('encoder_cpr', 3436)
         self.declare_parameter('loop_rate', 50.0)
+        # Rate of the ESP32's 'e' lines. A slower firmware is fine, a faster one isn't:
+        # no line counts as covering less than one period.
+        self.declare_parameter('encoder_rate', 50.0)
         self.declare_parameter('publish_tf', True) # Added for EKF compatibility
 
         self.port = self.get_parameter('port').value
@@ -34,12 +39,9 @@ class DiffDriveBridge(Node):
         self.publish_tf = self.get_parameter('publish_tf').value
         
         # State
-        self.x = 0.0
-        self.y = 0.0
-        self.th = 0.0
-        self.left_pos = 0.0
-        self.right_pos = 0.0
-        self.have_enc_baseline = False
+        self.odometry = WheelOdometry(self.wheel_sep, self.wheel_rad, self.encoder_cpr)
+        self.min_enc_dt = 1.0 / self.get_parameter('encoder_rate').value
+        self.enc_dt = self.min_enc_dt
         self.last_time = self.get_clock().now()
 
         # Serial Connection
@@ -96,7 +98,7 @@ class DiffDriveBridge(Node):
                 pass
             self.ser.reset_input_buffer()
             self._rx_buf = b''
-            self.have_enc_baseline = False
+            self.odometry.reset_baseline()
             self.get_logger().info(f"✅ Connected to ESP32 on {port}")
         except Exception as e:
             self.get_logger().error(f"❌ Serial Error ({port}): {e}")
@@ -153,19 +155,14 @@ class DiffDriveBridge(Node):
             self.get_logger().info(f"ESP32 RX: {line}")
 
         low = line.lower()
-        if low.startswith('e ') or low.startswith('e\t'):
-            parts = line.split()
-            if len(parts) >= 3:
-                try:
-                    l_count = int(float(parts[1]))
-                    r_count = int(float(parts[2]))
-                    # FIX: Right encoder inversion to match inverted motor
-                    self.calculate_odometry(l_count, -r_count)
-                    self.last_enc = [l_count, r_count]
-                    self.last_enc_time = time.time()
-                    self.enc_ok += 1
-                except ValueError:
-                    return
+        counts = parse_encoder_line(line)
+        if counts:
+            l_count, r_count = counts
+            # FIX: Right encoder inversion to match inverted motor
+            self.calculate_odometry(l_count, -r_count)
+            self.last_enc = [l_count, r_count]
+            self.last_enc_time = time.time()
+            self.enc_ok += 1
         elif low.startswith('i '):
             imu_msg = String()
             imu_msg.data = line
@@ -178,7 +175,7 @@ class DiffDriveBridge(Node):
             self.imu_ok += 1
         elif "READY" in line:
             self.get_logger().info(f"📡 ESP32 Reboot Detected: {line}")
-            self.have_enc_baseline = False
+            self.odometry.reset_baseline()
 
     def update_loop(self):
         if not self.ser:
@@ -189,6 +186,7 @@ class DiffDriveBridge(Node):
             n = self.ser.in_waiting
             if n:
                 self._rx_buf += self.ser.read(n)
+            lines = []
             while True:
                 sep_n = self._rx_buf.find(b'\n')
                 sep_r = self._rx_buf.find(b'\r')
@@ -198,7 +196,7 @@ class DiffDriveBridge(Node):
                         line = self._rx_buf.decode('utf-8', errors='ignore').strip()
                         self._rx_buf = b''
                         if line:
-                            self._handle_line(line)
+                            lines.append(line)
                     break
                 sep = min(seps)
                 raw = self._rx_buf[:sep]
@@ -207,7 +205,18 @@ class DiffDriveBridge(Node):
                     self._rx_buf = self._rx_buf[1:]
                 line = raw.decode('utf-8', errors='ignore').strip()
                 if line:
-                    self._handle_line(line)
+                    lines.append(line)
+
+            # Timing each 'e' line by when it's handled gives a near-zero dt to the second
+            # of two lines read together, and v and w spike. See encoder_dt.
+            n_enc = sum(1 for line in lines if parse_encoder_line(line))
+            if n_enc:
+                now = self.get_clock().now()
+                elapsed = (now - self.last_time).nanoseconds / 1e9
+                self.enc_dt = encoder_dt(elapsed, n_enc, self.min_enc_dt)
+                self.last_time = now
+            for line in lines:
+                self._handle_line(line)
         except Exception as e:
             self.get_logger().warn(f"Serial read error: {e}")
             self._close_serial()
@@ -241,41 +250,16 @@ class DiffDriveBridge(Node):
 
     def calculate_odometry(self, l_count, r_count):
         now = self.get_clock().now()
-        dt = (now - self.last_time).nanoseconds / 1e9
-        if dt <= 0: return
-
-        # Convert counts to meters
-        dist_l = (l_count / self.encoder_cpr) * (2 * math.pi * self.wheel_rad)
-        dist_r = (r_count / self.encoder_cpr) * (2 * math.pi * self.wheel_rad)
-
-        # The ESP32 keeps its counts while the bridge is down, so start from them.
-        if not self.have_enc_baseline:
-            self.left_pos = dist_l
-            self.right_pos = dist_r
-            self.have_enc_baseline = True
-
-        d_l = dist_l - self.left_pos
-        d_r = dist_r - self.right_pos
-        self.left_pos = dist_l
-        self.right_pos = dist_r
-
-        d_dist = (d_l + d_r) / 2.0
-        d_th = (d_r - d_l) / self.wheel_sep
-
-        self.x += d_dist * math.cos(self.th + d_th/2.0)
-        self.y += d_dist * math.sin(self.th + d_th/2.0)
-        self.th += d_th
-
-        v_x = d_dist / dt
-        v_th = d_th / dt
+        v_x, v_th, wheel_angles, wheel_rates = self.odometry.update(
+            l_count, r_count, self.enc_dt)
 
         odom = Odometry()
         odom.header.stamp = now.to_msg()
         odom.header.frame_id = 'odom'
         odom.child_frame_id = 'base_footprint'
-        odom.pose.pose.position.x = self.x
-        odom.pose.pose.position.y = self.y
-        odom.pose.pose.orientation = self.euler_to_quaternion(0, 0, self.th)
+        odom.pose.pose.position.x = self.odometry.x
+        odom.pose.pose.position.y = self.odometry.y
+        odom.pose.pose.orientation = self.euler_to_quaternion(0, 0, self.odometry.th)
         odom.twist.twist.linear.x = v_x
         odom.twist.twist.angular.z = v_th
         self.odom_pub.publish(odom)
@@ -286,19 +270,17 @@ class DiffDriveBridge(Node):
             t.header.stamp = now.to_msg()
             t.header.frame_id = 'odom'
             t.child_frame_id = 'base_footprint'
-            t.transform.translation.x = self.x
-            t.transform.translation.y = self.y
+            t.transform.translation.x = self.odometry.x
+            t.transform.translation.y = self.odometry.y
             t.transform.rotation = odom.pose.pose.orientation
             self.tf_broadcaster.sendTransform(t)
 
         js = JointState()
         js.header.stamp = now.to_msg()
         js.name = ['left_wheel_joint', 'right_wheel_joint']
-        js.position = [dist_l / self.wheel_rad, dist_r / self.wheel_rad]
-        js.velocity = [d_l / dt / self.wheel_rad, d_r / dt / self.wheel_rad]
+        js.position = wheel_angles
+        js.velocity = wheel_rates
         self.joint_pub.publish(js)
-
-        self.last_time = now
 
     def euler_to_quaternion(self, roll, pitch, yaw):
         qx = math.sin(roll/2) * math.cos(pitch/2) * math.cos(yaw/2) - math.cos(roll/2) * math.sin(pitch/2) * math.sin(yaw/2)

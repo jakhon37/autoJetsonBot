@@ -137,7 +137,7 @@ sequenceDiagram
 | ESP32 → Jetson | `i <ax> <ay> <az> <gx> <gy> <gz>` | MPU6050 readings in m/s² and rad/s, passed on as `/serial_imu_raw` |
 | ESP32 → Jetson | `READY` | The board rebooted, so the bridge takes the next counts as its new baseline |
 
-**Odometry:** Each `e` line becomes a distance per wheel (`counts / encoder_cpr × 2π × 0.034`). The bridge takes the change since the last line, integrates the pose at the midpoint heading, and publishes `/odom` and `/joint_states`. The first line after connecting only sets the baseline, so `/odom` starts at zero.
+**Odometry:** Each `e` line becomes a distance per wheel (`counts / encoder_cpr × 2π × 0.034`). The bridge takes the change since the last line, integrates the pose at the midpoint heading, and publishes `/odom` and `/joint_states`. Speeds divide that change by the time the line covers: the lines read in one 20 ms tick share the time since the last tick that had any, and none counts as shorter than one 50 Hz period (`encoder_rate`). The first line after connecting only sets the baseline, so `/odom` starts at zero.
 
 **Keep-alive:** The bridge doesn't resend commands, so the motors keep running only while something streams `/cmd_vel`. The dashboard sends at 10 Hz while a key is held, and Nav2's velocity smoother at 20 Hz.
 

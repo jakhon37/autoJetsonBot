@@ -1,203 +1,210 @@
-# autoJetsonBot
-
-ROS 2 mobile robot on NVIDIA Jetson. The current target is a Jetson Xavier NX running ROS 2 Humble in Docker; the original Jetson Nano B01 and Foxy setup stays available. The same URDF, `slam_toolbox`, AMCL, and Nav2 stack run on the chassis and in Gazebo. Low-level control is an ESP32 serial bridge; sensing is RPLidar A1, wheel encoders, and an MPU6050.
-
-Demo: [YouTube](https://youtu.be/JTg8ff2hSGM)
+<h1 align="center">autoJetsonBot</h1>
 
 <p align="center">
-  <a href="https://youtu.be/JTg8ff2hSGM?si=UqfauM6vN_xyPFOV">
-    <img src="assets/gitpage.jpg" alt="Physical robot, Cirkit wiring, and Web UI" width="100%">
+  <b>An autonomous ROS 2 mobile robot on a Jetson Xavier NX, with a Gazebo digital twin that runs the same stack.</b><br>
+  SLAM · AMCL + Nav2 · EKF wheel and IMU fusion · ESP32-S3 real-time controller · Web dashboard · Docker
+</p>
+
+<p align="center">
+  <img alt="ROS 2 Humble" src="https://img.shields.io/badge/ROS%202-Humble-22314E?logo=ros&logoColor=white">
+  <img alt="NVIDIA Jetson Xavier NX" src="https://img.shields.io/badge/NVIDIA-Jetson%20Xavier%20NX-76B900?logo=nvidia&logoColor=white">
+  <img alt="ESP32-S3" src="https://img.shields.io/badge/MCU-ESP32--S3-E7352C?logo=espressif&logoColor=white">
+  <img alt="Docker" src="https://img.shields.io/badge/Docker-Humble%20%7C%20Foxy-2496ED?logo=docker&logoColor=white">
+  <img alt="Gazebo Classic" src="https://img.shields.io/badge/Simulation-Gazebo%20Classic-F58113">
+  <img alt="MIT License" src="https://img.shields.io/badge/License-MIT-blue">
+</p>
+
+<p align="center">
+  <a href="https://youtu.be/JTg8ff2hSGM">
+    <img src="assets/hero.jpg" alt="The robot, its first wiring diagram, and the web dashboard" width="100%">
   </a>
   <br>
-  <em>Physical chassis · Cirkit wiring (Jetson + ESP32 + motors/IMU/LiDAR) · Web dashboard</em>
+  <em>The robot · its first wiring diagram · the web dashboard. Click for the demo video.</em>
 </p>
-
----
-
-## 🤖 Robot Structure
-
-Grey 3D-printed chassis, RPLidar A1 on a raised mount, Jetson WiFi antenna, and a dual-motor undercarriage with a front caster.
 
 <p align="center">
-  <img src="assets/side_rb.jpg" alt="Side view — RPLidar mount and Jetson WiFi antenna" width="32%">
-  <img src="assets/upfront_rb.jpg" alt="Front-three-quarter view — chassis and LiDAR" width="32%">
-  <img src="assets/front_rb.jpg" alt="Undercarriage — dual geared motors, encoders, caster" width="32%">
+  <a href="docs/architecture/SYSTEM_ARCHITECTURE.md"><b>Architecture</b></a> ·
+  <a href="docs/architecture/HARDWARE.md"><b>Hardware</b></a> ·
+  <a href="docs/experiments/RESULTS.md"><b>Experiments and Results</b></a> ·
+  <a href="docs/guides/GETTING_STARTED.md"><b>Getting Started</b></a> ·
+  <a href="https://youtu.be/JTg8ff2hSGM"><b>Demo Video</b></a>
 </p>
 
-| View | What it shows |
-| :--- | :--- |
-| **Side** | RPLidar A1 on standoffs, Jetson WiFi antenna, driven wheel |
-| **Front 3/4** | Compact grey enclosure and top-mounted scanner |
-| **Undercarriage** | Twin N20/GA12-N20 class geared motors, Hall encoders, front caster |
-
 ---
 
-## Status
+## The Idea
 
-| System | Detail |
-| :--- | :--- |
-| **Platform** | ROS 2 Humble in Docker by default; Foxy with `ROS_DISTRO=foxy` |
-| **TF tree** | `map → odom → base_footprint → base_link` (REP 120) |
-| **Hardware** | Python serial bridge (`diffdrive_node`) to the ESP32 |
-| **Navigation** | AMCL + DWB local planner |
-| **Simulation** | Gazebo model matched to measured chassis dimensions |
+Build the robot twice, once in Gazebo and once in hardware, and run **one ROS 2 stack** on both. The simulated robot uses the real one's measured dimensions and publishes the same topics and frames, so mapping, localization, navigation and the dashboard are developed in simulation and then run on the Jetson with only the drivers swapped. One script, `robot.sh`, builds and launches either mode in Docker.
 
----
-
-## 🏗️ System Architecture (Modular)
-
-The project is decomposed into specialized ROS 2 packages within the `src/` directory to maximize maintainability and scalability.
-
-| Package | Responsibility | Key Components |
-| :--- | :--- | :--- |
-| **`jetson_bot_bringup`** | Orchestration | Launch files, world files, global config (`unified_robot_config.yaml`). |
-| **`jetson_bot_description`**| Physical Model | URDF/XACRO definitions, mesh resources, sensor placements. |
-| **`jetson_bot_gui`** | Web Dashboard | Telemetry server, roslibjs bridge, and real-time UI. |
-| **`jetson_bot_slam`** | Environment Mapping| `slam_toolbox` configurations for asynchronous mapping. |
-| **`jetson_bot_navigation`**| Path Planning | Nav2 parameters, Behavior Trees, and Local/Global planners. |
-| **`jetson_bot_imu`** | Sensor Driver | Python driver for MPU6050 I2C communication. |
-| **`jetson_bot_diffdrive`**| HW Interface | **Python Serial Bridge** for ESP32/Arduino communication. |
-| **`jetson_bot_detection`** | Computer Vision | Image processing node for real-time detection. |
-
-### Project Directory Layout
-```text
-autoJetsonBot/
-├── README.md               # You are here
-├── robot.sh                # Unified CLI Control Script
-├── unified_robot_config.yaml # Global Source of Truth
-├── Dockerfile.humble       # Humble/Ubuntu 22.04 Container Definition (default)
-├── Dockerfile.foxy         # Foxy/Ubuntu 20.04 Container Definition
-├── src/                    # ROS 2 Source Workspace
-│   ├── jetson_bot_bringup/  # Master Launch & Configs
-│   ├── jetson_bot_description/ # URDF & Physical Model
-│   ├── jetson_bot_gui/      # Web UI & Telemetry
-│   ├── jetson_bot_navigation/ # Nav2 Stack Configs
-│   ├── jetson_bot_slam/     # SLAM Toolbox Configs
-│   ├── jetson_bot_imu/      # MPU6050 Driver
-│   └── jetson_bot_detection/ # Vision Processing
-├── maps/                   # Saved Occupancy Grid Maps (.yaml, .pgm)
-├── assets/                 # Project images and diagrams
-└── test_suite/             # Integration & Hardware Verification
+```mermaid
+flowchart LR
+    you(["You<br/>dashboard · RViz · robot.sh"])
+    subgraph stack["One ROS 2 stack"]
+        slam["slam_toolbox<br/>mapping"]
+        nav["AMCL + Nav2<br/>navigation"]
+        ekf["EKF<br/>wheel + IMU fusion"]
+    end
+    gz["Gazebo digital twin<br/><code>./robot.sh sim</code>"]
+    hw["Real robot<br/>Xavier NX + ESP32-S3<br/>RPLidar A1 · MPU6050<br/><code>./robot.sh robot</code>"]
+    you --> stack
+    stack <-->|"/cmd_vel out<br/>/scan /odom /imu in"| gz
+    stack <-->|"/cmd_vel out<br/>/scan /odom /imu in"| hw
 ```
 
----
+## Highlights
 
-## 🏎️ Hardware Specification (The "Digital Twin" Standard)
+- **ROS 2 workspace:** Eight `jetson_bot_*` packages: bringup, description, diffdrive bridge, IMU, SLAM, navigation, web GUI and detection.
+- **Digital twin:** A URDF built from a hand-measured audit of the chassis, REP 120 frames (`map → odom → base_footprint → base_link`), and a Gazebo lab world.
+- **Real-time split:** An ESP32-S3 drives the motors and reads the encoders and IMU. A Python serial bridge on the Jetson turns that into odometry, joint states and IMU data at 50 Hz, and a 500 ms failsafe stops the motors if commands stop.
+- **Sensor fusion:** A Madgwick filter and a `robot_localization` EKF fuse wheels and IMU into `/odom_filtered`, which Nav2 uses.
+- **Mapping and navigation:** `slam_toolbox` in async mode, AMCL, and Nav2 with the DWB planner, tuned costmaps and recovery behaviours.
+- **Web dashboard:** Modular ES6 front end over rosbridge, with teleop, a stop button, live lidar, map and path overlay, wheel RPM and system metrics.
+- **Docker workflow:** `robot.sh` builds the image, compiles the workspace and launches simulation, hardware or navigation mode. Humble is the default, and Foxy is still available.
+- **Measured bring-up:** The Humble port runs on the Xavier NX, and the lidar, telemetry, encoders, IMU and Wi-Fi camera were each tested on the robot, with numbers in [RESULTS.md](docs/experiments/RESULTS.md).
 
-The platform is meticulously calibrated to a **1:1 Digital Twin standard**. Every parameter in the simulation exactly matches the physical hardware audit conducted on **2026-06-07**.
-
-<p align="center">
-  <img src="assets/circuit_image.png" alt="Cirkit Designer wiring — Jetson Nano, ESP32, motors, IMU, LiDAR, power" width="80%">
-  <br>
-  <em>Original wiring: Jetson Nano B01 (brain) · ESP32 (motor/IMU bridge) · dual Hall-encoder motors · MPU6050 · RPLidar A1 · isolated 5V rails</em>
-</p>
-
-### 1. Physical Metrics & Kinematics
-*   **Wheel Separation:** 0.212m (Center-to-center)
-*   **Wheel Radius:** 0.034m (3.4cm)
-*   **Ground Clearance:** 0.056m (Floor to chassis floor)
-*   **Chassis Dimensions:** 19.4cm (L) x 17.8cm (W) x 9.7cm (H)
-*   **Total Weight:** 1.4kg (Physics-accurate inertial distribution)
-
-### 2. Compute & Intelligence
-*   **Main Brain:** NVIDIA Jetson Xavier NX (current target, ROS 2 Humble in Docker) – Executes the full ROS 2 stack and vision processing. The original NVIDIA Jetson Nano B01 (4GB) setup stays available through `setup_jetson.sh` and `robot_nano.sh` (native Foxy).
-*   **Low-Level Controller:** ESP32 / Arduino – Real-time PID bridge for motors and encoders.
-*   **HW Interface:** `jetson_bot_diffdrive` – A high-performance Python bridge using a human-readable serial protocol (`m v_l v_r\r`).
-
-### 3. Sensing & Perception
-*   **Lidar:** RPLidar A1 – Positioned at `x=0.064` (forward of axle) and `z=0.161` (from floor).
-*   **IMU:** MPU6050 – Fuses 6-DOF data for improved odometry via EKF (`/odom_filtered`).
-*   **Encoders:** Hall-effect sensors (11 PPR × gear reduction) – High-resolution position feedback.
-*   **Vision:** ESP32 camera over Wi-Fi – Not connected to ROS yet. `web_video_server` on port 8080 streams `/camera/image_raw` once a node publishes it.
+## The Robot
 
 <p align="center">
-  <img src="assets/rplidar.jpg" alt="RPLidar A1 pinout (A1M8-R6)" width="48%">
-  <img src="assets/encoder.jpg" alt="Hall encoder connection and wiring" width="48%">
+  <img src="assets/photos/robot_side.jpg" alt="Side view: RPLidar on standoffs, Wi-Fi antenna, wheel" width="32%">
+  <img src="assets/photos/robot_front_three_quarter.jpg" alt="Front three-quarter view of the enclosure and lidar" width="32%">
+  <img src="assets/photos/robot_undercarriage.jpg" alt="Undercarriage: two encoder gear motors and a caster" width="32%">
 </p>
 
-<p align="center">
-  <img src="assets/motor.png" alt="Encoder wiring sequence (C1/C2 Hall phases)" width="50%">
-</p>
-
-### 4. Power Management
-*   **Battery:** 12V Li-ion (3S)
-*   **Regulation:** Dual buck converters for isolated 5V (Jetson) and 5V/3.3V (Sensors) rails.
-*   **Failsafe:** Software-defined Emergency Stop integrated into the Nav2 action stack.
-
----
-
-## 🚀 Development Workflow (The `robot.sh` CLI)
-
-We utilize a unified control script to manage the dockerized environment efficiently.
-
-### Core Commands
-| Command | Result |
+| Part | Details |
 | :--- | :--- |
-| `./robot.sh image` | Builds the Docker image (Humble by default; `ROS_DISTRO=foxy` for Foxy). |
-| `./robot.sh build` | Rebuilds the modular workspace inside the container. |
-| `./robot.sh auto` | Auto-installs missing dependencies and builds. |
-| `./robot.sh sim` | Launches Gazebo simulation + Web UI in **Mapping Mode**. |
-| `./robot.sh robot` | Launches the stack on the real robot, without RViz or Gazebo. |
-| `./robot.sh nav` | Launches simulation + Nav2 in **Navigation Mode**. |
-| `./robot.sh map2nav` | Saves the current map (if mapping) and switches to Nav2. |
-| `./robot.sh status` | Deep-inspects ROS nodes, topics, ESP32 link, and port health. |
-| `./robot.sh remote` | Prints the Web UI URLs and SSH tunnel command for another PC. |
-| `./robot.sh stop` | Robustly terminates all processes (including Gazebo/VNC). |
+| **Computer** | NVIDIA Jetson Xavier NX Developer Kit, 8 GB, running ROS 2 Humble in Docker |
+| **Real-time controller** | ESP32-S3 with a TB6612FNG motor driver, on the Jetson's USB |
+| **Drive** | Differential drive, 2 × JGA25-370 gear motors with Hall encoders, 68 mm wheels, front caster |
+| **Sensors** | RPLidar A1 (360° lidar), MPU6050 (6-axis IMU), ESP32-CAM (Wi-Fi camera) |
+| **Size** | 19.4 × 17.8 × 9.7 cm chassis, wheel separation 0.212 m |
 
-Under Humble, `./robot.sh sim` needs an amd64 host, because Gazebo Classic packages aren't published for Humble on arm64.
+Parts, wiring, pin map and measurements are in [HARDWARE.md](docs/architecture/HARDWARE.md).
 
-### Web Dashboard
+## How It Works
 
-Teleop, live LiDAR, wheel RPM, and system metrics at [http://localhost:8000](http://localhost:8000). From another PC, use the Jetson's IP, or run `./robot.sh remote` for the SSH tunnel command.
+On the robot, the Jetson runs ROS 2 in a container and talks to the ESP32-S3 over USB serial: wheel speeds go down, and encoder counts and IMU readings come back 50 times a second. The bridge turns the counts into odometry and passes the IMU lines on, the EKF fuses both, and SLAM or AMCL places the robot on the map for Nav2.
+
+```mermaid
+flowchart LR
+    esp["ESP32-S3<br/>motors · encoders · MPU6050"]
+    bridge["diffdrive_node<br/>serial bridge"]
+    imub["imu_bridge_node"]
+    madg["Madgwick filter"]
+    ekf["EKF"]
+    lidar["RPLidar driver"]
+    slam["slam_toolbox<br/>or AMCL"]
+    nav["Nav2"]
+    web["Web dashboard<br/>via rosbridge"]
+    esp -->|"e, i lines, 50 Hz"| bridge
+    bridge -->|"/odom"| ekf
+    bridge -->|"/serial_imu_raw"| imub
+    imub -->|"/imu/data_raw"| madg
+    madg -->|"/imu/data"| ekf
+    ekf -->|"/odom_filtered"| nav
+    lidar -->|"/scan"| slam
+    slam -->|"/map"| nav
+    nav -->|"/cmd_vel"| bridge
+    web -->|"/cmd_vel teleop"| bridge
+    bridge -->|"m left right"| esp
+```
+
+The full node graph, TF tree, serial protocol and launch modes are in [SYSTEM_ARCHITECTURE.md](docs/architecture/SYSTEM_ARCHITECTURE.md).
+
+## Results
+
+| Simulation: driving in the Gazebo lab | Simulation: Nav2 costmap |
+| :---: | :---: |
+| <img src="assets/sim/gazebo_sim.gif" alt="Robot driving in the Gazebo lab world with lidar rays" width="420"> | <img src="assets/sim/nav2_costmap.jpg" alt="Nav2 global costmap with inflated walls" width="420"> |
+| **Real robot: map from the lidar** | **Web dashboard** |
+| <img src="assets/results/map_real_lidar_2026-08-21.png" alt="Occupancy grid built from the real lidar" width="300"> | <img src="assets/ui/web_dashboard.png" alt="Web dashboard with lidar view, teleop pad and robot metrics" width="420"> |
 
 <p align="center">
-  <img src="assets/web_ui.png" alt="Web UI — lidar view, teleop pad, metrics" width="90%">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="assets/results/encoder_counts_dark.svg">
+    <img src="assets/results/encoder_counts_light.svg" alt="Encoders report 344 and 387 counts per wheel turn, against 3,436 configured" width="720">
+  </picture>
 </p>
 
----
+- **Simulation:** Mapping and autonomous goals worked with EKF-fused odometry.
+- **Robot:** Under Humble on the Xavier NX, the lidar runs at 6.46 Hz and `slam_toolbox` builds maps. Encoders and IMU stream at 50 Hz and the full TF chain is up.
+- **Before the first drive:** A hand test showed the encoders report 9 to 10 times fewer counts per turn than configured, and no direction. That's being fixed in a rebuilt motor firmware.
+- **Camera:** The ESP32-CAM streams 320×240 at about 10 fps over Wi-Fi. Firmware changes cut its idle ping from about 300 ms to 13 ms and let it rejoin Wi-Fi on its own.
 
-## 🗺️ Mapping & Navigation Steps
+All seven experiments, with method and numbers, are in [RESULTS.md](docs/experiments/RESULTS.md).
 
-### Phase 1: Creating a Map
-1.  Run `./robot.sh sim`.
-2.  Use the Web UI or a joystick to drive the robot around the environment.
-3.  Monitor mapping progress in RViz (via VNC at `localhost:5900`).
-4.  Save the map dynamically:
-    ```bash
-    ./robot.sh shell "ros2 run nav2_map_server map_saver_cli -f /autonomous_ROS/maps/current_map"
-    ```
+## Project Status
 
-<p align="center">
-  <img src="assets/gaz_rviz.png" alt="Gazebo lab world and RViz laser scan" width="90%">
-  <br>
-  <em>Gazebo lab world (left) + RViz scan (right) during mapping</em>
-</p>
+| Capability | In simulation | On the robot |
+| :--- | :--- | :--- |
+| Mapping (`slam_toolbox`) | ✅ Working | ✅ Maps built from the real lidar |
+| Localization and Nav2 goals | ✅ Working | ⏳ Not run yet, waiting for calibrated odometry |
+| Wheel odometry | ✅ Working | ⚠️ Scale and direction being fixed |
+| IMU and EKF fusion | ✅ Working | ⚠️ Running, gyro bias not yet calibrated |
+| Motor control | ✅ Working | ⏳ Not driven yet under Humble |
+| Web dashboard | ✅ Working | ✅ Teleop, lidar and telemetry used on the robot under Foxy |
+| Camera | ✅ Simulated camera, 640×480 at 10 Hz | ⚠️ Streams over Wi-Fi, not yet a ROS topic |
 
-### Phase 2: Autonomous Navigation
-1.  Verify the map name in `src/jetson_bot_bringup/config/unified_robot_config.yaml`.
-2.  Run `./robot.sh nav` (or `./robot.sh map2nav` after a mapping run).
-3.  The robot will auto-localize at its starting point. Use **"2D Nav Goal"** in RViz to set a destination.
-4.  The system uses the **DWB Local Planner** for smooth obstacle avoidance.
+The live status board, with every open problem, is [PROJECT_ANALYSIS.md](docs/PROJECT_ANALYSIS.md).
 
-<p align="center">
-  <img src="assets/gaz_rviz_costmap.jpg" alt="Gazebo and Nav2 costmap in RViz via VNC" width="90%">
-  <br>
-  <em>Nav2 costmap (inflated walls + local/global layers) over VNC</em>
-</p>
+## Quick Start
 
----
+```bash
+git clone https://github.com/jakhon37/autoJetsonBot.git
+cd autoJetsonBot
+./robot.sh image   # build the ROS 2 Humble Docker image
+./robot.sh build   # build the jetson_bot_* workspace
+./robot.sh sim     # Gazebo + SLAM + dashboard (amd64 host)
+./robot.sh robot   # on the Jetson, with the robot's USB devices plugged in
+```
 
-## 🧠 Project Continuity & Memory
-To maintain long-term technical health, consult these primary documentation nodes:
+Open the dashboard at <http://localhost:8000>, and RViz and Gazebo over VNC at `localhost:5900`. More in [GETTING_STARTED.md](docs/guides/GETTING_STARTED.md), [MAPPING_AND_NAVIGATION.md](docs/guides/MAPPING_AND_NAVIGATION.md) and [HARDWARE_BRINGUP.md](docs/guides/HARDWARE_BRINGUP.md).
 
-1.  **[PROJECT_ANALYSIS.md](./docs/PROJECT_ANALYSIS.md)**: Current roadmap, active blockers, and system status.
-2.  **[AGENTS.md](./AGENTS.md)**: Repository of technical wisdom, bug fixes, and "hard-won" lessons.
-3.  **[SESSION_LOG.md](./docs/SESSION_LOG.md)**: Detailed chronological history of all development sessions.
-4.  **[GEMINI.md](./GEMINI.md)**: Core mandates, architectural conventions, and standard workflows.
+## Repository Layout
 
----
+```text
+autoJetsonBot/
+├── robot.sh                    # One CLI for Docker, build, launch and status
+├── Dockerfile.humble           # ROS 2 Humble image (default)
+├── Dockerfile.foxy             # ROS 2 Foxy image
+├── docker-compose.yaml
+├── src/                        # ROS 2 workspace
+│   ├── jetson_bot_bringup/     # Launch files, worlds, unified_robot_config.yaml, EKF config
+│   ├── jetson_bot_description/ # URDF/xacro model of the robot
+│   ├── jetson_bot_diffdrive/   # Python serial bridge to the ESP32-S3
+│   ├── jetson_bot_imu/         # Turns the ESP32's IMU lines into sensor_msgs/Imu
+│   ├── jetson_bot_slam/        # slam_toolbox configuration
+│   ├── jetson_bot_navigation/  # Nav2 configuration
+│   ├── jetson_bot_gui/         # Web dashboard and telemetry
+│   └── jetson_bot_detection/   # Object detection demo, not wired to a camera yet
+├── maps/                       # Saved occupancy grids (.pgm + .yaml)
+├── docs/                       # Architecture, guides, results, plans, project records
+├── assets/                     # Photos, screenshots, results figures, wiring, reference sheets
+├── test_suite/                 # Integration and hardware tests (run_tests.py)
+├── AGENTS.md                   # Lessons learned and known pitfalls
+└── GEMINI.md                   # Project conventions for AI assistants
+```
 
-## 📜 License
-Licensed under the MIT License. Based on the [Autonomous ROS](https://github.com/jakhon37/autonomous_ROS) project.
+## Documentation
 
-*For issues or contributions, please contact jakhon37@gmail.com*
+| Document | What's in it |
+| :--- | :--- |
+| [System architecture](docs/architecture/SYSTEM_ARCHITECTURE.md) | Main idea, node graph, TF tree, serial protocol, launch modes |
+| [Hardware](docs/architecture/HARDWARE.md) | Parts, connections, pin map, physical parameters |
+| [Experiments and results](docs/experiments/RESULTS.md) | What was tested in simulation and on the robot, with figures |
+| [Getting started](docs/guides/GETTING_STARTED.md) | Docker setup, commands, configuration |
+| [Mapping and navigation](docs/guides/MAPPING_AND_NAVIGATION.md) | From a new map to autonomous goals |
+| [Hardware bring-up](docs/guides/HARDWARE_BRINGUP.md) | Connecting and checking the real robot |
+| [Lessons learned](AGENTS.md) | Pitfalls hit along the way and their fixes |
+| [All docs](docs/README.md) | Design docs, plans, status board, session log |
+
+## Related Repositories
+
+| Repository | Role |
+| :--- | :--- |
+| [MOTOR-ESP32S3](https://github.com/jakhon37/MOTOR-ESP32S3) | ESP32-S3 motor, encoder and IMU firmware |
+| [myESP32CAM-BLACKBOX](https://github.com/jakhon37/myESP32CAM-BLACKBOX) | ESP32-CAM Wi-Fi camera firmware |
+| [autonomous_ROS](https://github.com/jakhon37/autonomous_ROS) | The earlier project this one grew from |
+
+## License
+
+MIT. See [LICENSE](LICENSE). For questions, contact jakhon37@gmail.com.

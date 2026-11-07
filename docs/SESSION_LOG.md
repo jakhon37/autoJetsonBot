@@ -386,3 +386,13 @@ Append concise summaries of work done here. For technical details on *why* thing
 - **Older Photos:** On the SD card, 640×480 photos are 9.4 to 19.9 KB and the largest photo is 28.3 KB at 1024×768, so they don't show bigger frames working in the past. Read for size only, nothing was kept.
 - **20-Minute Run, 13:23 to 13:43:** The planned power-ups didn't happen in this window, so this became a steady-state run at 640×480 in the room view, read from the PC. Each minute averaged 4.5 to 7.3 fps with frames of 22 to 24 KB. Only 4 of 599 two-second windows had no frames, and one gap reached 5 s. Ping never stopped, so the camera didn't restart by itself. Nearly every ping was answered, with a median of 16 to 34 ms, and 5 to 18% took over 200 ms.
 - **Next:** Three plain power-ups in the same view, logging frames next to a 5 Hz ping. Start the logger just before them, because it isn't running now.
+
+---
+
+## Session: 2026-11-07 @ 23:30 (Portfolio Docs Reorganization)
+- **Structure:** README rewritten as the portfolio front page. New docs in `docs/architecture/` (system architecture, hardware), `docs/guides/` (getting started, mapping and navigation, hardware bring-up), `docs/experiments/RESULTS.md` and a `docs/README.md` index. Design docs moved to `docs/architecture/`, the optimization guide to `docs/guides/`, and the roadmap and UI plan to `docs/plans/`. `PROJECT_ANALYSIS.md`, `SESSION_LOG.md`, `AGENTS.md` and `GEMINI.md` stay where agents expect them.
+- **Assets:** Sorted into `assets/photos`, `sim`, `ui`, `wiring`, `results` and `reference`. `sim.mp4` moved out of `jetson_bot_bringup/config/`, where `setup.py` installed it, and a stray RViz screenshot out of `src/`. The costmap screenshot was cropped to drop the macOS menu bar and Dock.
+- **Figures:** Light and dark SVG charts of the encoder hand test and the ESP32-CAM frame rates, PNG renders of the real and simulated maps with scale bars, and a GIF of the Gazebo clip.
+- **Xavier NX:** The docs now present the Jetson Xavier NX Developer Kit (8 GB, L4T R35.6, 256 GB NVMe) as the only computer. The Nano and its native Foxy scripts are history.
+- **Content Check:** A code review of every doc found wrong numbers and overclaims. The lidar is 0.217 m above the floor, not 0.161 m. The URDF's masses add up to 1.7 kg, not 1.4 kg. The firmware is open loop, not PID. On the robot, the IMU reaches ROS through `imu_bridge_node`, not the I2C driver. `./robot.sh nav` starts the hardware stack, because the YAML has `use_sim: false`. These are corrected, and the code issues it found are listed under Known Issues in `PROJECT_ANALYSIS.md`.
+- **Not Changed:** No code or config behaviour. The only `src/` edits are moving the two media files and the IMU package's description text.

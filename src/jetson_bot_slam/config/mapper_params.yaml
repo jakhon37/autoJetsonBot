@@ -1,7 +1,7 @@
 slam_toolbox:
   ros__parameters:
     # Physical robot tuning notes (used for both sim and real via launch):
-    # - Use /odom_filtered from EKF + Madgwick for best real-world mapping (reduces slip/vibration).
+    # - Odometry is the EKF's odom -> base_footprint TF (encoders + Madgwick IMU), not a topic.
     # - On hardware: higher transform_timeout, slightly higher min travel to filter noisy scans.
     # - Run with ./robot.sh robot (or up) ; prefer ./robot.sh map2nav to auto-save + switch to Nav2.
     # - Web UI also has Save Map button. For pure sim, same params work.
@@ -16,15 +16,13 @@ slam_toolbox:
     ceres_loss_function: None
 
     # ROS Parameters
+    # slam_toolbox reads odometry from the odom_frame -> base_frame transform, which the EKF
+    # publishes on the robot and in sim. It has no odometry topic parameter.
     odom_frame: odom
     map_frame: map
     base_frame: base_footprint
     scan_topic: /scan
     mode: mapping # 'mapping' or 'localization'
-
-    # Use EKF fused odometry for better real-world mapping (reduces wheel slip drift)
-    # In sim, we also launch EKF so /odom_filtered is available
-    odom_topic: /odom_filtered  # EKF fused (recommended for real hardware to reduce slip)
 
     # if you'd like to immediately start continuing a map at a given pose
     # or at the dock, but they are mutually exclusive, if pose is given

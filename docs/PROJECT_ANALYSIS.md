@@ -46,10 +46,10 @@ Found by reading the code while checking the docs.
 * **Odometry spikes:** The bridge took dt from processing time, so the second of two `e` lines handled in one 20 ms tick got a near-zero dt and a speed spike. Now a tick's encoder lines share the time since the last tick that had any, and none counts as shorter than one 50 Hz period (`encoder_rate`). A late tick still reads one line low. `test_odometry.py` simulates bunched, late and lost lines. On the robot, `/odom` speeds should stay steady while driving straight.
 * **`/odom` covariance:** The bridge sent all zeros, which the EKF treats as near-perfect. It now sends variances of 0.001 for x, y and vx, 0.1 for yaw and 0.05 for the yaw rate, so the gyro (0.01) leads on rotation as the roadmap plans. They're the `pose_covariance_diagonal` and `twist_covariance_diagonal` parameters, and `diff_cont` in simulation, which also sent zeros, now uses the same values. Until the gyro bias is calibrated, its 0.024 rad/s at rest can now show in `/odom_filtered`'s yaw rate.
 * **Simulation TF:** `diff_cont` and the EKF both published `odom → base_footprint`. `diff_cont` now has `enable_odom_tf: false` in `unified_robot_config.yaml`, so the EKF is the only publisher, as on the robot. In simulation, check that `ros2 param get /diff_cont enable_odom_tf` prints false and that `ros2 run tf2_ros tf2_echo odom base_footprint` follows `/odom_filtered` without jumping.
+* **slam_toolbox odometry:** `mapper_params.yaml` set `odom_topic`, which slam_toolbox doesn't read. It's gone, and the comments now say slam_toolbox takes odometry from the EKF's `odom → base_footprint` transform. No behaviour changes.
 
 **Open:**
 
-* **slam_toolbox odometry:** `odom_topic` in `mapper_params.yaml` isn't a slam_toolbox parameter. It reads odometry from TF, which the EKF publishes on hardware.
 * **EKF inputs:** Madgwick runs `stateless` without a magnetometer, so its orientation has no heading, yet `ekf.yaml` fuses its yaw.
 * **Web UI goals:** Goal and cancel use `ROSLIB.ActionClient` from the bundled roslib 1.4.1, a ROS 1 API, so they probably don't reach Nav2 on ROS 2. Verify in simulation.
 * **Firmware speed range:** In the open-loop firmware, every command from 0.01 to 0.25 m/s gets the same PWM (500), and output saturates at about 0.51 m/s, so Nav2's 0.26 m/s limit sits near the floor.

@@ -101,6 +101,7 @@ Examples:
   python run_tests.py --nav              # Run only navigation tests
   python run_tests.py --sim              # Run only simulation tests
   python run_tests.py --hardware         # Run only hardware tests
+  python run_tests.py --unit             # Run only unit tests (no Docker or ROS)
   python run_tests.py --quick            # Quick smoke test
         """
     )
@@ -111,6 +112,7 @@ Examples:
     parser.add_argument("--nav", action="store_true", help="Run navigation tests")
     parser.add_argument("--sim", action="store_true", help="Run simulation tests")
     parser.add_argument("--hardware", action="store_true", help="Run hardware tests")
+    parser.add_argument("--unit", action="store_true", help="Run unit tests (no Docker or ROS)")
     parser.add_argument("--quick", action="store_true", help="Quick smoke test")
     parser.add_argument("--all", action="store_true", help="Run all tests")
     parser.add_argument("--quiet", action="store_true", help="Less verbose output")
@@ -121,7 +123,7 @@ Examples:
     
     # If no specific test selected, show help
     if not any([args.docker, args.ros, args.web, args.nav, 
-                args.sim, args.hardware, args.quick, args.all]):
+                args.sim, args.hardware, args.unit, args.quick, args.all]):
         parser.print_help()
         return 0
     
@@ -132,6 +134,7 @@ Examples:
     run_nav = args.nav or args.all
     run_sim = args.sim or args.all
     run_hardware = args.hardware or args.all
+    run_unit = args.unit or args.all or args.quick
     
     results = []
     
@@ -139,7 +142,15 @@ Examples:
     test_dir = os.path.dirname(os.path.abspath(__file__))
     
     try:
-        # Run Docker tests first (always needed)
+        # Run unit tests first (they need no container)
+        if run_unit:
+            result = runner.run_tests(
+                os.path.join(test_dir, "test_suite/unit/test_*.py"),
+                "Unit Tests"
+            )
+            results.append(result)
+        
+        # Run Docker tests (always needed)
         if run_docker:
             runner.ensure_container_running()
             result = runner.run_tests(

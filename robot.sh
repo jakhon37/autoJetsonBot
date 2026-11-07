@@ -646,20 +646,6 @@ case "${1:-help}" in
     logs)            docker exec "$CONTAINER_NAME" tail -f /tmp/sim.log ;;
     verify)          verify_fusion ;;
     watch)
-        log_info "Running EKF/fusion + health verification inside Docker..."
-        docker exec "$CONTAINER_NAME" bash -c "
-            source ${ROS_SETUP} 2>/dev/null || true
-            source /autonomous_ROS/install/setup.bash 2>/dev/null || true
-            echo '=== Odom rates ==='
-            timeout 5 ros2 topic hz /odom 2>/dev/null | head -3 || echo 'no /odom'
-            timeout 5 ros2 topic hz /odom_filtered 2>/dev/null | head -3 || echo 'no /odom_filtered (launch stack first)'
-            echo '=== TF / IMU ==='
-            ros2 topic echo /tf_static --once 2>/dev/null | grep -E 'imu_link|base_link' || echo 'check TF'
-            echo '=== Nodes (if stack running) ==='
-            ros2 node list 2>/dev/null | grep -E 'ekf|diffdrive|imu' | head -5 || echo 'no fusion nodes (use ./robot.sh sim/robot)'
-        "
-        ;;
-    watch)
         log_info "Watching status (Ctrl+C to stop)..."
         while true; do
             clear

@@ -43,6 +43,7 @@ On the robot, `./robot.sh remote` prints the Jetson's addresses and an SSH tunne
 | `./robot.sh nav` | Navigation mode on the configured target, saving the map first if it was mapping |
 | `./robot.sh map2nav` | Same as `nav`, the recommended way to switch on hardware |
 | `./robot.sh status` | Web UI, VNC, launch process, node count, mode, bridge and ESP32 link |
+| `./robot.sh watch` | `status`, refreshed every 10 s until Ctrl+C |
 | `./robot.sh logs` | Follow the launch log |
 | `./robot.sh verify` | EKF and fusion health checks |
 | `./robot.sh shell` | Open a shell in the container, or run one command: `./robot.sh shell "ros2 topic list"` |

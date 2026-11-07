@@ -38,7 +38,13 @@ See AGENTS.md for serial/EKF/physical tuning and robot.sh help.
 
 ## 🔎 Known Issues (Code Review, 2026-11-07)
 
-Found by reading the code while checking the docs. None are fixed yet.
+Found by reading the code while checking the docs.
+
+**Fixed on 2026-11-07, not yet run in simulation or on the robot:**
+
+* **`./robot.sh watch`:** It was defined twice, so its refresh loop never ran. It now reruns `status` every 10 s, and the fusion checks stay under `verify`. `python3 run_tests.py --unit` tests it with stub commands.
+
+**Open:**
 
 * **Simulation TF:** `diff_cont` and the EKF both publish `odom → base_footprint` (`unified_robot_config.yaml`, `ekf.yaml`).
 * **slam_toolbox odometry:** `odom_topic` in `mapper_params.yaml` isn't a slam_toolbox parameter. It reads odometry from TF, which the EKF publishes on hardware.
@@ -48,7 +54,6 @@ Found by reading the code while checking the docs. None are fixed yet.
 * **Firmware speed range:** In the open-loop firmware, every command from 0.01 to 0.25 m/s gets the same PWM (500), and output saturates at about 0.51 m/s, so Nav2's 0.26 m/s limit sits near the floor.
 * **Nav2 footprint:** `robot_radius` is 0.15 m, but the chassis corners are 0.181 m from `base_footprint`.
 * **IMU frame:** `imu_link` is upside down (roll π) in the URDF. Check it against the real MPU6050 before trusting the yaw rate's sign.
-* **`./robot.sh watch`:** It's defined twice, so its refresh loop never runs.
 * **Docker test:** `test_docker.py` checks `docker port`, which prints nothing under host networking.
 * **License metadata:** `LICENSE` is MIT, but every `package.xml` and `setup.py` says Apache-2.0.
 * **RViz:** The `Time` panel AGENTS.md says was removed is still in `lab_slam.rviz` and `default_nav.rviz`.

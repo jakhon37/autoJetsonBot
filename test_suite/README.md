@@ -17,6 +17,7 @@ python3 run_tests.py --web         # Web interface tests
 python3 run_tests.py --nav         # Navigation tests
 python3 run_tests.py --sim         # Simulation tests
 python3 run_tests.py --hardware    # Hardware tests
+python3 run_tests.py --unit        # Unit tests, no Docker or ROS needed
 
 # Quick smoke test
 python3 run_tests.py --quick
@@ -37,7 +38,7 @@ test_suite/
 ├── hardware/
 │   └── test_hardware.py   # Real hardware tests
 └── unit/
-    └── (placeholder for unit tests)
+    └── test_robot_sh.py   # robot.sh commands, run with stub commands
 ```
 
 ## Prerequisites
@@ -71,6 +72,7 @@ pip install websocket-client requests
 | Navigation | Nav2, SLAM, TF | Yes |
 | Simulation | Gazebo, controllers | Yes |
 | Hardware | Device and topic presence (real robot) | Real hardware |
+| Unit | `robot.sh` commands, with stub `docker` | No |
 
 ## Test Output
 

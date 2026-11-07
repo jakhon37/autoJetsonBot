@@ -48,11 +48,11 @@ Found by reading the code while checking the docs.
 * **Simulation TF:** `diff_cont` and the EKF both published `odom → base_footprint`. `diff_cont` now has `enable_odom_tf: false` in `unified_robot_config.yaml`, so the EKF is the only publisher, as on the robot. In simulation, check that `ros2 param get /diff_cont enable_odom_tf` prints false and that `ros2 run tf2_ros tf2_echo odom base_footprint` follows `/odom_filtered` without jumping.
 * **slam_toolbox odometry:** `mapper_params.yaml` set `odom_topic`, which slam_toolbox doesn't read. It's gone, and the comments now say slam_toolbox takes odometry from the EKF's `odom → base_footprint` transform. No behaviour changes.
 * **Docker test:** `test_docker.py` checked `docker port`, which prints nothing under host networking. It now connects to ports 8000 and 9090 on localhost while the stack runs, and skips otherwise. Run `python3 run_tests.py --docker` on the Jetson with the stack up.
+* **Web UI goals:** Goal and cancel used `ROSLIB.ActionClient` from the bundled roslib 1.4.1, a ROS 1 API, so they probably never reached Nav2. Goals now go to `/goal_pose` as a `geometry_msgs/PoseStamped`, which bt_navigator turns into a NavigateToPose goal as it does for RViz, and cancel calls `/navigate_to_pose/_action/cancel_goal`. The badge now reads status 3 as Canceling, not Recovering. Only checked in a browser against the bundled roslib, with the rosbridge messages captured. In simulation, send a goal from the dashboard, then cancel it: the robot should stop and the badge go from Executing to Idle.
 
 **Open:**
 
 * **EKF inputs:** Madgwick runs `stateless` without a magnetometer, so its orientation has no heading, yet `ekf.yaml` fuses its yaw.
-* **Web UI goals:** Goal and cancel use `ROSLIB.ActionClient` from the bundled roslib 1.4.1, a ROS 1 API, so they probably don't reach Nav2 on ROS 2. Verify in simulation.
 * **Firmware speed range:** In the open-loop firmware, every command from 0.01 to 0.25 m/s gets the same PWM (500), and output saturates at about 0.51 m/s, so Nav2's 0.26 m/s limit sits near the floor.
 * **Nav2 footprint:** `robot_radius` is 0.15 m, but the chassis corners are 0.181 m from `base_footprint`.
 * **IMU frame:** `imu_link` is upside down (roll π) in the URDF. Check it against the real MPU6050 before trusting the yaw rate's sign.
@@ -74,7 +74,7 @@ Phases are accurate as of 2026-11-05. See `docs/plans/imu_nav2_roadmap_v2.md` fo
 ### Phase 2: Feature Restoration + UI (✅ Complete)
 - [x] **Navigation:** DWB + tuned costmaps + recovery.
 - [x] **UI:** Full modular ES6 (map, lidar, nav, controls, telemetry).
-- [x] **Telemetry & Ops:** RPM, battery (simulated), stop button (zero velocity, and a Nav2 cancel that probably doesn't work on ROS 2), save map, global map overlay.
+- [x] **Telemetry & Ops:** RPM, battery (simulated), stop button (zero velocity, and a Nav2 cancel through the action's cancel service, not yet run against Nav2), save map, global map overlay.
 
 **Verification:** Web UI at :8000 shows everything when stack is up.
 

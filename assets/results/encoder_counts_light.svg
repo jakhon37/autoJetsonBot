@@ -1,0 +1,26 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="720" height="268" viewBox="0 0 720 268" font-family="system-ui, -apple-system, &quot;Segoe UI&quot;, sans-serif" role="img" aria-labelledby="t d">
+<title id="t">Encoder counts per wheel turn</title>
+<desc id="d">Hand test on 2026-11-06: left wheel 344 counts per turn, right wheel 387, against 3,436 configured in the bridge.</desc>
+<rect width="720" height="268" rx="8" fill="#fcfcfb"/>
+<text x="24" y="34" font-size="17" font-weight="600" fill="#0b0b0b">Encoder counts per wheel turn</text>
+<text x="24" y="56" font-size="13" fill="#52514e">Hand test, 5 turns each way, 2026-11-06. The configured value is 9 to 10 times what the encoders report.</text>
+<line x1="190.0" y1="72" x2="190.0" y2="210" stroke="#e1e0d9" stroke-width="1"/>
+<text x="190.0" y="228" font-size="12" fill="#898781" text-anchor="middle" style="font-variant-numeric: tabular-nums">0</text>
+<line x1="321.4" y1="72" x2="321.4" y2="210" stroke="#e1e0d9" stroke-width="1"/>
+<text x="321.4" y="228" font-size="12" fill="#898781" text-anchor="middle" style="font-variant-numeric: tabular-nums">1K</text>
+<line x1="452.9" y1="72" x2="452.9" y2="210" stroke="#e1e0d9" stroke-width="1"/>
+<text x="452.9" y="228" font-size="12" fill="#898781" text-anchor="middle" style="font-variant-numeric: tabular-nums">2K</text>
+<line x1="584.3" y1="72" x2="584.3" y2="210" stroke="#e1e0d9" stroke-width="1"/>
+<text x="584.3" y="228" font-size="12" fill="#898781" text-anchor="middle" style="font-variant-numeric: tabular-nums">3K</text>
+<line x1="190" y1="72" x2="190" y2="210" stroke="#c3c2b7" stroke-width="1"/>
+<text x="178" y="104.5" font-size="13" fill="#52514e" text-anchor="end">Left wheel, measured</text>
+<path d="M190,89.0 H231.21142857142857 Q235.21142857142857,89.0 235.21142857142857,93.0 V107.0 Q235.21142857142857,111.0 231.21142857142857,111.0 H190 Z" fill="#2a78d6"/>
+<text x="243.2" y="104.5" font-size="13" font-weight="600" fill="#0b0b0b">344</text>
+<text x="178" y="148.5" font-size="13" fill="#52514e" text-anchor="end">Right wheel, measured</text>
+<path d="M190,133.0 H236.86285714285714 Q240.86285714285714,133.0 240.86285714285714,137.0 V151.0 Q240.86285714285714,155.0 236.86285714285714,155.0 H190 Z" fill="#2a78d6"/>
+<text x="248.9" y="148.5" font-size="13" font-weight="600" fill="#0b0b0b">387</text>
+<text x="178" y="192.5" font-size="13" fill="#52514e" text-anchor="end">Configured encoder_cpr</text>
+<path d="M190,177.0 H637.5885714285714 Q641.5885714285714,177.0 641.5885714285714,181.0 V195.0 Q641.5885714285714,199.0 637.5885714285714,199.0 H190 Z" fill="#898781"/>
+<text x="649.6" y="192.5" font-size="13" font-weight="600" fill="#0b0b0b">3,436</text>
+<text x="420" y="256" font-size="12" fill="#898781" text-anchor="middle">counts per wheel turn</text>
+</svg>

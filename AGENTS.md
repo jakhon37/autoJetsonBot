@@ -20,7 +20,7 @@ The `diff_drive_controller` in ROS 2 Foxy is extremely sensitive.
 ### 4. Frame Source of Truth (REP 120)
 *   ❌ **Don't:** Use `base_link` as the odometry root.
 *   ✅ **Do:** Use `base_footprint`. 
-*   **Context:** The system is standardized to `map -> odom -> base_footprint -> base_link`. `base_footprint` is the floor projection, and `base_link` is the physical chassis center. Standardizing to `base_footprint` ensures Lidar data is correctly projected to the Map.
+*   **Context:** The system is standardized to `map -> odom -> base_footprint -> base_link`. `base_footprint` is the floor projection, and `base_link` sits on the axle line at chassis-floor height. Standardizing to `base_footprint` ensures Lidar data is correctly projected to the Map.
 
 ### 5. Wait for Physics (Gazebo Startup)
 *   ❌ **Don't:** Launch controller spawners or SLAM/Navigation nodes immediately after starting Gazebo.
@@ -45,7 +45,7 @@ The `diff_drive_controller` in ROS 2 Foxy is extremely sensitive.
 ### 9. Navigation: The "Missing Map Frame" Startup Bug
 *   **Discovery:** RViz often reports "Frame [map] does not exist" on startup, even if the map is loaded.
 *   **Cause:** AMCL waits for an `initial_pose` before it publishes the `map -> odom` transform.
-*   ⚠️ **Foxy Warning:** AMCL in ROS 2 Foxy requires the array format: `initial_pose: [0.0, 0.0, 0.0, 0.0]`. Using a dictionary (`x: 0, y: 0...`) will fail silently.
+*   ⚠️ **Foxy Warning:** AMCL in ROS 2 Foxy requires the array format: `initial_pose: [0.0, 0.0, 0.0, 0.0]`. Using a dictionary (`x: 0, y: 0...`) will fail silently. Unverified: the Humble file (`nav2_params_humble.yaml`) uses `initial_pose.x/.y/.z/.yaw`, and both files hold only zeros, which are AMCL's defaults, so neither format has really been tested.
 *   ✅ **Fix Applied:** Updated `nav2_params.yaml` with the correct array structure.
 
 ### 10. Movement & Topic Remapping
@@ -55,7 +55,7 @@ The `diff_drive_controller` in ROS 2 Foxy is extremely sensitive.
 
 ### 11. RViz Panel Stability
 *   **Discovery:** RViz failed to load specific configurations with an error regarding `rviz_common/Time`.
-*   **Fix:** Surgically removed the `Time` panel from `.rviz` config files. In containerized environments (Xvfb), non-essential panels can cause plugin loading crashes.
+*   **Fix:** Remove the `Time` panel from `.rviz` config files. In containerized environments (Xvfb), non-essential panels can cause plugin loading crashes. It's still in `lab_slam.rviz` and `default_nav.rviz`, so remove it there if RViz fails to load.
 
 ## 🛡️ Efficient Debugging & Loop Prevention
 These rules are mirrored as foundational mandates in **`GEMINI.md`**.
@@ -74,16 +74,16 @@ Since macOS Docker Desktop cannot forward X11 correctly, we use:
 *   **Env Vars:** `QT_X11_NO_MITSHM=1`, `LIBGL_ALWAYS_SOFTWARE=1`, `GALLIUM_DRIVER=softpipe`.
 
 ### Process Lifecycle & "Zombies"
-If `robot.sh stop` fails to terminate Gazebo, it is usually because `gzserver` is still holding the socket. Use `pkill -9 -f gzserver` to clear the slate. A port being open on the host (5900) only means Docker is listening; it doesn't guarantee the internal service is alive.
+If `robot.sh stop` fails to terminate Gazebo, it is usually because `gzserver` is still holding the socket. Use `pkill -9 -f gzserver` to clear the slate. On the old Mac setup with port forwarding, an open port 5900 only meant Docker was listening. With host networking, which the robot uses, it means x11vnc itself is listening.
 
 ## 🐳 ROS 2 Humble Docker (Added 2026-08-18)
 
 *   **Default image is Humble.** `./robot.sh image` builds `Dockerfile.humble` → `auto_ros:humble`. Foxy is still available: `ROS_DISTRO=foxy ./robot.sh image`.
 *   ❌ **Don't:** Install `ros-humble-ros-gz` in this image. That is Gazebo Fortress. This workspace uses Gazebo Classic plugins (`libgazebo_ros_*.so`, `libgazebo_ros2_control.so`).
 *   ❌ **Don't:** Reuse a Foxy `install/` tree inside the Humble container. Run `./robot.sh clean && ./robot.sh build` after switching distro.
-*   ✅ **Do:** Install `gazebo-ros-pkgs` + `gazebo-ros2-control` only when apt has them (Humble amd64). On arm64 those debs are unpublished because jammy has no `gazebo11`/`libgazebo-dev`. Hardware, SLAM, and Nav2 still run.
+*   ✅ **Do:** Install `gazebo-ros-pkgs` + `gazebo-ros2-control` only when apt has them (Humble amd64). On arm64 those debs are unpublished because jammy has no `gazebo11`/`libgazebo-dev`. Hardware mode and SLAM run. Nav2 hasn't been tested on the hardware yet.
 *   Launch already switches `spawner.py`→`spawner`, slam `params_file`→`slam_params_file`, and Nav2 to `nav2_params_humble.yaml`.
-*   **Current target:** Jetson Xavier NX (L4T R35, Ubuntu 20.04 host) running the Ubuntu 22.04 Humble image through Docker. **Jetson Nano native** (`setup_jetson.sh` / `robot_nano.sh`) stays Foxy.
+*   **Current target:** Jetson Xavier NX (L4T R35, Ubuntu 20.04 host) running the Ubuntu 22.04 Humble image through Docker. The robot no longer uses a Jetson Nano. Its native Foxy scripts (`setup_jetson.sh`, `robot_nano.sh`) are kept only for reference.
 *   **`use_sim_time` for SLAM:** `online_async_launch.py` passes the launch argument after the params file, so it always beats any value in `mapper_params.yaml`. Tested both ways on 2026-11-05, so don't set it in that YAML.
 *   **Serial Ports:** Launch looks for the ESP32 and lidar by USB ID (`/dev/serial/by-id`) because `ttyACM` numbers change after an ESP32 reset. The CP2102 adapter is the lidar. ⚠️ The current container has no `/dev/serial/by-id`, so launch falls back to the first `/dev/ttyACM*` and `/dev/ttyUSB*` it finds, and a second USB serial device (like an ESP32 camera on a data cable) could be picked by mistake. The ESP32-S3's serial link is its native USB socket, the one next to the RGB LED (`303a:1001`). The ESP32-CAM's CH340 (`1a86:7523`) appears as `/dev/ttyUSB*`, so on a data cable it can be taken for the lidar, and opening its port resets the camera. Power it without a data connection on the robot. Restart the container after plugging in USB devices, or it won't see them.
 *   **ESP32-CAM Firmware:** Source is `github.com/jakhon37/myESP32CAM-BLACKBOX`. It serves one request at a time, so `/status` hangs while anyone holds `/stream`. `/capture` saves a copy to the SD card on every call, so read frames from `/stream`. Frames carry no timestamps. `/fps?val=N` changes the rate limit until the next reboot. Idle ping doesn't measure video delay. Its programmer board stays in reset if DTR and RTS are held active, so clear them before opening the serial port. Pin the PlatformIO platform, because unpinned it now jumps to Arduino core 3.x.
@@ -98,34 +98,34 @@ If `robot.sh stop` fails to terminate Gazebo, it is usually because `gzserver` i
 ### 2. Gazebo Physics: Ground Clipping
 *   **Discovery:** The robot appeared "stuck" even with active nodes. RViz showed wheels underground and chassis touching the floor.
 *   **Cause:** Mismatch between URDF origin and the floor plane.
-*   ✅ **Permanent Fix:** Refactored URDF so `base_footprint` is at the floor level ($z=0$) with `base_link` offset 55mm above it. 
+*   ✅ **Permanent Fix:** Refactored URDF so `base_footprint` is at the floor level ($z=0$) with `base_link` offset 56 mm above it. 
 *   ✅ **Spawn Fix:** Updated `main.launch.py` to spawn with `-z 0.06`. This ensures the wheels clear the ground and the physics engine can apply traction.
 
 ## 🛡️ Physics & UI Lessons (Added 2026-06-05/06)
 
-*   **Finalized Digital Twin (2026-06-07):** The system is now 100% synchronized with manual measurements of the physical hardware.
+*   **Finalized Digital Twin (2026-06-07):** The URDF's dimensions (wheel separation, radius, clearance, chassis box) match manual measurements of the hardware. Encoder scale, IMU pose and mass were not part of that check.
     *   **Wheel Separation:** 0.212m (Center-to-center)
     *   **Wheel Radius:** 0.034m (3.4cm)
     *   **Ground Clearance:** 0.056m (5.6cm floor-to-chassis)
-    *   **Total Weight:** 1.4kg (Physics-accurate inertial values)
+    *   **Total Weight:** 1.4 kg recorded. The URDF's link masses add up to 1.7 kg.
 *   **URDF Structural Standard:** 
     *   `base_footprint` is at floor level ($z=0$).
-    *   `base_link` is at the **bottom-center of the chassis floor** ($z=0.056$).
-    *   This standard simplifies height calculations: component $Z$ origin = $Ground\_Clearance + Height\_from\_floor$.
-*   **Lidar Offset Logic:** The RPLidar A1 is positioned at `x=0.064` (forward of axle) and `z=0.161` (16.1cm from floor). This accounts for the 9.7cm chassis height plus the 6.4cm mount height.
-*   **Clearance Check:** With `wheel_separation: 0.212m` and a 17.8cm chassis, the per-side clearance is **1.7cm**. This eliminates numerical jitter and "explosive" repulsion in Gazebo.
+    *   `base_link` is on the axle line at the height of the chassis floor ($z=0.056$). The chassis box is centred 6.1 cm ahead of it.
+    *   Children of `base_link` or `chassis` are placed by their height above the chassis floor, so don't add the ground clearance again.
+*   **Lidar Offset Logic:** The RPLidar A1 is positioned at `x=0.064` (forward of axle) and `z=0.161` above the chassis floor, which is 0.217 m above the ground. This accounts for the 9.7cm chassis height plus the 6.4cm mount height.
+*   **Clearance Check:** With `wheel_separation: 0.212m` and a 17.8cm chassis, each chassis side is **1.7cm** from the wheel's centre plane, leaving a 0.4 cm gap to the inner face of the 2.6 cm wide wheel. This eliminates numerical jitter and "explosive" repulsion in Gazebo.
 *   **The Overlap Paradox:** Gazebo Classic can handle internal geometry overlaps IF stiffness (`kp`) is extremely high (1M+). If you lower `kp` to "optimize" performance, the collision energy is unlocked, causing sliding. Fix geometry FIRST before softening physics.
 *   **AMCL-Centric UI:** When visualizing paths or goals in a robot-relative UI, always transform from the Map frame using `/amcl_pose`, not `/odom`. Odometry drift will cause the path to "float" away from the Lidar walls; AMCL keeps them anchored.
-*   **Build Synchronization:** Changes to `.yaml`, `.xacro`, or `.js` files in the `src/` directory are NOT visible to the simulation until a modular build (`./robot.sh build`) is executed. Always rebuild after changing parameters.
-*   **Inflation Scaling:** A `cost_scaling_factor` below 5.0 results in thick, "bloated" walls. For precise navigation in narrow spaces, use a value around 3.5 for smooth gradients or 10.0 for sharp boundaries.
+*   **Build Synchronization:** New files in `src/` aren't visible until a modular build (`./robot.sh build`). The workspace uses `--symlink-install`, so edits to existing `.yaml`, `.xacro` or `.js` files often apply on the next launch, but rebuild when in doubt.
+*   **Inflation Scaling:** Lower `cost_scaling_factor` values make walls look thicker in the costmap, and higher values give sharper boundaries. Both Nav2 configs use 3.5.
 *   **Modular Architecture (ES6):** The Web UI now uses native ES6 modules. 
     *   ❌ **Don't:** Mix `import` statements with legacy script tags in `index.html`. Use `type="module"`.
     *   ✅ **Do:** Maintain the `app.js` as the central orchestrator to prevent circular dependencies between sub-managers.
 *   **The Pose Fallback Rule:** UI components that transform Map coordinates (like Goals or Paths) must have a fallback. If `/amcl_pose` is empty, the UI should use `/odom` relative to the map origin to prevent "Zero-coordinate jumping."
 *   **Initial Settings Sync:** Always sync UI input values to the internal JS `config` object during `init()`. Relying solely on `change` events means the first connection will use incorrect defaults if the user doesn't touch the inputs.
-*   **Lidar Front Sector:** For safety metrics, calculate "Front Distance" using a narrow sector (±10°) rather than the whole scan. This prevents peripheral walls from triggering false emergency stops during hallway navigation.
-*   **Python Serial Bridge:** Use `serial.readline()` with a reasonable timeout (0.1s) to prevent blocking the main ROS execution thread. Ensure the ESP32 protocol is human-readable (`m v_l v_r\r`) for easy debugging with tools like `minicom` or `screen`.
-*   **Odometry Calculation:** When implementing a bridge, ensure TF (`odom -> base_footprint`) is broadcast at the same frequency as the Odometry message. Jitter between these two will cause "shaking" visualizations in the Web UI or RViz.
+*   **Lidar Front Sector:** For safety metrics, calculate "Front Distance" using a narrow sector (±10°) rather than the whole scan. This keeps peripheral walls from skewing the reading in hallways. In the Web UI it only colours a label and logs; nothing stops automatically.
+*   **Python Serial Bridge:** The bridge reads with non-blocking `in_waiting` reads (10 ms timeout) and its own `\r`/`\n` splitter, so it never blocks the ROS thread. Ensure the ESP32 protocol is human-readable (`m v_l v_r\r`) for easy debugging with tools like `minicom` or `screen`.
+*   **Odometry Calculation:** On hardware the bridge doesn't broadcast TF (`publish_tf: False`). The EKF publishes `odom -> base_footprint` at 30 Hz while `/odom` runs at about 50 Hz. A bridge that does broadcast TF should keep it in step with its odometry, or the Web UI and RViz will shake.
 
 ## 🍎 macOS & ESP32-S3 Stability (Added 2026-06-08)
 

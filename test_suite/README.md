@@ -1,6 +1,8 @@
 # Robot Test Suite
 
-Production-level test suite for Autonomous Jetson Robot project.
+Smoke and integration checks for autoJetsonBot. Most tests check that the container, nodes, topics and devices exist, and skip when something is absent.
+
+Known issues: the Docker port test fails under host networking, the navigation test expects Foxy's `recoveries_server` (Humble has `behavior_server`), the Gazebo checks look for a node named `gzserver` (it's `/gazebo`), and no test drives the motors.
 
 ## Quick Start
 
@@ -54,7 +56,7 @@ pip install websocket-client requests
    docker start auto_ros_humble
    ```
 
-2. For full tests, start the simulation:
+2. For full tests, start the simulation (under Humble this needs an amd64 host):
    ```bash
    ./robot.sh sim
    ```
@@ -68,14 +70,11 @@ pip install websocket-client requests
 | Web | Web interface, ROSBridge | Yes |
 | Navigation | Nav2, SLAM, TF | Yes |
 | Simulation | Gazebo, controllers | Yes |
-| Hardware | Motors, sensors (real robot) | Real hardware |
+| Hardware | Device and topic presence (real robot) | Real hardware |
 
 ## Test Output
 
-Tests will show:
-- ✓ Passed tests (green)
-- ✗ Failed tests (red)  
-- ⊘ Skipped tests (yellow) - normal when simulation not running
+unittest prints `ok`, `FAIL` or `skipped` for each test, and the summary line shows ✓ or ✗. Skips are normal when the simulation isn't running.
 
 ## Exit Codes
 

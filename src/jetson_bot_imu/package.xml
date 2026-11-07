@@ -3,7 +3,7 @@
 <package format="3">
   <name>jetson_bot_imu</name>
   <version>0.0.0</version>
-  <description>I2C driver for MPU6050 IMU sensor on Jetson Nano.</description>
+  <description>I2C driver for an MPU6050 IMU on a Jetson.</description>
   <maintainer email="jakhon37@gmail.com">jakhon37</maintainer>
   <license>Apache-2.0</license>
 

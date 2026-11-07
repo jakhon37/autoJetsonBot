@@ -38,14 +38,10 @@ Build the robot twice, once in Gazebo and once in hardware, and run **one ROS 2 
 
 ```mermaid
 flowchart LR
-    you(["You<br/>dashboard · RViz · robot.sh"])
-    subgraph stack["One ROS 2 stack"]
-        slam["slam_toolbox<br/>mapping"]
-        nav["AMCL + Nav2<br/>navigation"]
-        ekf["EKF<br/>wheel + IMU fusion"]
-    end
-    gz["Gazebo digital twin<br/><code>./robot.sh sim</code>"]
-    hw["Real robot<br/>Xavier NX + ESP32-S3<br/>RPLidar A1 · MPU6050<br/><code>./robot.sh robot</code>"]
+    you["You<br/>dashboard · RViz · robot.sh"]
+    stack["One ROS 2 stack<br/>slam_toolbox mapping<br/>AMCL + Nav2 navigation<br/>EKF wheel + IMU fusion"]
+    gz["Gazebo digital twin<br/>./robot.sh sim"]
+    hw["Real robot<br/>Xavier NX + ESP32-S3<br/>RPLidar A1 · MPU6050<br/>./robot.sh robot"]
     you --> stack
     stack <-->|"/cmd_vel out<br/>/scan /odom /imu in"| gz
     stack <-->|"/cmd_vel out<br/>/scan /odom /imu in"| hw
@@ -85,27 +81,26 @@ Parts, wiring, pin map and measurements are in [HARDWARE.md](docs/architecture/H
 On the robot, the Jetson runs ROS 2 in a container and talks to the ESP32-S3 over USB serial: wheel speeds go down, and encoder counts and IMU readings come back 50 times a second. The bridge turns the counts into odometry and passes the IMU lines on, the EKF fuses both, and SLAM or AMCL places the robot on the map for Nav2.
 
 ```mermaid
-flowchart LR
+flowchart TB
     esp["ESP32-S3<br/>motors · encoders · MPU6050"]
+    lidar["RPLidar driver"]
     bridge["diffdrive_node<br/>serial bridge"]
     imub["imu_bridge_node"]
     madg["Madgwick filter"]
     ekf["EKF"]
-    lidar["RPLidar driver"]
-    slam["slam_toolbox<br/>or AMCL"]
+    slam["slam_toolbox or AMCL"]
     nav["Nav2"]
     web["Web dashboard<br/>via rosbridge"]
-    esp -->|"e, i lines, 50 Hz"| bridge
-    bridge -->|"/odom"| ekf
+    esp <-->|"serial: m down, e and i up, 50 Hz"| bridge
     bridge -->|"/serial_imu_raw"| imub
     imub -->|"/imu/data_raw"| madg
+    bridge -->|"/odom"| ekf
     madg -->|"/imu/data"| ekf
-    ekf -->|"/odom_filtered"| nav
     lidar -->|"/scan"| slam
+    ekf -->|"/odom_filtered"| nav
     slam -->|"/map"| nav
     nav -->|"/cmd_vel"| bridge
     web -->|"/cmd_vel teleop"| bridge
-    bridge -->|"m left right"| esp
 ```
 
 The full node graph, TF tree, serial protocol and launch modes are in [SYSTEM_ARCHITECTURE.md](docs/architecture/SYSTEM_ARCHITECTURE.md).

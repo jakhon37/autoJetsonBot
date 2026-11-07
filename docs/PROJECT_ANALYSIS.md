@@ -44,12 +44,13 @@ Found by reading the code while checking the docs.
 
 * **`./robot.sh watch`:** It was defined twice, so its refresh loop never ran. It now reruns `status` every 10 s, and the fusion checks stay under `verify`. `python3 run_tests.py --unit` tests it with stub commands.
 * **Odometry spikes:** The bridge took dt from processing time, so the second of two `e` lines handled in one 20 ms tick got a near-zero dt and a speed spike. Now a tick's encoder lines share the time since the last tick that had any, and none counts as shorter than one 50 Hz period (`encoder_rate`). A late tick still reads one line low. `test_odometry.py` simulates bunched, late and lost lines. On the robot, `/odom` speeds should stay steady while driving straight.
+* **`/odom` covariance:** The bridge sent all zeros, which the EKF treats as near-perfect. It now sends variances of 0.001 for x, y and vx, 0.1 for yaw and 0.05 for the yaw rate, so the gyro (0.01) leads on rotation as the roadmap plans. They're the `pose_covariance_diagonal` and `twist_covariance_diagonal` parameters. Until the gyro bias is calibrated, its 0.024 rad/s at rest can now show in `/odom_filtered`'s yaw rate.
 
 **Open:**
 
 * **Simulation TF:** `diff_cont` and the EKF both publish `odom → base_footprint` (`unified_robot_config.yaml`, `ekf.yaml`).
 * **slam_toolbox odometry:** `odom_topic` in `mapper_params.yaml` isn't a slam_toolbox parameter. It reads odometry from TF, which the EKF publishes on hardware.
-* **EKF inputs:** Madgwick runs `stateless` without a magnetometer, so its orientation has no heading, yet `ekf.yaml` fuses its yaw. The bridge also publishes `/odom` with zero covariance.
+* **EKF inputs:** Madgwick runs `stateless` without a magnetometer, so its orientation has no heading, yet `ekf.yaml` fuses its yaw.
 * **Web UI goals:** Goal and cancel use `ROSLIB.ActionClient` from the bundled roslib 1.4.1, a ROS 1 API, so they probably don't reach Nav2 on ROS 2. Verify in simulation.
 * **Firmware speed range:** In the open-loop firmware, every command from 0.01 to 0.25 m/s gets the same PWM (500), and output saturates at about 0.51 m/s, so Nav2's 0.26 m/s limit sits near the floor.
 * **Nav2 footprint:** `robot_radius` is 0.15 m, but the chassis corners are 0.181 m from `base_footprint`.

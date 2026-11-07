@@ -139,7 +139,7 @@ What was tested, on what, and what it showed. Simulation work ran in Docker on a
 
 **Result:** The IMU works, but its gyro bias needs calibrating before it helps the EKF. Gyro values also arrive with only 2 decimals, in steps of 0.01 rad/s, which limits how finely the bias can be estimated.
 
-**Found in code review:** The Madgwick filter runs in `stateless` mode without a magnetometer, so its orientation has no real heading, yet the EKF fuses its yaw. The bridge also publishes `/odom` with zero covariance, which the EKF treats as near-perfect. Both are next to check in a drive test.
+**Found in code review:** The Madgwick filter runs in `stateless` mode without a magnetometer, so its orientation has no real heading, yet the EKF fuses its yaw. The bridge also published `/odom` with zero covariance, which the EKF treats as near-perfect. Since 2026-11-07 it sends non-zero variances. Both are next to check in a drive test.
 
 ---
 

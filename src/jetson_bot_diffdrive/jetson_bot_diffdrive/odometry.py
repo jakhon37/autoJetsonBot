@@ -1,6 +1,22 @@
 """Wheel odometry for diffdrive_node, kept free of ROS so it can be unit tested."""
 import math
 
+# Diagonals of /odom's covariances, in the order x, y, z, roll, pitch, yaw. The EKF fuses x, y,
+# vx and vyaw. Wheel slip makes the encoders' yaw (0.1) and yaw rate (0.05) the least trusted,
+# as imu_nav2_roadmap_v2.md plans: the gyro's rate has 0.01, so the IMU leads on rotation.
+# vy is small because the wheels can't slide sideways, and 1e6 marks what a robot on a flat
+# floor doesn't measure.
+POSE_COVARIANCE_DIAGONAL = [0.001, 0.001, 1e6, 1e6, 1e6, 0.1]
+TWIST_COVARIANCE_DIAGONAL = [0.001, 0.001, 1e6, 1e6, 1e6, 0.05]
+
+
+def covariance(diagonal):
+    """Return a row-major 6x6 covariance matrix with the given diagonal."""
+    cov = [0.0] * 36
+    for i, value in enumerate(diagonal):
+        cov[i * 7] = float(value)
+    return cov
+
 
 def parse_encoder_line(line):
     """Return the counts of an 'e <left> <right>' line as (left, right), or None."""

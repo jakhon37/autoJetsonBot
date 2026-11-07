@@ -13,7 +13,9 @@ from std_msgs.msg import String
 import serial
 import tf2_ros
 
-from jetson_bot_diffdrive.odometry import WheelOdometry, encoder_dt, parse_encoder_line
+from jetson_bot_diffdrive.odometry import (
+    POSE_COVARIANCE_DIAGONAL, TWIST_COVARIANCE_DIAGONAL, WheelOdometry, covariance,
+    encoder_dt, parse_encoder_line)
 
 class DiffDriveBridge(Node):
     def __init__(self):
@@ -30,6 +32,9 @@ class DiffDriveBridge(Node):
         # no line counts as covering less than one period.
         self.declare_parameter('encoder_rate', 50.0)
         self.declare_parameter('publish_tf', True) # Added for EKF compatibility
+        # Same names as diff_drive_controller's, which publishes /odom in simulation
+        self.declare_parameter('pose_covariance_diagonal', list(POSE_COVARIANCE_DIAGONAL))
+        self.declare_parameter('twist_covariance_diagonal', list(TWIST_COVARIANCE_DIAGONAL))
 
         self.port = self.get_parameter('port').value
         self.baud = self.get_parameter('baud').value
@@ -37,6 +42,8 @@ class DiffDriveBridge(Node):
         self.wheel_rad = self.get_parameter('wheel_radius').value
         self.encoder_cpr = self.get_parameter('encoder_cpr').value
         self.publish_tf = self.get_parameter('publish_tf').value
+        self.pose_covariance = covariance(self.get_parameter('pose_covariance_diagonal').value)
+        self.twist_covariance = covariance(self.get_parameter('twist_covariance_diagonal').value)
         
         # State
         self.odometry = WheelOdometry(self.wheel_sep, self.wheel_rad, self.encoder_cpr)
@@ -260,8 +267,10 @@ class DiffDriveBridge(Node):
         odom.pose.pose.position.x = self.odometry.x
         odom.pose.pose.position.y = self.odometry.y
         odom.pose.pose.orientation = self.euler_to_quaternion(0, 0, self.odometry.th)
+        odom.pose.covariance = self.pose_covariance
         odom.twist.twist.linear.x = v_x
         odom.twist.twist.angular.z = v_th
+        odom.twist.covariance = self.twist_covariance
         self.odom_pub.publish(odom)
 
         # Broadcast TF

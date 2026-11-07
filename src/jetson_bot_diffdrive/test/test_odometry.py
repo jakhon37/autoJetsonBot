@@ -6,7 +6,8 @@ import sys
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from jetson_bot_diffdrive.odometry import (  # noqa: E402
-    WheelOdometry, encoder_dt, parse_encoder_line)
+    POSE_COVARIANCE_DIAGONAL, TWIST_COVARIANCE_DIAGONAL, WheelOdometry, covariance,
+    encoder_dt, parse_encoder_line)
 
 SEP, RADIUS, CPR = 0.212, 0.034, 3436
 PERIOD = 0.02  # the ESP32 sends an 'e' line every 20 ms
@@ -92,8 +93,27 @@ def test_counts_after_a_reset_only_set_the_baseline():
     assert (v, w, odo.x) == (0.0, 0.0, x)
 
 
+def test_covariance_fills_the_diagonal():
+    """Build a row-major 6x6 matrix with nothing off the diagonal."""
+    cov = covariance([1.0, 2.0, 3.0, 4.0, 5.0, 6.0])
+    assert len(cov) == 36
+    assert [cov[i * 7] for i in range(6)] == [1.0, 2.0, 3.0, 4.0, 5.0, 6.0]
+    assert sum(cov) == 21.0
+
+
+def test_odom_covariance_is_not_zero():
+    """Give the EKF real variances, trusting the gyro over the encoders for rotation."""
+    for diagonal in (POSE_COVARIANCE_DIAGONAL, TWIST_COVARIANCE_DIAGONAL):
+        assert len(diagonal) == 6
+        assert all(isinstance(v, float) and v > 0.0 for v in diagonal)
+    # imu_bridge_node.py gives the gyro's rates a variance of 0.01.
+    assert TWIST_COVARIANCE_DIAGONAL[5] > 0.01
+
+
 if __name__ == '__main__':
     test_parse_encoder_line()
     test_encoder_dt()
     test_speed_does_not_spike_when_lines_bunch_up()
     test_counts_after_a_reset_only_set_the_baseline()
+    test_covariance_fills_the_diagonal()
+    test_odom_covariance_is_not_zero()

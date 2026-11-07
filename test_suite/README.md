@@ -2,7 +2,7 @@
 
 Smoke and integration checks for autoJetsonBot. Most tests check that the container, nodes, topics and devices exist, and skip when something is absent.
 
-Known issues: the Docker port test fails under host networking, the navigation test expects Foxy's `recoveries_server` (Humble has `behavior_server`), the Gazebo checks look for a node named `gzserver` (it's `/gazebo`), and no test drives the motors.
+Known issues: the navigation test expects Foxy's `recoveries_server` (Humble has `behavior_server`), the Gazebo checks look for a node named `gzserver` (it's `/gazebo`), and no test drives the motors.
 
 ## Quick Start
 
@@ -66,7 +66,7 @@ pip install websocket-client requests
 
 | Category | Description | Requires Simulation |
 |----------|-------------|---------------------|
-| Docker | Container setup, ports, workspace | No |
+| Docker | Container setup and workspace. Ports 8000 and 9090 once the stack is up, skipped before | No |
 | ROS2 Core | Topics, nodes, parameters | Yes |
 | Web | Web interface, ROSBridge | Yes |
 | Navigation | Nav2, SLAM, TF | Yes |

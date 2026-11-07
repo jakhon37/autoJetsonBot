@@ -89,7 +89,7 @@ python3 run_tests.py --all        # everything
 python3 run_tests.py --hardware   # needs the robot
 ```
 
-These are smoke and presence checks rather than full tests. The Docker port test currently fails under host networking, see the status board. [test_suite/README.md](../../test_suite/README.md) lists the categories.
+These are smoke and presence checks rather than full tests. [test_suite/README.md](../../test_suite/README.md) lists the categories.
 
 ## Legacy: Jetson Nano
 

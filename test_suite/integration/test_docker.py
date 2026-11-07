@@ -3,6 +3,7 @@ Docker Environment Tests
 Tests for Docker container setup and configuration
 """
 import unittest
+import socket
 import subprocess
 import time
 import os
@@ -11,6 +12,19 @@ import sys
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from test_suite.config import config, paths, env
 from test_suite.utils import DockerClient, timer
+
+
+def wait_for_listening(port: int, timeout: float = 10.0) -> bool:
+    """Return True once something accepts TCP connections on localhost:port"""
+    deadline = time.time() + timeout
+    while True:
+        try:
+            with socket.create_connection(("127.0.0.1", port), timeout=2):
+                return True
+        except OSError:
+            if time.time() > deadline:
+                return False
+            time.sleep(0.5)
 
 
 class TestDockerEnvironment(unittest.TestCase):
@@ -45,19 +59,18 @@ class TestDockerEnvironment(unittest.TestCase):
         
         self.assertTrue(running, f"Container '{self.container_name}' is not running")
     
-    def test_03_container_ports_exposed(self):
-        """Test that required ports are exposed"""
-        result = subprocess.run(
-            ["docker", "port", self.container_name],
-            capture_output=True,
-            text=True
+    def test_03_container_ports_listening(self):
+        """Test that the web UI and rosbridge ports are listening"""
+        # The container uses --network host, so `docker port` prints nothing. Connect to the
+        # ports instead. The web server and rosbridge only listen while the stack is up.
+        code, _, _ = DockerClient.exec_in_container(
+            self.container_name, ["pgrep", "-f", "main.launch.py"]
         )
-        
-        ports = result.stdout
-        self.assertIn(f"{config.WEB_PORT}", ports, 
-                     f"Port {config.WEB_PORT} not exposed")
-        self.assertIn(f"{config.ROSBRIDGE_PORT}", ports,
-                     f"Port {config.ROSBRIDGE_PORT} not exposed")
+        if code != 0:
+            self.skipTest("Stack not running. Start it with ./robot.sh up, sim or robot")
+        for port in (config.WEB_PORT, config.ROSBRIDGE_PORT):
+            with self.subTest(port=port):
+                self.assertTrue(wait_for_listening(port), f"Nothing listening on port {port}")
     
     def test_04_container_has_ros2_installed(self):
         """Test that ROS2 is installed in container"""

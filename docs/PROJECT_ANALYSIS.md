@@ -47,6 +47,7 @@ Found by reading the code while checking the docs.
 * **`/odom` covariance:** The bridge sent all zeros, which the EKF treats as near-perfect. It now sends variances of 0.001 for x, y and vx, 0.1 for yaw and 0.05 for the yaw rate, so the gyro (0.01) leads on rotation as the roadmap plans. They're the `pose_covariance_diagonal` and `twist_covariance_diagonal` parameters, and `diff_cont` in simulation, which also sent zeros, now uses the same values. Until the gyro bias is calibrated, its 0.024 rad/s at rest can now show in `/odom_filtered`'s yaw rate.
 * **Simulation TF:** `diff_cont` and the EKF both published `odom → base_footprint`. `diff_cont` now has `enable_odom_tf: false` in `unified_robot_config.yaml`, so the EKF is the only publisher, as on the robot. In simulation, check that `ros2 param get /diff_cont enable_odom_tf` prints false and that `ros2 run tf2_ros tf2_echo odom base_footprint` follows `/odom_filtered` without jumping.
 * **slam_toolbox odometry:** `mapper_params.yaml` set `odom_topic`, which slam_toolbox doesn't read. It's gone, and the comments now say slam_toolbox takes odometry from the EKF's `odom → base_footprint` transform. No behaviour changes.
+* **Docker test:** `test_docker.py` checked `docker port`, which prints nothing under host networking. It now connects to ports 8000 and 9090 on localhost while the stack runs, and skips otherwise. Run `python3 run_tests.py --docker` on the Jetson with the stack up.
 
 **Open:**
 
@@ -55,7 +56,6 @@ Found by reading the code while checking the docs.
 * **Firmware speed range:** In the open-loop firmware, every command from 0.01 to 0.25 m/s gets the same PWM (500), and output saturates at about 0.51 m/s, so Nav2's 0.26 m/s limit sits near the floor.
 * **Nav2 footprint:** `robot_radius` is 0.15 m, but the chassis corners are 0.181 m from `base_footprint`.
 * **IMU frame:** `imu_link` is upside down (roll π) in the URDF. Check it against the real MPU6050 before trusting the yaw rate's sign.
-* **Docker test:** `test_docker.py` checks `docker port`, which prints nothing under host networking.
 * **License metadata:** `LICENSE` is MIT, but every `package.xml` and `setup.py` says Apache-2.0.
 * **RViz:** The `Time` panel AGENTS.md says was removed is still in `lab_slam.rviz` and `default_nav.rviz`.
 * **Unused files:** `esp32_hardware.xml`, `gazebo_control.xacro`, `face.xacro`, `localization_params.yaml`, `main.rviz` and `default_nav.rviz` aren't referenced by any launch file.
@@ -100,7 +100,7 @@ Phases are accurate as of 2026-11-05. See `docs/plans/imu_nav2_roadmap_v2.md` fo
 ### Phase 4: Physical Validation (✅ Complete for Docker/Sim; 🚧 Hardware pending)
 - [x] Mapping + autonomous goals verified in sim with fused odometry.
 - [x] Jetson-native Docker setup (mac dev uses Xvfb/VNC; native path documented).
-- [x] Tests run with the live stack. The Docker port test fails under host networking.
+- [x] Tests run with the live stack. The Docker port test was rewritten on 2026-11-07 and hasn't run since.
 - [x] Calibration docs + procedures in roadmap + AGENTS.md.
 - [x] RPLidar on Humble: health OK, `/scan` at 6.5 Hz (2026-11-05).
 - [ ] Check that the front of the scan matches the front of the robot.

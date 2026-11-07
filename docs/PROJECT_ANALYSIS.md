@@ -2,9 +2,9 @@
 
 This is the primary status board. Consult this file to understand the current operational health and the immediate roadmap.
 
-## 📊 Current Status (Updated 2026-06-26)
+## 📊 Current Status (Updated 2026-11-06)
 
-The stack follows **REP 120** and uses a Python Serial Bridge + mature Web UI. All development phases are complete (Docker + sim verified). All work happens inside Docker (`./robot.sh`).
+The stack follows **REP 120** and uses a Python Serial Bridge + mature Web UI. Code phases are complete (Docker + sim verified on Foxy). On the Humble stack, the lidar and the ESP32-S3's encoder and IMU streams have been checked on hardware, but the motors haven't been driven yet. All work happens inside Docker (`./robot.sh`). The current target is a Jetson Xavier NX running ROS 2 Humble in Docker; Foxy stays available with `ROS_DISTRO=foxy`.
 
 ### System Health
 | System | Status | Note |
@@ -13,9 +13,10 @@ The stack follows **REP 120** and uses a Python Serial Bridge + mature Web UI. A
 | **Motor Driver** | ✅ Active | `jetson_bot_diffdrive` Python bridge. |
 | **Web UI + Global Map** | ✅ Mature | Modular ES6, real-time map/pose/goal overlay. |
 | **EKF Fusion** | ✅ Complete | Pipeline + Madgwick + filtered odom + diagnostics ready. |
-| **Simulation** | ✅ Functional | Full when launched. |
+| **Simulation** | ✅ Functional | Full when launched. Under Humble, needs an amd64 host. |
+| **Hardware** | ⚠️ Partial | On 2026-11-05 the RPLidar and ESP32-S3 passed read-only checks under Humble (`/scan` at 6.9 Hz, encoders and IMU at 50 Hz, SLAM building a map). On 2026-11-06 both encoders counted by hand, but far fewer per turn than configured and apparently in only one direction. Motors haven't been driven. The ESP32 camera streams to the Jetson over Wi-Fi but isn't connected to ROS yet. |
 
-**Primary Focus:** Phase 4 physical validation — mapping + Nav2 on Jetson Nano car.
+**Primary Focus:** Phase 4 physical validation — mapping + Nav2 on the Jetson car.
 Optimizations applied (2026-06):
 - EKF /odom_filtered enforced for mapping (physical stability)
 - Smart mode switching: `./robot.sh map2nav` + auto-save on `nav` / stop (when in mapping)
@@ -27,11 +28,17 @@ Optimizations applied (2026-06):
 See AGENTS.md for serial/EKF/physical tuning and robot.sh help.
 
 ## 🚧 Critical Blockers
-* None. All core phases completed in code + Docker workflow.
+* **Motors not driven yet under Humble (2026-11-05).** The ESP32-S3 works on its native USB socket, the one next to the RGB LED (`303a:1001` at `/dev/ttyACM0`). Only read-only checks have run, with 0 motor commands sent.
+* **Flashed motor firmware was never committed (2026-11-06).** It's `MOTOR-ESP32S3` with IMU code added from `imu_viz` (MPU6050 on SDA GPIO 1 and SCL GPIO 21, see `docs/IMU_WIRING.md`). No branch, tag or commit in any repo has the combined version, and `MOTOR-ESP32S3` alone sends encoder lines at 20 Hz with no IMU lines. Don't reflash from that repo as it stands, or the IMU stream goes away. It can be rebuilt from those two repos. June's notes and that repo suggest any drive command starts at about half power with a 500 ms timeout, but that's unconfirmed on the board, so keep the wheels off the ground for the first drive.
+* **ESP32 camera startup fix isn't merged (2026-11-06).** The camera is an AI-Thinker ESP32-CAM (OV2640) on Wi-Fi, not the Pi Camera v2 the docs assumed, so the kernel's `imx219` errors and the missing `/dev/video*` are expected. Its firmware, [`myESP32CAM-BLACKBOX`](https://github.com/jakhon37/myESP32CAM-BLACKBOX), used to try Wi-Fi once at boot and stay on its hotspot until reset, and to halt if the sensor failed to start. That repo's `wifi-reliability` branch, flashed but local only, retries Wi-Fi every 30 s and restarts on a sensor failure. The retry passed on hardware.
+* **ESP32 camera delivery at 640×480 is unreliable (2026-11-06).** On a phone charger away from the PC, one boot delivered nothing at 640×480 or larger for 20 minutes, with `/capture` returning HTTP 500 after 4 s, while 320×240 and 160×120 worked. The cause is unknown. After the camera was moved and rebooted, `http://192.168.219.118/stream` to the Jetson runs at 9.8 fps at 320×240 and about 3 fps at 640×480 with 24 KB frames, with stalls of up to 3 s at 640×480. The slowdown seen after 04:00, when an 18 KB page from flash downloaded at about 5 KB/s, is gone: the page now downloads at about 150 to 180 KB/s and idle ping is under 10 ms. Power source, position and time of day all changed together, so the cause of that recovery isn't known either. Video delay hasn't been measured.
+* **Nothing publishes camera images.** No launch file starts a camera node, and `camera_go` only opens a local video device, so `/camera/image_raw` has no source. The ESP32 camera needs a node that reads `/stream`. It must be the stream's only client because the firmware serves one request at a time, reconnect if the stream drops, and stamp frames on arrival because they carry no timestamps. It shouldn't poll `/capture`, since each call saves a file to the SD card.
+* **Encoders don't appear to report direction or the right scale (2026-11-06).** In a hand test of 5 turns forward and 5 back on each wheel, L moved -3,437 and R +3,866. Neither count reversed, and that's about 344 to 387 counts per turn against 3,436 configured. If the backward turns are confirmed, both B channels are suspect. Until this is fixed, odometry would report about 1/10 of real distance, always as backward, and a spin in place would read as reversing. Left and right aren't swapped. No measurement behind 3,436 was found: it goes back to May 2025, and the firmware's older `dev` branch says 360. L also jumped by -75,118 with no commands sent and R moving 103, after an earlier unexplained -133,420, and it was flagged as a connection problem on 2026-06-08 (Pin 18/GND). Don't change `encoder_cpr` until direction is fixed, because a firmware fix could change the count per turn.
+* **IMU bias not calibrated:** at rest the gyro's z axis reads about 0.024 rad/s (1.4°/s), and `/odom_filtered` yaw drifts about 0.1°/s. Phase 2a in the roadmap puts the bias in firmware, which needs the rebuild above, and gyro values currently arrive with only 2 decimals.
 
 ## 🗺️ Roadmap & Active Tasks — Perfect Phases
 
-Phases are accurate as of 2026-06-26. See `docs/imu_nav2_roadmap_v2.md` for the detailed EKF technical plan with verification criteria.
+Phases are accurate as of 2026-11-05. See `docs/imu_nav2_roadmap_v2.md` for the detailed EKF technical plan with verification criteria.
 
 ### Phase 1: Industry Standard (✅ Complete)
 - [x] **URDF Refactor:** `base_footprint` root + measured offsets (lidar, imu_link).
@@ -66,13 +73,20 @@ Phases are accurate as of 2026-06-26. See `docs/imu_nav2_roadmap_v2.md` for the 
 # EKF + Nav2 using fused odom; run with ./robot.sh sim or robot for live check
 ```
 
-### Phase 4: Physical Validation (✅ Complete for Docker/Sim; Ready for Jetson)
+### Phase 4: Physical Validation (✅ Complete for Docker/Sim; 🚧 Hardware pending)
 - [x] Mapping + autonomous goals verified in sim with fused odometry.
 - [x] Jetson-native Docker setup (mac dev uses Xvfb/VNC; native path documented).
 - [x] Tests pass with live stack (Docker-aware).
 - [x] Calibration docs + procedures in roadmap + AGENTS.md.
+- [x] RPLidar on Humble: health OK, `/scan` at 6.5 Hz (2026-11-05).
+- [ ] Check that the front of the scan matches the front of the robot.
+- [x] ESP32-S3 on Humble: encoders and IMU streaming at 50 Hz, `./robot.sh status` all OK (2026-11-05).
+- [ ] Test each wheel's encoder by hand, then drive the motors with someone present.
+- [ ] Bring the ESP32 camera's stream into ROS.
+- [ ] Run `./robot.sh robot` on the Humble stack and do the bias calibration (Phase 2a in roadmap).
+- [ ] Complete a hardware mapping run and a Nav2 goal.
 
-## 🛠️ Active Context (2026-06-26)
-All phases completed in this session. Docker-only dev. Container idle until `./robot.sh sim/robot/nav`.
+## 🛠️ Active Context (2026-11-05)
+The Humble Docker port was made on the Jetson in 2026-08 and committed on 2026-11-05 (PR #2). Docker-only dev. Container idle until `./robot.sh sim/robot/nav`.
 
-**Next for physical:** Deploy to Jetson Nano, run bias calibration (Phase 2a in roadmap), validate on hardware. Use `./robot.sh` for everything.
+**Next for physical:** Check both encoders' B wires (see Critical Blockers), start the container only after USB devices are plugged in, then run bias calibration (Phase 2a in roadmap) and validate on hardware. Use `./robot.sh` for everything.

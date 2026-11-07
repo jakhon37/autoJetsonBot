@@ -17,20 +17,22 @@ import os
 import yaml
 
 
-def test_nav2_yaml_validity():
-    """Verify that the Nav2 YAML configuration is valid YAML."""
-    package_path = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-    yaml_file = os.path.join(package_path, 'config', 'nav2_params.yaml')
-
+def _assert_yaml_valid(yaml_file):
     assert os.path.exists(yaml_file), f"YAML file not found at {yaml_file}"
-
     with open(yaml_file, 'r') as f:
         try:
             data = yaml.safe_load(f)
             assert data is not None
-            print("✅ Nav2 Config YAML is valid")
+            print(f"✅ {os.path.basename(yaml_file)} is valid")
         except yaml.YAMLError as e:
-            assert False, f"YAML Parsing failed: {str(e)}"
+            assert False, f"YAML Parsing failed for {yaml_file}: {str(e)}"
+
+
+def test_nav2_yaml_validity():
+    """Verify that the Nav2 YAML configurations are valid YAML."""
+    package_path = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    _assert_yaml_valid(os.path.join(package_path, 'config', 'nav2_params.yaml'))
+    _assert_yaml_valid(os.path.join(package_path, 'config', 'nav2_params_humble.yaml'))
 
 
 if __name__ == '__main__':

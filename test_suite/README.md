@@ -51,7 +51,7 @@ pip install websocket-client requests
 
 1. Start Docker container:
    ```bash
-   docker start auto_ros_foxy
+   docker start auto_ros_humble
    ```
 
 2. For full tests, start the simulation:

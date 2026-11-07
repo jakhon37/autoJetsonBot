@@ -223,13 +223,46 @@ class RobotController {
     document.getElementById('cancelGoalBtn').style.display = 'none';
   }
 
+  _pageHost() {
+    return window.location.hostname || 'localhost';
+  }
+
+  _isLoopbackHost(host) {
+    const h = (host || '').toLowerCase();
+    return !h || h === 'localhost' || h === '127.0.0.1' || h === '[::1]' || h === '::1';
+  }
+
+  _applyPageHostServices() {
+    const host = this._pageHost();
+    const wsProto = window.location.protocol === 'https:' ? 'wss' : 'ws';
+    const httpProto = window.location.protocol === 'https:' ? 'https' : 'http';
+    this.config.cameraUrl =
+      `${httpProto}://${host}:8080/stream?topic=/camera/image_raw&type=mjpeg&width=320&height=240`;
+    this.config.cameraUrlFallback =
+      `${httpProto}://${host}:8080/stream?topic=/camera/camera/image_raw&type=mjpeg&width=320&height=240`;
+    return `${wsProto}://${host}:9090`;
+  }
+
   autoDetectROSBridge() {
-    const host = window.location.hostname;
-    const el   = document.getElementById('rosbridgeUrl');
-    if (!localStorage.getItem('robotSettings')) {
-      el.value = `ws://${host}:9090`;
+    const el = document.getElementById('rosbridgeUrl');
+    const suggested = this._applyPageHostServices();
+    const saved = (() => {
+      try { return JSON.parse(localStorage.getItem('robotSettings') || '{}'); }
+      catch (_) { return {}; }
+    })();
+    const savedUrl = saved.rosbridgeUrl || '';
+    // Rewrite leftover localhost settings when the page is opened from another machine.
+    const shouldRewrite = !savedUrl
+      || (this._isLoopbackHost(this._bridgeHost(savedUrl)) && !this._isLoopbackHost(this._pageHost()));
+    if (shouldRewrite) {
+      el.value = suggested;
     }
     this.config.rosbridgeUrl = el.value;
+  }
+
+  _bridgeHost(url) {
+    try { return new URL(url).hostname; }
+    catch (_) { return ''; }
   }
 
   updateConnectionStatus(status) {

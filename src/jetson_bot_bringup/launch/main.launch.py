@@ -9,6 +9,49 @@ from launch.substitutions import LaunchConfiguration, PythonExpression
 from launch.conditions import IfCondition
 from launch_ros.actions import Node
 
+
+def _serial_by_id():
+    root = '/dev/serial/by-id'
+    mapping = {}
+    if os.path.isdir(root):
+        for name in sorted(os.listdir(root)):
+            mapping[name] = os.path.realpath(os.path.join(root, name))
+    return mapping
+
+
+def find_esp32_port():
+    """Prefer USB by-id (QinHeng/WCH/ESP). Skip the lidar CP2102 adapter."""
+    skip = ('cp210', 'silicon_labs', 'rplidar')
+    prefer = ('espressif', 'esp32', 'jtag_serial', '1a86', 'qinheng',
+              'usb_single_serial', 'wch', 'arduino', 'usbmodem')
+    by_id = _serial_by_id()
+    for name, path in by_id.items():
+        low = name.lower()
+        if any(s in low for s in skip):
+            continue
+        if any(s in low for s in prefer) and os.path.exists(path):
+            return path, name
+    for name, path in by_id.items():
+        if 'ttyACM' in path and os.path.exists(path):
+            return path, name
+    for p in ('/dev/ttyACM0', '/dev/ttyACM1', '/dev/ttyACM2'):
+        if os.path.exists(p):
+            return p, p
+    return None, None
+
+
+def find_lidar_port():
+    by_id = _serial_by_id()
+    for name, path in by_id.items():
+        low = name.lower()
+        if ('cp210' in low or 'silicon_labs' in low) and os.path.exists(path):
+            return path, name
+    for p in ('/dev/ttyUSB0', '/dev/ttyUSB1'):
+        if os.path.exists(p):
+            return p, p
+    return None, None
+
+
 def launch_setup(context, *args, **kwargs):
     pkg_bringup = get_package_share_directory('jetson_bot_bringup')
     pkg_description = get_package_share_directory('jetson_bot_description')
@@ -16,6 +59,14 @@ def launch_setup(context, *args, **kwargs):
     pkg_slam = get_package_share_directory('jetson_bot_slam')
     pkg_imu = get_package_share_directory('jetson_bot_imu')
     pkg_gui = get_package_share_directory('jetson_bot_gui')
+
+    # Humble vs Foxy: controller spawner name, slam_toolbox launch arg, Nav2 YAML.
+    ros_distro = os.environ.get('ROS_DISTRO', 'humble')
+    is_foxy = ros_distro == 'foxy'
+    spawner_exec = 'spawner.py' if is_foxy else 'spawner'
+    slam_params_arg = 'params_file' if is_foxy else 'slam_params_file'
+    nav2_params_name = 'nav2_params.yaml' if is_foxy else 'nav2_params_humble.yaml'
+    print(f"[bringup] ROS_DISTRO={ros_distro} spawner={spawner_exec} nav2={nav2_params_name}")
 
     # 1. Load Unified Config
     config_path = os.path.join(pkg_bringup, 'config', 'unified_robot_config.yaml')
@@ -144,6 +195,14 @@ def launch_setup(context, *args, **kwargs):
     # 3. Hardware vs Simulation Logic
     hardware_active = False
     if final_use_sim:
+        try:
+            get_package_share_directory('gazebo_ros')
+        except Exception as exc:
+            raise RuntimeError(
+                "gazebo_ros is not installed. Humble Gazebo Classic debs are "
+                "not published on arm64. Use ./robot.sh robot for hardware, "
+                "or build/run the image on amd64 for simulation."
+            ) from exc
         hardware_active = True # Simulation always counts as active
         # --- GAZEBO STACK ---
         entities.append(IncludeLaunchDescription(
@@ -174,8 +233,8 @@ def launch_setup(context, *args, **kwargs):
 
         # Controllers (Delayed)
         entities.append(TimerAction(period=90.0, actions=[
-            Node(package="controller_manager", executable="spawner.py", arguments=["diff_cont"]),
-            Node(package="controller_manager", executable="spawner.py", arguments=["joint_broad"])
+            Node(package="controller_manager", executable=spawner_exec, arguments=["diff_cont"]),
+            Node(package="controller_manager", executable=spawner_exec, arguments=["joint_broad"])
         ]))
 
         # EKF in sim too: fuses gazebo odom + imu into /odom_filtered
@@ -241,9 +300,9 @@ def launch_setup(context, *args, **kwargs):
         # No explicit static publisher to avoid TF_REPEATED_DATA warnings.
         # EKF uses the TF tree (footprint -> base_link -> imu_link) for lever arm.
         
-        # 3. Python Serial Bridge (Check if port exists)
-        motor_port = '/dev/ttyACM0'
-        if os.path.exists(motor_port):
+        # 3. Python Serial Bridge (USB by-id — ttyACM numbers change after ESP32 reset)
+        motor_port, motor_id = find_esp32_port()
+        if motor_port:
             hardware_active = True
             entities.append(Node(
                 package='jetson_bot_diffdrive',
@@ -259,13 +318,13 @@ def launch_setup(context, *args, **kwargs):
                     'publish_tf': False # Disable for EKF compatibility
                 }]
             ))
-            print(f"✅ [HARDWARE] Motor Bridge: FOUND at {motor_port}")
+            print(f"✅ [HARDWARE] Motor Bridge: FOUND at {motor_port} ({motor_id})")
         else:
-            print(f"❌ [HARDWARE ERROR] Motor port {motor_port} NOT FOUND. Connect ESP32 via USB.")
+            print("❌ [HARDWARE ERROR] Motor ESP32 serial port NOT FOUND. Connect its native USB socket (not COM).")
 
-        # 3. RPLidar A1 (Check if port exists)
-        lidar_port = '/dev/ttyUSB0'
-        if os.path.exists(lidar_port):
+        # 3. RPLidar A1 (CP2102 by-id, not a hardcoded ttyUSB that can collide)
+        lidar_port, lidar_id = find_lidar_port()
+        if lidar_port:
             hardware_active = True
             entities.append(Node(
                 package='rplidar_ros',
@@ -281,9 +340,9 @@ def launch_setup(context, *args, **kwargs):
                     'scan_mode': 'Standard'  # Force standard mode for A1
                 }]
             ))
-            print(f"✅ [HARDWARE] RPLidar: FOUND at {lidar_port}")
+            print(f"✅ [HARDWARE] RPLidar: FOUND at {lidar_port} ({lidar_id})")
         else:
-            print(f"❌ [HARDWARE ERROR] Lidar port {lidar_port} NOT FOUND. Connect RPLidar via USB.")
+            print("❌ [HARDWARE ERROR] Lidar serial port NOT FOUND. Connect RPLidar via USB.")
         
         if not hardware_active:
             print("🛑 [FATAL WARNING] No critical sensors found. SLAM/Navigation will be DISABLED to prevent crash.")
@@ -299,7 +358,11 @@ def launch_setup(context, *args, **kwargs):
     entities.append(Node(
         package='rosbridge_server',
         executable='rosbridge_websocket',
-        parameters=[{'use_sim_time': final_use_sim}],
+        parameters=[{
+            'use_sim_time': final_use_sim,
+            'address': '0.0.0.0',
+            'port': 9090,
+        }],
         output='screen'
     ))
 
@@ -339,7 +402,7 @@ def launch_setup(context, *args, **kwargs):
                         get_package_share_directory('slam_toolbox'), 'launch', 'online_async_launch.py')]),
                     launch_arguments={
                         'use_sim_time': 'true' if final_use_sim else 'false',
-                        'params_file': os.path.join(pkg_slam, 'config', 'mapper_params.yaml')
+                        slam_params_arg: os.path.join(pkg_slam, 'config', 'mapper_params.yaml')
                     }.items()
                 )
             ]))
@@ -350,7 +413,7 @@ def launch_setup(context, *args, **kwargs):
                         get_package_share_directory('nav2_bringup'), 'launch', 'bringup_launch.py')]),
                     launch_arguments={
                         'use_sim_time': 'true' if final_use_sim else 'false',
-                        'params_file': os.path.join(pkg_navigation, 'config', 'nav2_params.yaml'),
+                        'params_file': os.path.join(pkg_navigation, 'config', nav2_params_name),
                         'map': final_map_path
                     }.items()
                 )

@@ -1,6 +1,6 @@
 # autoJetsonBot
 
-ROS 2 Foxy mobile robot on an NVIDIA Jetson Nano B01. The same URDF, `slam_toolbox`, AMCL, and Nav2 stack run on the chassis and in Gazebo. Low-level control is an ESP32 serial bridge; sensing is RPLidar A1, wheel encoders, and an MPU6050.
+ROS 2 mobile robot on NVIDIA Jetson. The current target is a Jetson Xavier NX running ROS 2 Humble in Docker; the original Jetson Nano B01 and Foxy setup stays available. The same URDF, `slam_toolbox`, AMCL, and Nav2 stack run on the chassis and in Gazebo. Low-level control is an ESP32 serial bridge; sensing is RPLidar A1, wheel encoders, and an MPU6050.
 
 Demo: [YouTube](https://youtu.be/JTg8ff2hSGM)
 
@@ -36,6 +36,7 @@ Grey 3D-printed chassis, RPLidar A1 on a raised mount, Jetson WiFi antenna, and 
 
 | System | Detail |
 | :--- | :--- |
+| **Platform** | ROS 2 Humble in Docker by default; Foxy with `ROS_DISTRO=foxy` |
 | **TF tree** | `map → odom → base_footprint → base_link` (REP 120) |
 | **Hardware** | Python serial bridge (`diffdrive_node`) to the ESP32 |
 | **Navigation** | AMCL + DWB local planner |
@@ -64,6 +65,7 @@ autoJetsonBot/
 ├── README.md               # You are here
 ├── robot.sh                # Unified CLI Control Script
 ├── unified_robot_config.yaml # Global Source of Truth
+├── Dockerfile.humble       # Humble/Ubuntu 22.04 Container Definition (default)
 ├── Dockerfile.foxy         # Foxy/Ubuntu 20.04 Container Definition
 ├── src/                    # ROS 2 Source Workspace
 │   ├── jetson_bot_bringup/  # Master Launch & Configs
@@ -87,7 +89,7 @@ The platform is meticulously calibrated to a **1:1 Digital Twin standard**. Ever
 <p align="center">
   <img src="assets/circuit_image.png" alt="Cirkit Designer wiring — Jetson Nano, ESP32, motors, IMU, LiDAR, power" width="80%">
   <br>
-  <em>Wiring: Jetson Nano B01 (brain) · ESP32 (motor/IMU bridge) · dual Hall-encoder motors · MPU6050 · RPLidar A1 · isolated 5V rails</em>
+  <em>Original wiring: Jetson Nano B01 (brain) · ESP32 (motor/IMU bridge) · dual Hall-encoder motors · MPU6050 · RPLidar A1 · isolated 5V rails</em>
 </p>
 
 ### 1. Physical Metrics & Kinematics
@@ -98,7 +100,7 @@ The platform is meticulously calibrated to a **1:1 Digital Twin standard**. Ever
 *   **Total Weight:** 1.4kg (Physics-accurate inertial distribution)
 
 ### 2. Compute & Intelligence
-*   **Main Brain:** NVIDIA Jetson Nano B01 (4GB) – Executes the full ROS 2 stack and vision processing.
+*   **Main Brain:** NVIDIA Jetson Xavier NX (current target, ROS 2 Humble in Docker) – Executes the full ROS 2 stack and vision processing. The original NVIDIA Jetson Nano B01 (4GB) setup stays available through `setup_jetson.sh` and `robot_nano.sh` (native Foxy).
 *   **Low-Level Controller:** ESP32 / Arduino – Real-time PID bridge for motors and encoders.
 *   **HW Interface:** `jetson_bot_diffdrive` – A high-performance Python bridge using a human-readable serial protocol (`m v_l v_r\r`).
 
@@ -106,7 +108,7 @@ The platform is meticulously calibrated to a **1:1 Digital Twin standard**. Ever
 *   **Lidar:** RPLidar A1 – Positioned at `x=0.064` (forward of axle) and `z=0.161` (from floor).
 *   **IMU:** MPU6050 – Fuses 6-DOF data for improved odometry via EKF (`/odom_filtered`).
 *   **Encoders:** Hall-effect sensors (11 PPR × gear reduction) – High-resolution position feedback.
-*   **Vision:** Raspberry Pi Camera v2 – Serves MJPEG stream on port 8080 via `web_video_server`.
+*   **Vision:** ESP32 camera over Wi-Fi – Not connected to ROS yet. `web_video_server` on port 8080 streams `/camera/image_raw` once a node publishes it.
 
 <p align="center">
   <img src="assets/rplidar.jpg" alt="RPLidar A1 pinout (A1M8-R6)" width="48%">
@@ -131,17 +133,22 @@ We utilize a unified control script to manage the dockerized environment efficie
 ### Core Commands
 | Command | Result |
 | :--- | :--- |
+| `./robot.sh image` | Builds the Docker image (Humble by default; `ROS_DISTRO=foxy` for Foxy). |
 | `./robot.sh build` | Rebuilds the modular workspace inside the container. |
 | `./robot.sh auto` | Auto-installs missing dependencies and builds. |
 | `./robot.sh sim` | Launches Gazebo simulation + Web UI in **Mapping Mode**. |
+| `./robot.sh robot` | Launches the stack on the real robot, without RViz or Gazebo. |
 | `./robot.sh nav` | Launches simulation + Nav2 in **Navigation Mode**. |
 | `./robot.sh map2nav` | Saves the current map (if mapping) and switches to Nav2. |
-| `./robot.sh status` | Deep-inspects ROS nodes, topics, and port health. |
+| `./robot.sh status` | Deep-inspects ROS nodes, topics, ESP32 link, and port health. |
+| `./robot.sh remote` | Prints the Web UI URLs and SSH tunnel command for another PC. |
 | `./robot.sh stop` | Robustly terminates all processes (including Gazebo/VNC). |
+
+Under Humble, `./robot.sh sim` needs an amd64 host, because Gazebo Classic packages aren't published for Humble on arm64.
 
 ### Web Dashboard
 
-Teleop, live LiDAR, wheel RPM, and system metrics at [http://localhost:8000](http://localhost:8000).
+Teleop, live LiDAR, wheel RPM, and system metrics at [http://localhost:8000](http://localhost:8000). From another PC, use the Jetson's IP, or run `./robot.sh remote` for the SSH tunnel command.
 
 <p align="center">
   <img src="assets/web_ui.png" alt="Web UI — lidar view, teleop pad, metrics" width="90%">

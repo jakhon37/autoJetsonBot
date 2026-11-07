@@ -1,6 +1,6 @@
 # autoJetsonBot - Project Instructions
 
-This project is a ROS 2 Foxy-based autonomous mobile robot platform designed for Jetson Nano B01. It features a dockerized development environment, simulation capabilities with Gazebo and RViz2 (via VNC), and support for real hardware integration.
+This project is a ROS 2 autonomous mobile robot platform. The current target is a Jetson Xavier NX running Humble in Docker; the original Jetson Nano B01 and Foxy setup stays available. It features a dockerized development environment, simulation capabilities with Gazebo and RViz2 (via VNC), and support for real hardware integration.
 
 ## 🚀 Primary Workflows (Host Machine)
 
@@ -24,10 +24,10 @@ This project is a ROS 2 Foxy-based autonomous mobile robot platform designed for
 | `jetson_bot_imu` | MPU6050 I2C driver (Python). |
 
 ## 📐 Standard Robot Specs
-*   **Wheel Separation:** 0.18 m
-*   **Wheel Radius:** 0.035 m
+*   **Wheel Separation:** 0.212 m
+*   **Wheel Radius:** 0.034 m
 *   **Encoder Resolution:** 3436 counts/rev
-*   **Serial Port:** `/dev/ttyACM0` @ 115200 baud
+*   **Serial Port:** ESP32 found by USB ID in `/dev/serial/by-id`, falling back to `/dev/ttyACM*`, @ 115200 baud
 *   **Frame Root:** Always use `base_footprint` as the root of the robot tree (REP 120).
 
 ## 🛡️ Model Behavior & Safety Mandates

@@ -38,7 +38,8 @@
         <h3 class="sidebar-title">🔗 Connection</h3>
         <div class="config-group">
           <label class="config-label" for="rosbridgeUrl">ROSBridge URL</label>
-          <input type="text" id="rosbridgeUrl" class="config-input" value="ws://localhost:9090" placeholder="ws://hostname:9090">
+          <input type="text" id="rosbridgeUrl" class="config-input" value="ws://localhost:9090" placeholder="ws://JETSON_IP:9090">
+          <small class="config-hint">From another PC use the Jetson IP, e.g. ws://192.168.219.104:9090 — or SSH-tunnel 8000+9090 and keep localhost.</small>
         </div>
         <div class="config-group">
           <button id="connectBtn"    class="btn btn-primary" style="width:100%;margin-bottom:.5rem;">Connect to Robot</button>

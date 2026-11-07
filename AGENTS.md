@@ -76,12 +76,24 @@ Since macOS Docker Desktop cannot forward X11 correctly, we use:
 ### Process Lifecycle & "Zombies"
 If `robot.sh stop` fails to terminate Gazebo, it is usually because `gzserver` is still holding the socket. Use `pkill -9 -f gzserver` to clear the slate. A port being open on the host (5900) only means Docker is listening; it doesn't guarantee the internal service is alive.
 
+## 🐳 ROS 2 Humble Docker (Added 2026-08-18)
+
+*   **Default image is Humble.** `./robot.sh image` builds `Dockerfile.humble` → `auto_ros:humble`. Foxy is still available: `ROS_DISTRO=foxy ./robot.sh image`.
+*   ❌ **Don't:** Install `ros-humble-ros-gz` in this image. That is Gazebo Fortress. This workspace uses Gazebo Classic plugins (`libgazebo_ros_*.so`, `libgazebo_ros2_control.so`).
+*   ❌ **Don't:** Reuse a Foxy `install/` tree inside the Humble container. Run `./robot.sh clean && ./robot.sh build` after switching distro.
+*   ✅ **Do:** Install `gazebo-ros-pkgs` + `gazebo-ros2-control` only when apt has them (Humble amd64). On arm64 those debs are unpublished because jammy has no `gazebo11`/`libgazebo-dev`. Hardware, SLAM, and Nav2 still run.
+*   Launch already switches `spawner.py`→`spawner`, slam `params_file`→`slam_params_file`, and Nav2 to `nav2_params_humble.yaml`.
+*   **Current target:** Jetson Xavier NX (L4T R35, Ubuntu 20.04 host) running the Ubuntu 22.04 Humble image through Docker. **Jetson Nano native** (`setup_jetson.sh` / `robot_nano.sh`) stays Foxy.
+*   **`use_sim_time` for SLAM:** `online_async_launch.py` passes the launch argument after the params file, so it always beats any value in `mapper_params.yaml`. Tested both ways on 2026-11-05, so don't set it in that YAML.
+*   **Serial Ports:** Launch looks for the ESP32 and lidar by USB ID (`/dev/serial/by-id`) because `ttyACM` numbers change after an ESP32 reset. The CP2102 adapter is the lidar. ⚠️ The current container has no `/dev/serial/by-id`, so launch falls back to the first `/dev/ttyACM*` and `/dev/ttyUSB*` it finds, and a second USB serial device (like an ESP32 camera on a data cable) could be picked by mistake. The ESP32-S3's serial link is its native USB socket, the one next to the RGB LED (`303a:1001`). The ESP32-CAM's CH340 (`1a86:7523`) appears as `/dev/ttyUSB*`, so on a data cable it can be taken for the lidar, and opening its port resets the camera. Power it without a data connection on the robot. Restart the container after plugging in USB devices, or it won't see them.
+*   **ESP32-CAM Firmware:** Source is `github.com/jakhon37/myESP32CAM-BLACKBOX`. It serves one request at a time, so `/status` hangs while anyone holds `/stream`. `/capture` saves a copy to the SD card on every call, so read frames from `/stream`. Frames carry no timestamps. `/fps?val=N` changes the rate limit until the next reboot. Idle ping doesn't measure video delay. Its programmer board stays in reset if DTR and RTS are held active, so clear them before opening the serial port. Pin the PlatformIO platform, because unpinned it now jumps to Arduino core 3.x.
+*   **Motor Firmware:** The build on the ESP32-S3 is `MOTOR-ESP32S3` with IMU code added from `imu_viz` (MPU6050, SDA GPIO 1, SCL GPIO 21), and that combination was never committed. Reflashing from `MOTOR-ESP32S3` as it stands would lose the IMU stream.
+
 ## 🧩 Hardware & Dependency Insights
 
-### 1. Missing Hardware Plugin (`diffdrive_arduino`)
-*   **Context:** The physical robot relies on a custom `diffdrive_arduino` hardware interface plugin for `ros2_control`. 
-*   ⚠️ **Critical Discovery:** The plugin source is currently missing from the workspace. Without `libdiffdrive_arduino.so`, the `controller_manager` will fail to spawn the `diff_cont` in `mode:=robot`. 
-*   **Mitigation:** Sourcing the original repository or migrating to a standard `ros2_control` hardware interface for the ESP32 is required before physical testing.
+### 1. Removed Hardware Plugin (`diffdrive_arduino`)
+*   **Context:** The physical robot once relied on a custom `diffdrive_arduino` hardware interface plugin for `ros2_control`, and its source was missing from the workspace.
+*   ✅ **Fix Applied:** The plugin is gone from the non-sim xacro. On hardware, the Python bridge `jetson_bot_diffdrive` talks to the ESP32, so the hardware path no longer needs `libdiffdrive_arduino.so` or `controller_manager`.
 
 ### 2. Gazebo Physics: Ground Clipping
 *   **Discovery:** The robot appeared "stuck" even with active nodes. RViz showed wheels underground and chassis touching the floor.

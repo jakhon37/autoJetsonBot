@@ -13,7 +13,7 @@ The stack follows **REP 120** and uses a Python Serial Bridge + mature Web UI. C
 | **Motor Driver** | ⚠️ Partial | The `jetson_bot_diffdrive` bridge runs, but the motors haven't been driven under Humble. |
 | **Web UI + Global Map** | ✅ Mature | Modular ES6, real-time map/pose/goal overlay. |
 | **EKF Fusion** | ⚠️ Configured | Madgwick, the EKF and `/odom_filtered` run, but aren't validated on hardware. See Known Issues. |
-| **Simulation** | ✅ Functional | Full when launched. Under Humble, needs an amd64 host. Two nodes publish `odom → base_footprint`, see Known Issues. |
+| **Simulation** | ✅ Functional | Full when launched. Under Humble, needs an amd64 host. The TF fix from 2026-11-07 hasn't run in simulation yet, see Known Issues. |
 | **Hardware** | ⚠️ Partial | On 2026-11-05 the RPLidar and ESP32-S3 passed read-only checks under Humble (`/scan` at 6.9 Hz, encoders and IMU at 50 Hz, SLAM building a map). On 2026-11-06 both encoders counted by hand, but far fewer per turn than configured and apparently in only one direction. Motors haven't been driven. The ESP32 camera streams to the Jetson over Wi-Fi but isn't connected to ROS yet. |
 
 **Primary Focus:** Phase 4 physical validation — mapping + Nav2 on the Jetson car.
@@ -38,18 +38,24 @@ See AGENTS.md for serial/EKF/physical tuning and robot.sh help.
 
 ## 🔎 Known Issues (Code Review, 2026-11-07)
 
-Found by reading the code while checking the docs. None are fixed yet.
+Found by reading the code while checking the docs. Seven were fixed on 2026-11-07, each in its own commit with a test where the repo allows one. No fix has run in simulation or on the robot yet, so each says what to check.
 
-* **Simulation TF:** `diff_cont` and the EKF both publish `odom → base_footprint` (`unified_robot_config.yaml`, `ekf.yaml`).
-* **slam_toolbox odometry:** `odom_topic` in `mapper_params.yaml` isn't a slam_toolbox parameter. It reads odometry from TF, which the EKF publishes on hardware.
-* **EKF inputs:** Madgwick runs `stateless` without a magnetometer, so its orientation has no heading, yet `ekf.yaml` fuses its yaw. The bridge also publishes `/odom` with zero covariance.
-* **Odometry spikes:** The bridge takes dt from processing time, so two `e` lines handled in one 20 ms tick give a near-zero dt and a speed spike.
-* **Web UI goals:** Goal and cancel use `ROSLIB.ActionClient` from the bundled roslib 1.4.1, a ROS 1 API, so they probably don't reach Nav2 on ROS 2. Verify in simulation.
+**Fixed, still to check:**
+
+* **`./robot.sh watch`:** It was defined twice, so its refresh loop never ran. It now reruns `status` every 10 s, and the fusion checks stay under `verify`. `python3 run_tests.py --unit` tests it with stub commands.
+* **Odometry spikes:** The bridge took dt from processing time, so the second of two `e` lines handled in one 20 ms tick got a near-zero dt and a speed spike. Now a tick's encoder lines share the time since the last tick that had any, and none counts as shorter than one 50 Hz period (`encoder_rate`). A late timer tick can still make one reading low, never high. `test_odometry.py` simulates bunched, late and lost lines. On the robot, `/odom` speeds should stay steady while driving straight.
+* **`/odom` covariance:** The bridge sent all zeros, which the EKF treats as near-perfect. It now sends variances of 0.001 for x, y and vx, 0.1 for yaw and 0.05 for the yaw rate, so the gyro (0.01) leads on rotation as the roadmap plans. They're the `pose_covariance_diagonal` and `twist_covariance_diagonal` parameters, and `diff_cont` in simulation, which also sent zeros, now uses the same values. Until the gyro bias is calibrated, its 0.024 rad/s at rest can now show in `/odom_filtered`'s yaw rate.
+* **Simulation TF:** `diff_cont` and the EKF both published `odom → base_footprint`. `diff_cont` now has `enable_odom_tf: false` in `unified_robot_config.yaml`, so the EKF is the only publisher, as on the robot. In simulation, check that `ros2 param get /diff_cont enable_odom_tf` prints false and that `ros2 run tf2_ros tf2_echo odom base_footprint` follows `/odom_filtered` without jumping.
+* **slam_toolbox odometry:** `mapper_params.yaml` set `odom_topic`, which slam_toolbox doesn't read. It's gone, and the comments now say slam_toolbox takes odometry from the EKF's `odom → base_footprint` transform. No behaviour changes.
+* **Docker test:** `test_docker.py` checked `docker port`, which prints nothing under host networking. It now connects to ports 8000 and 9090 on localhost while the stack runs, and skips otherwise. Run `python3 run_tests.py --docker` on the Jetson with the stack up.
+* **Web UI goals:** Goal and cancel used `ROSLIB.ActionClient` from the bundled roslib 1.4.1, a ROS 1 API, so they probably never reached Nav2. Goals now go to `/goal_pose` as a `geometry_msgs/PoseStamped`, which bt_navigator turns into a NavigateToPose goal as it does for RViz, and cancel calls `/navigate_to_pose/_action/cancel_goal`. The badge now reads status 3 as Canceling, not Recovering. Only checked in a browser against the bundled roslib, with the rosbridge messages captured. In simulation, send a goal from the dashboard, then cancel it: the robot should stop and the badge go from Executing to Idle.
+
+**Open:**
+
+* **EKF inputs:** Madgwick runs `stateless` without a magnetometer, so its orientation has no heading, yet `ekf.yaml` fuses its yaw.
 * **Firmware speed range:** In the open-loop firmware, every command from 0.01 to 0.25 m/s gets the same PWM (500), and output saturates at about 0.51 m/s, so Nav2's 0.26 m/s limit sits near the floor.
 * **Nav2 footprint:** `robot_radius` is 0.15 m, but the chassis corners are 0.181 m from `base_footprint`.
 * **IMU frame:** `imu_link` is upside down (roll π) in the URDF. Check it against the real MPU6050 before trusting the yaw rate's sign.
-* **`./robot.sh watch`:** It's defined twice, so its refresh loop never runs.
-* **Docker test:** `test_docker.py` checks `docker port`, which prints nothing under host networking.
 * **License metadata:** `LICENSE` is MIT, but every `package.xml` and `setup.py` says Apache-2.0.
 * **RViz:** The `Time` panel AGENTS.md says was removed is still in `lab_slam.rviz` and `default_nav.rviz`.
 * **Unused files:** `esp32_hardware.xml`, `gazebo_control.xacro`, `face.xacro`, `localization_params.yaml`, `main.rviz` and `default_nav.rviz` aren't referenced by any launch file.
@@ -68,7 +74,7 @@ Phases are accurate as of 2026-11-05. See `docs/plans/imu_nav2_roadmap_v2.md` fo
 ### Phase 2: Feature Restoration + UI (✅ Complete)
 - [x] **Navigation:** DWB + tuned costmaps + recovery.
 - [x] **UI:** Full modular ES6 (map, lidar, nav, controls, telemetry).
-- [x] **Telemetry & Ops:** RPM, battery (simulated), stop button (zero velocity, and a Nav2 cancel that probably doesn't work on ROS 2), save map, global map overlay.
+- [x] **Telemetry & Ops:** RPM, battery (simulated), stop button (zero velocity, and a Nav2 cancel through the action's cancel service, not yet run against Nav2), save map, global map overlay.
 
 **Verification:** Web UI at :8000 shows everything when stack is up.
 
@@ -94,7 +100,7 @@ Phases are accurate as of 2026-11-05. See `docs/plans/imu_nav2_roadmap_v2.md` fo
 ### Phase 4: Physical Validation (✅ Complete for Docker/Sim; 🚧 Hardware pending)
 - [x] Mapping + autonomous goals verified in sim with fused odometry.
 - [x] Jetson-native Docker setup (mac dev uses Xvfb/VNC; native path documented).
-- [x] Tests run with the live stack. The Docker port test fails under host networking.
+- [x] Tests run with the live stack. The Docker port test was rewritten on 2026-11-07 and hasn't run since.
 - [x] Calibration docs + procedures in roadmap + AGENTS.md.
 - [x] RPLidar on Humble: health OK, `/scan` at 6.5 Hz (2026-11-05).
 - [ ] Check that the front of the scan matches the front of the robot.

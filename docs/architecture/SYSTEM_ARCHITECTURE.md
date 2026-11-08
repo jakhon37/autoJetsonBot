@@ -94,7 +94,7 @@ Gazebo needs time to start, so the launch staggers things: the robot spawns at 5
 ```mermaid
 flowchart TD
     map["map"] -->|"slam_toolbox or amcl"| odom["odom"]
-    odom -->|"EKF on the robot<br/>diff_cont + EKF in sim"| bf["base_footprint"]
+    odom -->|"EKF, on the robot and in sim"| bf["base_footprint"]
     bf -->|"fixed, z 0.056"| bl["base_link"]
     bl --> ch["chassis"]
     ch -->|"x 0.064, z 0.161"| laser["laser_frame"]
@@ -106,9 +106,8 @@ flowchart TD
     bl --> cw["caster_wheel"]
 ```
 
-- **Moving transforms:** `map → odom` comes from `slam_toolbox` while mapping and from AMCL while navigating. On the robot, `odom → base_footprint` comes from the EKF, because the bridge and Madgwick have TF publishing turned off.
+- **Moving transforms:** `map → odom` comes from `slam_toolbox` while mapping and from AMCL while navigating. `odom → base_footprint` comes from the EKF, on the robot and in simulation, because the bridge, Madgwick and `diff_cont` have TF publishing turned off.
 - **Fixed transforms:** The rest come from `robot_state_publisher`, which reads the wheel angles from `/joint_states`.
-- **Known issue:** In simulation, both `diff_cont` and the EKF publish `odom → base_footprint`. See the status board.
 
 ## Serial Protocol
 
@@ -137,7 +136,7 @@ sequenceDiagram
 | ESP32 → Jetson | `i <ax> <ay> <az> <gx> <gy> <gz>` | MPU6050 readings in m/s² and rad/s, passed on as `/serial_imu_raw` |
 | ESP32 → Jetson | `READY` | The board rebooted, so the bridge takes the next counts as its new baseline |
 
-**Odometry:** Each `e` line becomes a distance per wheel (`counts / encoder_cpr × 2π × 0.034`). The bridge takes the change since the last line, integrates the pose at the midpoint heading, and publishes `/odom` and `/joint_states`. The first line after connecting only sets the baseline, so `/odom` starts at zero.
+**Odometry:** Each `e` line becomes a distance per wheel (`counts / encoder_cpr × 2π × 0.034`). The bridge takes the change since the last line, integrates the pose at the midpoint heading, and publishes `/odom` and `/joint_states`. Speeds divide that change by the time the line covers: the lines read in one 20 ms tick share the time since the last tick that had any, and none counts as shorter than one 50 Hz period (`encoder_rate`). The first line after connecting only sets the baseline, so `/odom` starts at zero.
 
 **Keep-alive:** The bridge doesn't resend commands, so the motors keep running only while something streams `/cmd_vel`. The dashboard sends at 10 Hz while a key is held, and Nav2's velocity smoother at 20 Hz.
 
@@ -173,4 +172,4 @@ Ports 9090 and 5900 have no authentication, so keep the robot on a trusted netwo
 
 ## Known Issues
 
-The status board lists what a code review found while these docs were written: the duplicate simulation transform, the EKF's yaw input, odometry speed spikes, the dashboard's ROS 1 goal API and more. See [PROJECT_ANALYSIS.md](../PROJECT_ANALYSIS.md).
+The status board lists what a code review found while these docs were written. The software fixes from 2026-11-07 (the duplicate simulation transform, odometry speed spikes, zero `/odom` covariance, the dashboard's ROS 1 goal API and more) still need a run in simulation or on the robot. The EKF's yaw input, the IMU frame and the Nav2 footprint are among those still open. See [PROJECT_ANALYSIS.md](../PROJECT_ANALYSIS.md).

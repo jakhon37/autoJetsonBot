@@ -3,7 +3,7 @@
 **Goal:** Transform the current joystick-only web UI into a full robot operations dashboard.
 **Constraint:** No new frontend frameworks. Pure HTML/CSS/JS + roslibjs. All backend in Python (ROS 2 Foxy nodes).
 
-> **Status (2026-11-07):** Phases 1 to 4 and 6 are built, and phase 5 (waypoints) isn't. The "Current State Audit" below is from before that work. `js/robot-controller.js` was later split into `js/app.js`, `controls.js`, `telemetry.js`, `navigation.js`, `lidar.js` and `map.js`. The goal button uses `ROSLIB.ActionClient`, a ROS 1 API that the bundled roslib 1.4.1 can't send to a ROS 2 action, so goals and cancel probably don't reach Nav2. The battery value is simulated. The stack now runs on Humble.
+> **Status (2026-11-07):** Phases 1 to 4 and 6 are built, and phase 5 (waypoints) isn't. The "Current State Audit" below is from before that work. `js/robot-controller.js` was later split into `js/app.js`, `controls.js`, `telemetry.js`, `navigation.js`, `lidar.js` and `map.js`. The goal button used `ROSLIB.ActionClient`, a ROS 1 API that the bundled roslib 1.4.1 can't send to a ROS 2 action. Since 2026-11-07 it publishes to `/goal_pose` and cancel calls `/navigate_to_pose/_action/cancel_goal`, so 2.3 below is out of date, and phase 5's `/follow_waypoints` plan needs a ROS 2 route too. The battery value is simulated. The stack now runs on Humble.
 
 ---
 

@@ -46,7 +46,10 @@ diff_cont:
     publish_rate: 100.0
     base_frame_id: "base_footprint"
     odom_frame_id: "odom"
-    enable_odom_tf: true
+    enable_odom_tf: false  # the EKF publishes odom -> base_footprint, as on the robot
+    # Same /odom covariance as the robot's bridge (jetson_bot_diffdrive/odometry.py)
+    pose_covariance_diagonal: [0.001, 0.001, 1000000.0, 1000000.0, 1000000.0, 0.1]
+    twist_covariance_diagonal: [0.001, 0.001, 1000000.0, 1000000.0, 1000000.0, 0.05]
     use_stamped_vel: false
     open_loop: false 
 

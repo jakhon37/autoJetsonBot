@@ -33,5 +33,17 @@ def test_slam_yaml_validity():
             assert False, f"YAML Parsing failed: {str(e)}"
 
 
+
+def test_slam_reads_odometry_from_tf():
+    """Verify that the SLAM config names the EKF's frames, not an odometry topic."""
+    package_path = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    with open(os.path.join(package_path, 'config', 'mapper_params.yaml'), 'r') as f:
+        params = yaml.safe_load(f)['slam_toolbox']['ros__parameters']
+    assert 'odom_topic' not in params, 'slam_toolbox ignores odom_topic and uses TF'
+    assert params['odom_frame'] == 'odom'
+    assert params['base_frame'] == 'base_footprint'
+
+
 if __name__ == '__main__':
     test_slam_yaml_validity()
+    test_slam_reads_odometry_from_tf()

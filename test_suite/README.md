@@ -2,7 +2,7 @@
 
 Smoke and integration checks for autoJetsonBot. Most tests check that the container, nodes, topics and devices exist, and skip when something is absent.
 
-Known issues: the Docker port test fails under host networking, the navigation test expects Foxy's `recoveries_server` (Humble has `behavior_server`), the Gazebo checks look for a node named `gzserver` (it's `/gazebo`), and no test drives the motors.
+Known issues: the navigation test expects Foxy's `recoveries_server` (Humble has `behavior_server`), the Gazebo checks look for a node named `gzserver` (it's `/gazebo`), and no test drives the motors.
 
 ## Quick Start
 
@@ -17,6 +17,7 @@ python3 run_tests.py --web         # Web interface tests
 python3 run_tests.py --nav         # Navigation tests
 python3 run_tests.py --sim         # Simulation tests
 python3 run_tests.py --hardware    # Hardware tests
+python3 run_tests.py --unit        # Unit tests, no Docker or ROS needed
 
 # Quick smoke test
 python3 run_tests.py --quick
@@ -37,7 +38,7 @@ test_suite/
 ├── hardware/
 │   └── test_hardware.py   # Real hardware tests
 └── unit/
-    └── (placeholder for unit tests)
+    └── test_robot_sh.py   # robot.sh commands, run with stub commands
 ```
 
 ## Prerequisites
@@ -65,12 +66,13 @@ pip install websocket-client requests
 
 | Category | Description | Requires Simulation |
 |----------|-------------|---------------------|
-| Docker | Container setup, ports, workspace | No |
+| Docker | Container setup and workspace. Ports 8000 and 9090 once the stack is up, skipped before | No |
 | ROS2 Core | Topics, nodes, parameters | Yes |
 | Web | Web interface, ROSBridge | Yes |
 | Navigation | Nav2, SLAM, TF | Yes |
 | Simulation | Gazebo, controllers | Yes |
 | Hardware | Device and topic presence (real robot) | Real hardware |
+| Unit | `robot.sh` commands, with stub `docker` | No |
 
 ## Test Output
 

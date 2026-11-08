@@ -396,3 +396,10 @@ Append concise summaries of work done here. For technical details on *why* thing
 - **Xavier NX:** The docs now present the Jetson Xavier NX Developer Kit (8 GB, L4T R35.6, 256 GB NVMe) as the only computer. The Nano and its native Foxy scripts are history.
 - **Content Check:** A code review of every doc found wrong numbers and overclaims. The lidar is 0.217 m above the floor, not 0.161 m. The URDF's masses add up to 1.7 kg, not 1.4 kg. The firmware is open loop, not PID. On the robot, the IMU reaches ROS through `imu_bridge_node`, not the I2C driver. `./robot.sh nav` starts the hardware stack, because the YAML has `use_sim: false`. These are corrected, and the code issues it found are listed under Known Issues in `PROJECT_ANALYSIS.md`.
 - **Not Changed:** No code or config behaviour. The only `src/` edits are moving the two media files and the IMU package's description text.
+
+---
+
+## Session: 2026-11-08 @ 00:00 (Code Review Fixes)
+- **Fixed:** Seven issues from the 2026-11-07 code review, in separate commits. `./robot.sh watch` refreshes `status` again. The bridge's odometry speeds no longer spike when two `e` lines arrive in one tick, and `/odom` has a non-zero covariance, in simulation too. The EKF is the only `odom → base_footprint` publisher in simulation. `mapper_params.yaml` lost the `odom_topic` that slam_toolbox never read. The Docker port test connects to ports 8000 and 9090. The dashboard sends goals to `/goal_pose` and cancels through Nav2's cancel service.
+- **Tests:** New unit tests for the `robot.sh` dispatcher (`run_tests.py --unit`), the bridge's odometry, and the bringup and SLAM configs. They pass on a PC without ROS, and the `robot.sh` and config tests fail on the old code. The bridge node itself ran against stubbed ROS modules, and the dashboard's goal and cancel against the bundled roslib in a browser, with nothing sent to a robot.
+- **Not Checked:** Nothing ran in simulation or on the Jetson. The status board lists what to check for each fix.

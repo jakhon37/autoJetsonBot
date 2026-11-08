@@ -43,6 +43,7 @@ On the robot, `./robot.sh remote` prints the Jetson's addresses and an SSH tunne
 | `./robot.sh nav` | Navigation mode on the configured target, saving the map first if it was mapping |
 | `./robot.sh map2nav` | Same as `nav`, the recommended way to switch on hardware |
 | `./robot.sh status` | Web UI, VNC, launch process, node count, mode, bridge and ESP32 link |
+| `./robot.sh watch` | `status`, refreshed every 10 s until Ctrl+C |
 | `./robot.sh logs` | Follow the launch log |
 | `./robot.sh verify` | EKF and fusion health checks |
 | `./robot.sh shell` | Open a shell in the container, or run one command: `./robot.sh shell "ros2 topic list"` |
@@ -86,9 +87,10 @@ Run `./robot.sh clean && ./robot.sh build` after switching distros, because a Fo
 python3 run_tests.py --quick      # smoke test
 python3 run_tests.py --all        # everything
 python3 run_tests.py --hardware   # needs the robot
+python3 run_tests.py --unit       # no container needed
 ```
 
-These are smoke and presence checks rather than full tests. The Docker port test currently fails under host networking, see the status board. [test_suite/README.md](../../test_suite/README.md) lists the categories.
+These are smoke and presence checks rather than full tests. The packages' own unit tests, such as the bridge's odometry in `src/jetson_bot_diffdrive/test/`, need no ROS either: run them with `python3 -m pytest` or one file at a time with `python3`. [test_suite/README.md](../../test_suite/README.md) lists the categories.
 
 ## Legacy: Jetson Nano
 

@@ -9,7 +9,7 @@ import os
 import sys
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-from test_suite.config import config, paths
+from test_suite.config import config, paths, env
 from test_suite.utils import DockerClient, timer
 
 
@@ -63,7 +63,7 @@ class TestDockerEnvironment(unittest.TestCase):
         """Test that ROS2 is installed in container"""
         code, stdout, _ = DockerClient.exec_in_container(
             self.container_name,
-            ["bash", "-c", "source /opt/ros/foxy/setup.bash && which ros2"]
+            ["bash", "-c", f"source /opt/ros/{env.ROS_DISTRO}/setup.bash && which ros2"]
         )
         self.assertEqual(code, 0, "ros2 CLI not found in container")
     
@@ -103,9 +103,9 @@ class TestDockerEnvironment(unittest.TestCase):
         """Test that ROS2 environment is properly sourced"""
         code, stdout, _ = DockerClient.exec_in_container(
             self.container_name,
-            ["bash", "-c", "source /opt/ros/foxy/setup.bash && echo $ROS_DISTRO"]
+            ["bash", "-c", f"source /opt/ros/{env.ROS_DISTRO}/setup.bash && echo $ROS_DISTRO"]
         )
-        self.assertIn("foxy", stdout, "ROS2 Foxy not properly sourced")
+        self.assertIn(env.ROS_DISTRO, stdout, f"ROS2 {env.ROS_DISTRO} not properly sourced")
     
     def test_08_docker_network_exists(self):
         """Test that ROS2 Docker network exists"""

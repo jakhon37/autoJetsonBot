@@ -1,6 +1,8 @@
 # Optimization Guide - autoJetsonBot
 
-This document outlines strategies for running the ROS 2 Navigation stack and Gazebo simulation on resource-constrained hardware (e.g., Jetson Nano, Docker-on-Mac).
+This document outlines strategies for running the ROS 2 Navigation stack and Gazebo simulation on resource-constrained hardware (e.g., a Jetson, Docker-on-Mac).
+
+> **Status (2026-11-07):** A plan. Nothing in the checklist below is applied yet: the worlds still use `max_step_size` 0.001, the simulated lidar has 360 samples, and the costmaps use 0.05 m cells.
 
 ## 📊 Resource Analysis (Baseline)
 During high-activity tasks (Navigation + Gazebo), the following bottlenecks were identified:
@@ -28,11 +30,11 @@ During high-activity tasks (Navigation + Gazebo), the following bottlenecks were
 
 ### 2. Level 2: Navigation Stack Tuning
 *   **Costmap Resolution:**
-    *   *File:* `src/jetson_bot_navigation/config/nav2_params.yaml`
+    *   *File:* `src/jetson_bot_navigation/config/nav2_params_humble.yaml` (Humble, the default) or `nav2_params.yaml` (Foxy)
     *   *Change:* Increase `resolution` from `0.05` to `0.1`.
     *   *Effect:* Drastically reduces memory and CPU needed for occupancy grid calculations.
 *   **Update Frequencies:**
-    *   *File:* `src/jetson_bot_navigation/config/nav2_params.yaml`
+    *   *File:* `src/jetson_bot_navigation/config/nav2_params_humble.yaml` (Humble, the default) or `nav2_params.yaml` (Foxy)
     *   *Change:* Lower `expected_planner_frequency` and `controller_frequency`.
     *   *Effect:* Less aggressive path recalculation.
 
@@ -41,7 +43,7 @@ During high-activity tasks (Navigation + Gazebo), the following bottlenecks were
     *   *Action:* Always set `headless: true` in `unified_robot_config.yaml` for testing.
     *   *Effect:* Saves ~80% of graphical resources by not rendering the Gazebo client window.
 *   **Web Services:**
-    *   *Action:* Disable `web_video_server` if camera streams are not actively needed.
+    *   *Action:* `web_video_server` starts whenever it's installed, and the Humble image installs it. To skip it, uninstall it or add a config flag to the launch file.
     *   *Effect:* Prevents heavy video encoding CPU usage.
 *   **Externalize Physics:**
     *   *Strategy:* Run Gazebo on the host machine (if it has a dedicated GPU) and ROS nodes in the container.

@@ -4,7 +4,7 @@ This document defines the physical connection between the **MPU6050 6-Axis IMU**
 
 ## 🔌 Pin Mapping
 
-The firmware is configured to use the following pins. **Ensure the robot is powered off before wiring.**
+The firmware on the board uses these pins. That build (`MOTOR-ESP32S3` with IMU code from `imu_viz`) was never committed. The rebuilt firmware on MOTOR-ESP32S3's `quadrature-speed-control` branch uses the same pins. **Ensure the robot is powered off before wiring.**
 
 | MPU6050 Pin | ESP32-S3 Pin | Function | Wire Color (Typical) |
 | :--- | :--- | :--- | :--- |
@@ -20,7 +20,7 @@ The firmware is configured to use the following pins. **Ensure the robot is powe
 
 ## 🚦 Visual Status Guide (Onboard WS2812 LED)
 
-The ESP32-S3 firmware uses the onboard RGB LED to provide instant hardware feedback on boot:
+The ESP32-S3 firmware uses the onboard RGB LED to provide instant hardware feedback on boot. These states come from June's notes, because the flashed build's source isn't committed:
 
 *   **🟡 Yellow (Solid)**: Booting / Initializing.
 *   **🟢 Green (Solid)**: **SUCCESS**. IMU detected on I2C bus and motors initialized.
@@ -37,12 +37,12 @@ The ESP32-S3 firmware uses the onboard RGB LED to provide instant hardware feedb
 *   **Address Check**: Most MPU6050s use address `0x68`. If yours uses `0x69` (AD0 pin tied high), the firmware will need a one-line update.
 
 ### 2. No data in ROS 2 (`/imu/data_raw`)
-*   Run `./robot.sh status` to ensure the `imu_bridge_node` is running.
-*   Run `ros2 topic echo /imu/data_raw` to see if packets are arriving.
-*   If you see "Malformed IMU packet" in the logs, it means the Serial baud rate is mismatching or the ESP32 is rebooting.
+*   Run `./robot.sh shell "ros2 node list | grep imu_bridge"` to check that `imu_bridge_node` is running. `./robot.sh status` shows whether `i` lines arrive from the ESP32.
+*   Run `./robot.sh shell "ros2 topic echo /imu/data_raw"` to see if packets are arriving.
+*   "Malformed IMU packet" in the logs means an `i` line arrived with fewer than six values, usually because the ESP32 was rebooting. Baud rate doesn't matter on the S3's native USB.
 
 ### 3. Jittery Visualization
-*   The firmware includes an **Alpha LPF ($\alpha=0.8$)**. If the visualization in the Web UI is too slow or too shaky, you can adjust the `alpha` value in `MOTOR-ESP32S3/src/main.cpp` and re-flash.
+*   The firmware includes an **Alpha LPF ($\alpha=0.8$)**. If the visualization in the Web UI is too slow or too shaky, adjust `alpha` in whichever firmware you flash. The filter came from `imu_viz` into the uncommitted build on the board.
 
 ---
-*Reference: docs/IMU_INTEGRATION_PLAN.md*
+*Reference: [imu_nav2_roadmap_v2.md](../plans/imu_nav2_roadmap_v2.md)*

@@ -15,7 +15,7 @@ setup(
     zip_safe=True,
     maintainer='jakhon37',
     maintainer_email='jakhon37@gmail.com',
-    description='I2C driver for MPU6050 IMU sensor on Jetson Nano.',
+    description='I2C driver for an MPU6050 IMU on a Jetson.',
     license='Apache-2.0',
     tests_require=['pytest'],
     entry_points={

@@ -66,7 +66,7 @@ flowchart TB
 | `diffdrive_bridge` | `jetson_bot_diffdrive` | An ESP32 port is found | Wheel radius 0.034 m, separation 0.212 m, `encoder_cpr` 1,497, `publish_tf: false` |
 | `imu_bridge_node` | `jetson_bot_imu` | Always in hardware mode | Parses the raw `i` lines into `sensor_msgs/Imu` in `imu_link` |
 | `imu_filter` | `imu_filter_madgwick` | Always in hardware mode | `stateless: true`, `use_mag: false`, `publish_tf: false` |
-| `ekf_filter_node` | `robot_localization` | Always | 30 Hz, publishes `/odom_filtered` and `odom → base_footprint` |
+| `ekf_filter_node` | `robot_localization` | Always | 30 Hz. Fuses the wheels' position, speed and yaw rate with the IMU's yaw rate and acceleration, not Madgwick's yaw. Publishes `/odom_filtered` and `odom → base_footprint` |
 | `rplidar_node` | `rplidar_ros` | A CP210x lidar port is found | `laser_frame`, 115200 baud, Standard scan mode |
 | `slam_toolbox` | `slam_toolbox` | Mapping mode, 2 s after launch | Async mode, `mapper_params.yaml` |
 | AMCL, map server, Nav2 servers | `nav2_bringup` | Navigation mode, 2 s after launch | `nav2_params_humble.yaml`, map from `maps/` |

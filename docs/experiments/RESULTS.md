@@ -15,6 +15,7 @@ What was tested, on what, and what it showed. Simulation work ran in Docker on a
 | 7 | [ESP32-CAM video over Wi-Fi](#7-esp32-cam-video-over-wi-fi) | Camera | 2026-11-05 to 06 | 10 fps at 320×240, firmware fixes tested on hardware |
 | 8 | [Gazebo check of the code review fixes](#8-gazebo-check-of-the-code-review-fixes) | Simulation | 2026-11-09 | Fixes confirmed, and three more bugs found and fixed |
 | 9 | [First drive with the new motor firmware](#9-first-drive-with-the-new-motor-firmware) | Robot | 2026-11-09 to 10 | Encoders fixed, 1,497 counts per turn, speeds within 1 to 2% with the wheels lifted |
+| 10 | [Driving through ROS and the EKF heading](#10-driving-through-ros-and-the-ekf-heading) | Robot | 2026-11-10 | `/odom` within 3% of commands, and the EKF now follows turns |
 
 ---
 
@@ -141,7 +142,7 @@ What was tested, on what, and what it showed. Simulation work ran in Docker on a
 
 **Result:** The IMU works, but its gyro bias needs calibrating before it helps the EKF. Gyro values also arrive with only 2 decimals, in steps of 0.01 rad/s, which limits how finely the bias can be estimated.
 
-**Found in code review:** The Madgwick filter runs in `stateless` mode without a magnetometer, so its orientation has no real heading, yet the EKF fuses its yaw. The bridge also published `/odom` with zero covariance, which the EKF treats as near-perfect. Since 2026-11-07 it sends non-zero variances. Both are next to check in a drive test.
+**Found in code review:** The Madgwick filter runs in `stateless` mode without a magnetometer, so its orientation has no real heading, yet the EKF fused its yaw. [Experiment 10](#10-driving-through-ros-and-the-ekf-heading) showed it pinned the heading, and the EKF now fuses only the IMU's yaw rate. The bridge also published `/odom` with zero covariance, which the EKF treats as near-perfect. Since 2026-11-07 it sends non-zero variances.
 
 ---
 
@@ -242,9 +243,27 @@ With the heading reversed, SLAM drew the room rotated with doubled walls. Nav2 w
 
 ---
 
+## 10. Driving Through ROS and the EKF Heading
+
+**Goal:** Drive the lifted wheels through `/cmd_vel` with the full hardware stack, and check that the EKF's heading follows a turn the wheels don't see.
+
+**Setup:** `./robot.sh robot` on the Jetson, with the robot on its stand and nothing else publishing `/cmd_vel`. A script sent 0.1 m/s forward for 3 s, then 0.5 rad/s left for 3 s, and read `/odom`. Then, with the wheels still, the robot was turned about 90° left by hand, flat on the table, and the change was measured between two key presses.
+
+| Check | Expected | Measured |
+| :--- | ---: | ---: |
+| `/cmd_vel` forward, distance on `/odom` | 0.30 m | 0.308 m, heading −0.3° |
+| `/cmd_vel` left turn, heading on `/odom` | +86° | +89.9°, 0.001 m |
+| Hand turn, IMU gyro in its own upside-down frame | negative, about −90° | −107°, with the gyro bias |
+| Hand turn, EKF heading, fusing Madgwick's yaw | about +90° | +5.6° |
+| Hand turn, EKF heading, fusing only the IMU's yaw rate | about +90° | +105°, with the gyro bias |
+
+**Result:** Through ROS, the bridge, firmware and encoders match the commands within 3%, with every sign right. The IMU is upside down as the URDF says. The EKF, though, was fusing the Madgwick filter's yaw, which holds no heading without a magnetometer, so a flat turn hardly moved it. It now fuses only the IMU's yaw rate and follows the turn. What's left is the uncalibrated gyro bias of about 1.4°/s, which now drifts `/odom_filtered`'s heading about 1°/s at rest.
+
+---
+
 ## What's Next
 
-1. **Drive through ROS and on the floor:** Drive through `/cmd_vel` with the wheels lifted and check `/odom`, then the floor step of the first-drive checklist, which raises the feed-forward for the floor.
-2. **Calibration:** Calibrate the IMU gyro bias, check the sign of the IMU's yaw rate, and check that the front of the scan matches the front of the robot.
+1. **On the floor:** The floor step of the first-drive checklist, which raises the feed-forward for the floor.
+2. **Calibration:** Calibrate the IMU gyro bias, which now drifts the EKF's heading about 1°/s at rest, and check that the front of the scan matches the front of the robot.
 3. **Hardware mapping run:** A full mapping run and a Nav2 goal on the real robot.
 4. **Camera in ROS:** A node that reads the ESP32-CAM stream, for camera-based docking, which is developed in a separate project.

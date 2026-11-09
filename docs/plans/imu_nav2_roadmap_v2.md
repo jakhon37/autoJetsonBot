@@ -2,7 +2,7 @@
 ### Refined Technical Roadmap v2.0
 *ROS2 Foxy · ESP32-S3 · MPU6050 · RPLidar A1 · Jetson Nano. Written before the move to ROS 2 Humble on the Jetson Xavier NX.*
 
-> **Status (2026-11-07):** Partly built, and several details changed. `imu_link` comes from the URDF rather than a static TF publisher. `imu_bridge_node` reads `/serial_imu_raw`, which the diffdrive bridge republishes, not the serial port. The firmware is open loop and sends `e` and `i` lines at 50 Hz over native USB. Madgwick runs `stateless` without a magnetometer, so its yaw has no heading. `slam_toolbox` takes odometry from TF. The calibration and acceptance tests haven't been done.
+> **Status (2026-11-07):** Partly built, and several details changed. `imu_link` comes from the URDF rather than a static TF publisher. `imu_bridge_node` reads `/serial_imu_raw`, which the diffdrive bridge republishes, not the serial port. The firmware is open loop and sends `e` and `i` lines at 50 Hz over native USB. Madgwick runs `stateless` without a magnetometer, so its yaw has no heading, and since 2026-11-10 the EKF fuses only the IMU's yaw rate (fusing the yaw pinned the heading in a hand-turn test). `slam_toolbox` takes odometry from TF. The calibration and acceptance tests haven't been done.
 
 ---
 

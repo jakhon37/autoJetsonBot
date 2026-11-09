@@ -37,15 +37,17 @@ def test_urdf_parsing():
 
 
 def test_sensor_frames():
-    """Verify that the IMU and lidar plugins stamp their own frames."""
+    """Verify that the IMU, lidar and camera plugins stamp their own frames."""
     # Gazebo merges fixed-joint links into base_footprint, so a sensor plugin without
-    # frame_name stamps base_footprint. The EKF needs imu_link to undo the IMU's roll of pi.
+    # frame_name (ROS 1's frameName doesn't count) stamps base_footprint. The EKF needs
+    # imu_link to undo the IMU's roll of pi.
     package_path = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
     robot = ElementTree.fromstring(
         xacro.process_file(os.path.join(package_path, 'urdf', 'robot.xacro')).toxml())
     frames = {p.get('filename'): p.findtext('frame_name') for p in robot.iter('plugin')}
     assert frames.get('libgazebo_ros_imu_sensor.so') == 'imu_link'
     assert frames.get('libgazebo_ros_ray_sensor.so') == 'laser_frame'
+    assert frames.get('libgazebo_ros_camera.so') == 'camera_optical_link'
 
 
 if __name__ == '__main__':

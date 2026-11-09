@@ -9,9 +9,13 @@ from jetson_bot_diffdrive.odometry import (  # noqa: E402
     POSE_COVARIANCE_DIAGONAL, TWIST_COVARIANCE_DIAGONAL, WheelOdometry, covariance,
     encoder_dt, parse_encoder_line)
 
-SEP, RADIUS, CPR = 0.212, 0.034, 3436
+SEP, RADIUS, CPR = 0.212, 0.034, 1497
 PERIOD = 0.02  # the ESP32 sends an 'e' line every 20 ms
 V, W = 0.2, 0.5  # speed of the simulated robot, m/s and rad/s
+# Counts are whole numbers, so one line's speed can be off by one count per wheel: about
+# 7 mm/s at 1,497 counts per turn and 50 Hz. A bad dt gives spikes many times larger.
+COUNT_V = 2 * math.pi * RADIUS / CPR / PERIOD
+COUNT_W = 2 * COUNT_V / SEP
 
 
 def _counts(t):
@@ -65,13 +69,13 @@ def test_speed_does_not_spike_when_lines_bunch_up():
             speeds[i] = (v, w)
     del speeds[0]  # the first line only sets the baseline
 
-    assert max(v for v, _ in speeds.values()) < V * 1.05
-    assert max(w for _, w in speeds.values()) < W * 1.05
+    assert max(v for v, _ in speeds.values()) < V * 1.05 + COUNT_V
+    assert max(w for _, w in speeds.values()) < W * 1.05 + COUNT_W
     # Read together, right after a late tick, after the stall, after the lost line.
     for i in (10, 11, 21, 30, 35, 40, 51):
         v, w = speeds[i]
-        assert abs(v - V) < V * 0.05, (i, v)
-        assert abs(w - W) < W * 0.05, (i, w)
+        assert abs(v - V) < V * 0.05 + COUNT_V, (i, v)
+        assert abs(w - W) < W * 0.05 + COUNT_W, (i, w)
 
     # The pose comes from the counts alone, so dt can't move it.
     t = 59 * PERIOD
@@ -87,7 +91,7 @@ def test_counts_after_a_reset_only_set_the_baseline():
     assert (v, w, odo.x, odo.y, odo.th) == (0.0, 0.0, 0.0, 0.0, 0.0)
     odo.update(50100, -19900, PERIOD)
     x = odo.x
-    assert x > 0.0 and odo.th == 0.0
+    assert x > 0.0 and abs(odo.th) < 1e-12  # both wheels moved 100 counts
     odo.reset_baseline()
     v, w, _, _ = odo.update(0, 0, PERIOD)  # rebooted, counting from zero again
     assert (v, w, odo.x) == (0.0, 0.0, x)

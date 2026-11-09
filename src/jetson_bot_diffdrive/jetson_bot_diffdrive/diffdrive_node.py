@@ -26,7 +26,7 @@ class DiffDriveBridge(Node):
         self.declare_parameter('baud', 115200)
         self.declare_parameter('wheel_separation', 0.212)
         self.declare_parameter('wheel_radius', 0.034)
-        self.declare_parameter('encoder_cpr', 3436)
+        self.declare_parameter('encoder_cpr', 1497)
         self.declare_parameter('loop_rate', 50.0)
         # Rate of the ESP32's 'e' lines. A slower firmware is fine, a faster one isn't:
         # no line counts as covering less than one period.

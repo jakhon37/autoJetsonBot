@@ -1,4 +1,4 @@
-# AGENTS.md — Technical Wisdom & Lessons Learned
+# Lessons Learned
 
 This file captures the "Hard-Won" knowledge of the project. Consult this before debugging "Active but Silent" nodes or TF disconnection issues.
 
@@ -57,10 +57,9 @@ The `diff_drive_controller` in ROS 2 Foxy is extremely sensitive.
 *   **Discovery:** RViz failed to load specific configurations with an error regarding `rviz_common/Time`.
 *   **Fix:** Remove the `Time` panel from `.rviz` config files. In containerized environments (Xvfb), non-essential panels can cause plugin loading crashes. It's still in `lab_slam.rviz` and `default_nav.rviz`, so remove it there if RViz fails to load.
 
-## 🛡️ Efficient Debugging & Loop Prevention
-These rules are mirrored as foundational mandates in **`GEMINI.md`**.
+## 🛡️ Debugging Habits
 
-1.  **The "Rule of Two":** If a configuration change or fix fails twice, **STOP**. Do not attempt a third variation. Re-read the source code and verify your assumptions.
+1.  **The "Rule of Two":** If a configuration change or fix fails twice, **STOP**. Don't try a third variation. Re-read the source code and check your assumptions.
 2.  **Verify the "Active but Silent" Paradox:** If topic hz is 0 but status is Active, it's a naming/interface mismatch. Use `ros2 param dump`.
 3.  **Clock First, TF Second:** Never debug "Unknown Frame" errors until you have verified that the simulation clock is ticking and `use_sim_time` is correctly propagated.
 
@@ -135,3 +134,11 @@ If `robot.sh stop` fails to terminate Gazebo, it is usually because `gzserver` i
 *   **The "Nuclear" Clean:** When changing package installation paths (via `setup.cfg`), a standard `colcon build` is not enough. You must run `./robot.sh clean` to delete the old `install/` symlinks, or ROS will try to execute non-existent binaries and crash the whole launch.
 *   **JointState Velocities:** Web-based RPM displays usually depend on the `velocity` array in `/joint_states`. If your hardware bridge only publishes `position`, the UI will show `NaN`. Always populate both arrays.
 *   **Hardware Audit Guard:** To prevent "Total Launch Failure" on machines without sensors, wrap hardware node launches in `os.path.exists()` checks and disable downstream stacks (SLAM/Nav) if critical topics won't be available.
+
+## 🧪 Gazebo Check Lessons (Added 2026-11-09)
+
+*   **Name Every Sensor Frame:** Gazebo merges links on fixed joints into `base_footprint`, so a sensor plugin without `<frame_name>` stamps its data `base_footprint`. The IMU is mounted upside down (roll π), so its unnamed data turned the EKF's heading the wrong way once `diff_cont` stopped publishing TF. ROS 1's `<frameName>` is ignored too, which left the simulated camera's images stamped `base_footprint`.
+*   **rosbridge Throttling Drops Messages:** Inside a subscription's `throttle_rate` window, rosbridge 2.0.8 discards messages rather than delaying them, unless `queue_length` is set. Don't throttle topics that publish only on a change, like Nav2's goal status, which lost CANCELED that way.
+*   **Who Publishes a Transform:** Humble's `diff_drive_controller` keeps a `/tf` publisher even with `enable_odom_tf: false`, and ROS 2's `tf2_monitor` doesn't name broadcasters. To show the EKF is the only source, compare each `odom -> base_footprint` sample with `/odom_filtered` at the same stamp.
+*   **Sim Clock Rate:** Gazebo publishes `/clock` at 10 Hz, so in simulation the EKF publishes `/odom_filtered` and its transform at 10 Hz, not 30.
+*   **Keep a PC's Simulation off the Robot:** With host networking and the default domain, a simulation on a PC shares DDS discovery with the robot on the same LAN, so a test's `/cmd_vel` could reach the real robot. Run the PC's container with `ROS_LOCALHOST_ONLY=1`, which `robot.sh` doesn't set.

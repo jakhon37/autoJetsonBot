@@ -19,7 +19,7 @@ global:
     # 📍 Initial Spawn Pose (Gazebo only)
     spawn_x: 0.0
     spawn_y: 0.0
-    spawn_z: 0.06             # 6cm to ensure wheels clear ground (matches physical + AGENTS)
+    spawn_z: 0.06             # 6cm to ensure wheels clear ground (matches physical + docs/LESSONS_LEARNED.md)
     spawn_yaw: 0.0
 
 

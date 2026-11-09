@@ -15,6 +15,9 @@
                 <ros>
                     <remapping>~/out:=imu</remapping>
                 </ros>
+                <!-- Gazebo merges imu_link into base_footprint, so without a frame name the
+                     upside-down readings are stamped base_footprint and the EKF turns the wrong way. -->
+                <frame_name>imu_link</frame_name>
                 <initial_orientation_as_reference>false</initial_orientation_as_reference>
             </plugin>
             <always_on>true</always_on>

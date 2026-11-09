@@ -15,5 +15,5 @@
 | | [UI_UPGRADE_PLAN.md](plans/UI_UPGRADE_PLAN.md) | Web dashboard upgrade plan |
 | **Project records** | [PROJECT_ANALYSIS.md](PROJECT_ANALYSIS.md) | Status board: system health, blockers, roadmap |
 | | [SESSION_LOG.md](SESSION_LOG.md) | Dated log of every development session |
-| | [AGENTS.md](../AGENTS.md) | Lessons learned and known pitfalls |
+| | [LESSONS_LEARNED.md](LESSONS_LEARNED.md) | Lessons learned and known pitfalls |
 | | [test_suite/README.md](../test_suite/README.md) | Test categories and how to run them |

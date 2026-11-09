@@ -1,6 +1,6 @@
 # Experiments and Results
 
-What was tested, on what, and what it showed. Simulation work ran in Docker on a Mac in June 2026. Hardware work ran on the robot's Jetson Xavier NX under ROS 2 Humble from August to November 2026. Day-by-day detail is in [SESSION_LOG.md](../SESSION_LOG.md), and open problems are on the status board in [PROJECT_ANALYSIS.md](../PROJECT_ANALYSIS.md).
+What was tested, on what, and what it showed. Simulation work ran in Docker on a Mac in June 2026, and on an amd64 PC under Humble in November. Hardware work ran on the robot's Jetson Xavier NX under ROS 2 Humble from August to November 2026. Day-by-day detail is in [SESSION_LOG.md](../SESSION_LOG.md), and open problems are on the status board in [PROJECT_ANALYSIS.md](../PROJECT_ANALYSIS.md).
 
 ## At a Glance
 
@@ -13,6 +13,7 @@ What was tested, on what, and what it showed. Simulation work ran in Docker on a
 | 5 | [Wheel encoder hand test](#5-wheel-encoder-hand-test) | Robot | 2026-11-06 | Found a 9 to 10× scale error and missing direction before the first drive |
 | 6 | [IMU at rest](#6-imu-at-rest) | Robot | 2026-11-05 | Gyro bias of 1.4°/s measured, calibration pending |
 | 7 | [ESP32-CAM video over Wi-Fi](#7-esp32-cam-video-over-wi-fi) | Camera | 2026-11-05 to 06 | 10 fps at 320×240, firmware fixes tested on hardware |
+| 8 | [Gazebo check of the code review fixes](#8-gazebo-check-of-the-code-review-fixes) | Simulation | 2026-11-09 | Fixes confirmed, and three more bugs found and fixed |
 
 ---
 
@@ -38,9 +39,9 @@ What was tested, on what, and what it showed. Simulation work ran in Docker on a
   <em>Occupancy grid of the simulated lab, used by AMCL and Nav2 (<code>src/jetson_bot_bringup/worlds/lab_map_v2.pgm</code>)</em>
 </p>
 
-**Result:** Mapping and autonomous goals worked in simulation with EKF-fused odometry (`/odom_filtered`). The simulation ran at a real-time factor of about 0.55 in Docker on the Mac. A later code review found that in simulation both the diff-drive controller and the EKF publish the `odom → base_footprint` transform, which should be fixed before comparing odometry numbers.
+**Result:** Mapping and autonomous goals worked in simulation with EKF-fused odometry (`/odom_filtered`). The simulation ran at a real-time factor of about 0.55 in Docker on the Mac. A later code review found that in simulation both the diff-drive controller and the EKF published the `odom → base_footprint` transform. That's fixed, and [experiment 8](#8-gazebo-check-of-the-code-review-fixes) checked it.
 
-**Lessons, recorded in [AGENTS.md](../../AGENTS.md):**
+**Lessons, recorded in [LESSONS_LEARNED.md](../LESSONS_LEARNED.md):**
 - The robot looked stuck until the URDF put `base_footprint` at the floor and the model spawned 6 cm up. The wheels had been under the ground plane.
 - Lowering contact stiffness to speed up physics let overlapping geometry push the robot around, so the geometry had to be fixed first.
 - Inflation `cost_scaling_factor` sets how fast cost falls away from walls. Low values make walls look thick, and both Nav2 configs settled on 3.5.
@@ -174,6 +175,46 @@ What was tested, on what, and what it showed. Simulation work ran in Docker on a
 - **Stalls:** Pauses of up to 3 s at 640×480 aren't explained by bandwidth, and their cause is unknown.
 - **Open problems:** One boot gave no frames at all at 640×480 or larger for 20 minutes, while smaller sizes worked. Its cause is unknown. A slowdown the night before, when an 18 KB page downloaded at about 5 KB/s, cleared after the camera moved to a phone charger, but power, position and time of day changed together.
 - **Design limits for the ROS node:** The firmware serves one request at a time and its frames carry no timestamps. `/capture` also saves every photo to the SD card, so a ROS node should be the stream's only client, stamp frames on arrival, and avoid polling `/capture`.
+
+---
+
+## 8. Gazebo Check of the Code Review Fixes
+
+**Goal:** Run the 2026-11-07 code review fixes in simulation before they reach the robot.
+
+**Setup:** ROS 2 Humble in Docker on an amd64 PC (Ubuntu 24.04, 12 cores, no GPU), because Gazebo Classic has no Humble packages for arm64. Headless Gazebo ran at a real-time factor of 1.0. The container ran with `ROS_LOCALHOST_ONLY=1`, so nothing it published could reach the robot on the same network.
+
+| Check | Result |
+| :--- | :--- |
+| `diff_cont`'s transform turned off | `enable_odom_tf` reads false |
+| Only the EKF publishes `odom → base_footprint` | 90 of 90 samples equal an `/odom_filtered` pose with the same stamp |
+| Transform while driving | Largest step 1.5 cm, none out of order |
+| Simulated `/odom` covariance | The same non-zero values as the robot's bridge |
+| `run_tests.py --docker` with the stack up | 10 of 10 passed |
+| Dashboard goals | Reached Nav2 and succeeded |
+| Dashboard cancel | Robot stopped within 0.6 s of the click |
+
+**Found: the simulated EKF turned the wrong way.** The URDF mounts the IMU upside down (roll π), and its Gazebo plugin named no frame. Gazebo merges links on fixed joints, so the readings were stamped `base_footprint`, and the EKF fused them without rotating them back. The diff-drive controller's own transform had hidden this until the fix above turned it off.
+
+| Heading change in a 4 s counter-clockwise spin | Before | After |
+| :--- | ---: | ---: |
+| `/odom` from the wheels | +100° | +100° |
+| `/imu` orientation | +95° | +95° |
+| EKF (`/odom_filtered` and its transform) | −86° to −95° | +95° |
+
+<p align="center">
+  <img src="../../assets/results/sim_slam_imu_frame_fix.png" alt="Three occupancy grids: before the fix the room is rotated with doubled walls, after it the walls are straight and match the reference map" width="90%">
+  <br>
+  <em>SLAM in Gazebo before and after the IMU frame fix, next to the world's reference map</em>
+</p>
+
+With the heading reversed, SLAM drew the room rotated with doubled walls. Nav2 weaved on a straight 1.7 m goal, turning at up to 0.84 rad/s and drifting 18 cm sideways in its first metre. Naming the frame `imu_link` in `imu.xacro` fixed both: the same goal then drifted 7 cm over 1.5 m. A unit test now checks the frame.
+
+**Found: the dashboard badge stuck at Canceling.** Nav2 sends CANCELED 20 ms after CANCELING and publishes status only on a change. The dashboard throttled that topic to one message per 500 ms, and rosbridge drops messages inside the window rather than delaying them, so CANCELED never arrived. Without the throttle, the badge goes from Executing through Canceling to Idle within 30 ms of the cancel.
+
+**Found: the simulated camera's frame.** `camera.xacro` used ROS 1's `<frameName>` tag, which the ROS 2 plugin ignores, so the images were stamped `base_footprint`. With `<frame_name>` they're stamped `camera_optical_link`, and the unit test covers the camera too.
+
+**Result:** Every fix that simulation can exercise works, and all three new bugs are fixed. The bridge's odometry changes can only be checked on the robot. Still open from this run: Gazebo's 10 Hz clock holds the EKF to 10 Hz, and simulated navigation loads the robot's map by default.
 
 ---
 

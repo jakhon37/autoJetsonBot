@@ -172,4 +172,4 @@ Ports 9090 and 5900 have no authentication, so keep the robot on a trusted netwo
 
 ## Known Issues
 
-The status board lists what a code review found while these docs were written. The software fixes from 2026-11-07 (the duplicate simulation transform, odometry speed spikes, zero `/odom` covariance, the dashboard's ROS 1 goal API and more) still need a run in simulation or on the robot. The EKF's yaw input, the IMU frame and the Nav2 footprint are among those still open. See [PROJECT_ANALYSIS.md](../PROJECT_ANALYSIS.md).
+The status board lists what a code review found while these docs were written. The software fixes from 2026-11-07 (the duplicate simulation transform, odometry speed spikes, zero `/odom` covariance, the dashboard's ROS 1 goal API and more) ran in Gazebo on 2026-11-09. That run also found and fixed a reversed heading from the simulated IMU, a stuck dashboard badge and the simulated camera's frame. The bridge's odometry changes still need the robot. The EKF's yaw input, the real IMU's mounting and the Nav2 footprint are among those still open. See [PROJECT_ANALYSIS.md](../PROJECT_ANALYSIS.md).

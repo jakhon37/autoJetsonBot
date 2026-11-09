@@ -25,12 +25,13 @@ export class NavigationManager {
       }));
     });
 
-    // Nav2 Goal Status topic
+    // Nav2 Goal Status topic. Not throttled: Nav2 publishes only when a goal changes state,
+    // and rosbridge drops messages inside a throttle window rather than delaying them, which
+    // lost CANCELED 20 ms after CANCELING and left the badge on Canceling.
     this.navStatusTopic = new ROSLIB.Topic({
       ros: ros,
       name: '/navigate_to_pose/_action/status',
-      messageType: 'action_msgs/GoalStatusArray',
-      throttle_rate: 500
+      messageType: 'action_msgs/GoalStatusArray'
     });
     this.navStatusTopic.subscribe((msg) => this._onNavStatus(msg));
 
@@ -104,7 +105,8 @@ export class NavigationManager {
       x, y, yaw: (parseFloat(document.getElementById('goalYaw').value) || 0)
     };
     
-    // The stamp stays 0, "latest" to TF: the browser's clock isn't ROS time, least of all in sim.
+    // Sent without a stamp, so rosbridge fills in its own ROS time (sim time in Gazebo).
+    // The browser's clock isn't ROS time.
     this.goalTopic.publish(new ROSLIB.Message({
       header: { frame_id: 'map' },
       pose: {

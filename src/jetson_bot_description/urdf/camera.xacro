@@ -49,7 +49,7 @@
                 </clip>
             </camera>
             <plugin name="camera_controller" filename="libgazebo_ros_camera.so">
-                <frameName>camera_optical_link</frameName>
+                <frame_name>camera_optical_link</frame_name>
             </plugin>
         </sensor>
     </gazebo>

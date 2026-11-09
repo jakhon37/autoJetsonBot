@@ -1,6 +1,6 @@
 # SESSION_LOG.md — Chronological Archive
 
-Append concise summaries of work done here. For technical details on *why* things work, see `AGENTS.md`.
+Append concise summaries of work done here. For technical details on *why* things work, see `LESSONS_LEARNED.md`.
 
 ---
 
@@ -103,7 +103,7 @@ Append concise summaries of work done here. For technical details on *why* thing
 - **Bug Fix (TF):** Synchronized the TF tree by updating `diff_cont` and SLAM configs to use `base_footprint` as the base frame, achieving a full `map -> odom -> base_footprint -> base_link` chain.
 - **Bug Fix (Movement):** Resolved the "Stationary Robot" issue by remapping internal controller topics to the standard `/cmd_vel` in `ros2_control.xacro`. Updated Web UI to match.
 - **Fix (RViz):** Eliminated the `rviz_common/Time` loading error by removing the problematic panel from `default.rviz`.
-- **Documentation:** formalizing technical insights in `AGENTS.md` regarding frame standards and parameter formats.
+- **Documentation:** formalizing technical insights in `LESSONS_LEARNED.md` regarding frame standards and parameter formats.
 - **Status:** Simulation is now 100% stable with functional path planning and motion control.
 
 ---
@@ -251,7 +251,7 @@ Append concise summaries of work done here. For technical details on *why* thing
 - **Discovery:** The `jetson` host is a Jetson Xavier NX (L4T R35.6.5, Ubuntu 20.04), not the Nano B01 the docs described. It held an uncommitted ROS 2 Humble Docker port from 2026-08-18 to 08-21.
 - **Saved:** Committed that work to `jetson-humble-port` (`e119edb`), opened PR #2, and merged `master` into the branch to pick up the README rewrite.
 - **use_sim_time:** Tested `slam_toolbox` in a throwaway Humble container. The launch argument always wins over `mapper_params.yaml`, so the YAML line added in the port had no effect and was removed.
-- **Cleanup:** Removed the unused plain `Dockerfile` (identical to `Dockerfile.humble` apart from blank lines). Updated docs to the Xavier NX + Humble target and corrected stale wheel specs in `GEMINI.md`.
+- **Cleanup:** Removed the unused plain `Dockerfile` (identical to `Dockerfile.humble` apart from blank lines). Updated docs to the Xavier NX + Humble target and corrected stale wheel specs.
 - **Hardware Audit:** Only the RPLidar's CP2102 adapter is detected. ESP32 and camera are not, so physical validation is still open.
 
 ---
@@ -390,7 +390,7 @@ Append concise summaries of work done here. For technical details on *why* thing
 ---
 
 ## Session: 2026-11-07 @ 23:30 (Portfolio Docs Reorganization)
-- **Structure:** README rewritten as the portfolio front page. New docs in `docs/architecture/` (system architecture, hardware), `docs/guides/` (getting started, mapping and navigation, hardware bring-up), `docs/experiments/RESULTS.md` and a `docs/README.md` index. Design docs moved to `docs/architecture/`, the optimization guide to `docs/guides/`, and the roadmap and UI plan to `docs/plans/`. `PROJECT_ANALYSIS.md`, `SESSION_LOG.md`, `AGENTS.md` and `GEMINI.md` stay where agents expect them.
+- **Structure:** README rewritten as the portfolio front page. New docs in `docs/architecture/` (system architecture, hardware), `docs/guides/` (getting started, mapping and navigation, hardware bring-up), `docs/experiments/RESULTS.md` and a `docs/README.md` index. Design docs moved to `docs/architecture/`, the optimization guide to `docs/guides/`, and the roadmap and UI plan to `docs/plans/`. `PROJECT_ANALYSIS.md` and `SESSION_LOG.md` stay where they were.
 - **Assets:** Sorted into `assets/photos`, `sim`, `ui`, `wiring`, `results` and `reference`. `sim.mp4` moved out of `jetson_bot_bringup/config/`, where `setup.py` installed it, and a stray RViz screenshot out of `src/`. The costmap screenshot was cropped to drop the macOS menu bar and Dock.
 - **Figures:** Light and dark SVG charts of the encoder hand test and the ESP32-CAM frame rates, PNG renders of the real and simulated maps with scale bars, and a GIF of the Gazebo clip.
 - **Xavier NX:** The docs now present the Jetson Xavier NX Developer Kit (8 GB, L4T R35.6, 256 GB NVMe) as the only computer. The Nano and its native Foxy scripts are history.
@@ -403,3 +403,13 @@ Append concise summaries of work done here. For technical details on *why* thing
 - **Fixed:** Seven issues from the 2026-11-07 code review, in separate commits. `./robot.sh watch` refreshes `status` again. The bridge's odometry speeds no longer spike when two `e` lines arrive in one tick, and `/odom` has a non-zero covariance, in simulation too. The EKF is the only `odom → base_footprint` publisher in simulation. `mapper_params.yaml` lost the `odom_topic` that slam_toolbox never read. The Docker port test connects to ports 8000 and 9090. The dashboard sends goals to `/goal_pose` and cancels through Nav2's cancel service.
 - **Tests:** New unit tests for the `robot.sh` dispatcher (`run_tests.py --unit`), the bridge's odometry, and the bringup and SLAM configs. They pass on a PC without ROS, and the `robot.sh` and config tests fail on the old code. The bridge node itself ran against stubbed ROS modules, and the dashboard's goal and cancel against the bundled roslib in a browser, with nothing sent to a robot.
 - **Not Checked:** Nothing ran in simulation or on the Jetson. The status board lists what to check for each fix.
+
+---
+
+## Session: 2026-11-09 @ 10:55 (Gazebo Check of the Code Review Fixes)
+- **Setup:** Docker on an amd64 PC (Ubuntu 24.04, 12 cores, no GPU), with `auto_ros:humble` built from `Dockerfile.humble` in 20 minutes. Headless Gazebo ran at a real-time factor of 1.0, and Nav2 was active about 135 s after launch. The container ran with `ROS_LOCALHOST_ONLY=1` so nothing reached the robot's network, and runs were stopped with `docker stop` so `maps/lab_map_v2` wasn't overwritten.
+- **Checked:** `enable_odom_tf` is false, and the EKF is the only `odom → base_footprint` publisher (90 of 90 samples match `/odom_filtered`). Simulated `/odom` has the new covariance, `./robot.sh watch` refreshes, `run_tests.py --docker` passes 10 of 10, and dashboard goals reach Nav2 and succeed. Cancel stopped the robot within 0.6 s.
+- **Found and Fixed:** The simulated IMU's data was stamped `base_footprint`, so the EKF turned the wrong way (−86° to −95° in a +100° spin), which smeared SLAM maps and made Nav2 weave. `imu.xacro` now names `imu_link`, a test in `test_urdf.py` checks it, and the EKF reads +95°. The dashboard's Nav badge stuck at Canceling because rosbridge's throttle dropped the CANCELED status. That subscription is no longer throttled, and the badge reaches Idle. The simulated camera's images were stamped `base_footprint` because `camera.xacro` used ROS 1's `<frameName>` tag. It now uses `<frame_name>`, and they're stamped `camera_optical_link`.
+- **Also Found:** Gazebo's 10 Hz `/clock` holds the EKF to 10 Hz, simulated navigation loads the robot's map by default, and `robot.sh status` runs the ESP32 checks in simulation. All are listed as open on the status board.
+- **Docs:** The lessons learned moved from the repo root to `docs/LESSONS_LEARNED.md`.
+- **Not Checked:** The bridge's odometry and covariance changes need the robot.

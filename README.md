@@ -174,9 +174,7 @@ autoJetsonBot/
 ├── maps/                       # Saved occupancy grids (.pgm + .yaml)
 ├── docs/                       # Architecture, guides, results, plans, project records
 ├── assets/                     # Photos, screenshots, results figures, wiring, reference sheets
-├── test_suite/                 # Integration and hardware tests (run_tests.py)
-├── AGENTS.md                   # Lessons learned and known pitfalls
-└── GEMINI.md                   # Project conventions for AI assistants
+└── test_suite/                 # Integration and hardware tests (run_tests.py)
 ```
 
 ## Documentation
@@ -189,7 +187,7 @@ autoJetsonBot/
 | [Getting started](docs/guides/GETTING_STARTED.md) | Docker setup, commands, configuration |
 | [Mapping and navigation](docs/guides/MAPPING_AND_NAVIGATION.md) | From a new map to autonomous goals |
 | [Hardware bring-up](docs/guides/HARDWARE_BRINGUP.md) | Connecting and checking the real robot |
-| [Lessons learned](AGENTS.md) | Pitfalls hit along the way and their fixes |
+| [Lessons learned](docs/LESSONS_LEARNED.md) | Pitfalls hit along the way and their fixes |
 | [All docs](docs/README.md) | Design docs, plans, status board, session log |
 
 ## Related Repositories

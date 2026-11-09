@@ -25,7 +25,7 @@ Optimizations applied (2026-06):
 - Physical lidar/EKF tuned defaults in mapper_params (min travel, timeout)
 - Web UI guidance + save reminders for mode switches
 - Launch prints hardware mapping tips
-See AGENTS.md for serial/EKF/physical tuning and robot.sh help.
+See [LESSONS_LEARNED.md](LESSONS_LEARNED.md) for serial/EKF/physical tuning and robot.sh help.
 
 ## 🚧 Critical Blockers
 * **Motors not driven yet under Humble (2026-11-05).** The ESP32-S3 works on its native USB socket, the one next to the RGB LED (`303a:1001` at `/dev/ttyACM0`). Only read-only checks have run, with 0 motor commands sent.
@@ -69,7 +69,7 @@ Found by reading the code while checking the docs. Seven were fixed on 2026-11-0
 * **Simulation map:** `./robot.sh sim mode:=navigation` loads `maps/lab_map_v2`, a map from the robot that doesn't cover the simulated room. Load `src/jetson_bot_bringup/worlds/lab_small_light.yaml` through the `/map_server/load_map` service, or point `map_dir` and `map_name` at it in the YAML.
 * **`robot.sh status` in simulation:** It runs the ESP32 checks there too, and they fail.
 * **License metadata:** `LICENSE` is MIT, but every `package.xml` and `setup.py` says Apache-2.0.
-* **RViz:** The `Time` panel AGENTS.md says was removed is still in `lab_slam.rviz` and `default_nav.rviz`.
+* **RViz:** The `Time` panel LESSONS_LEARNED.md says was removed is still in `lab_slam.rviz` and `default_nav.rviz`.
 * **Unused files:** `esp32_hardware.xml`, `gazebo_control.xacro`, `face.xacro`, `localization_params.yaml`, `main.rviz` and `default_nav.rviz` aren't referenced by any launch file.
 
 ## 🗺️ Roadmap & Active Tasks — Perfect Phases
@@ -113,7 +113,7 @@ Phases are accurate as of 2026-11-05. See `docs/plans/imu_nav2_roadmap_v2.md` fo
 - [x] Mapping + autonomous goals verified in sim with fused odometry.
 - [x] Jetson-native Docker setup (mac dev uses Xvfb/VNC; native path documented).
 - [x] Tests run with the live stack. The Docker port test, rewritten on 2026-11-07, passed against the simulation on 2026-11-09.
-- [x] Calibration docs + procedures in roadmap + AGENTS.md.
+- [x] Calibration docs + procedures in roadmap + LESSONS_LEARNED.md.
 - [x] RPLidar on Humble: health OK, `/scan` at 6.5 Hz (2026-11-05).
 - [ ] Check that the front of the scan matches the front of the robot.
 - [x] ESP32-S3 on Humble: encoders and IMU streaming at 50 Hz, `./robot.sh status` all OK (2026-11-05).

@@ -41,7 +41,7 @@ What was tested, on what, and what it showed. Simulation work ran in Docker on a
 
 **Result:** Mapping and autonomous goals worked in simulation with EKF-fused odometry (`/odom_filtered`). The simulation ran at a real-time factor of about 0.55 in Docker on the Mac. A later code review found that in simulation both the diff-drive controller and the EKF published the `odom → base_footprint` transform. That's fixed, and [experiment 8](#8-gazebo-check-of-the-code-review-fixes) checked it.
 
-**Lessons, recorded in [AGENTS.md](../../AGENTS.md):**
+**Lessons, recorded in [LESSONS_LEARNED.md](../LESSONS_LEARNED.md):**
 - The robot looked stuck until the URDF put `base_footprint` at the floor and the model spawned 6 cm up. The wheels had been under the ground plane.
 - Lowering contact stiffness to speed up physics let overlapping geometry push the robot around, so the geometry had to be fixed first.
 - Inflation `cost_scaling_factor` sets how fast cost falls away from walls. Low values make walls look thick, and both Nav2 configs settled on 3.5.

@@ -413,3 +413,15 @@ Append concise summaries of work done here. For technical details on *why* thing
 - **Also Found:** Gazebo's 10 Hz `/clock` holds the EKF to 10 Hz, simulated navigation loads the robot's map by default, and `robot.sh status` runs the ESP32 checks in simulation. All are listed as open on the status board.
 - **Docs:** The lessons learned moved from the repo root to `docs/LESSONS_LEARNED.md`.
 - **Not Checked:** The bridge's odometry and covariance changes need the robot.
+
+---
+
+## Session: 2026-11-09 @ 14:14 (Motor Firmware and First Drive)
+- **Jetson:** The checkout moved from `jetson-humble-port` to `master`. The build failed on a stale `sim.mp4` link in `jetson_bot_bringup`'s `build/` and `install/`, left from the file's move to `assets/`. Clearing that package's build output fixed it. The lidar checked out at 7 Hz.
+- **ESP32-S3 Silent:** The bridge got no data. Every reset through the USB control lines started the board in ROM download mode (`boot:0x2`, GPIO 0 read low). While it sat there, the old firmware, never committed, was backed up as a verified 16 MB image and kept out of git. The new firmware was flashed, and unplugging the USB cable for 5 s let it boot.
+- **New Firmware:** `MOTOR-ESP32S3`'s `quadrature-speed-control`. At first boot `e` and `i` ran at 50 Hz, the IMU was found, and at rest z read −10.2 m/s², so the MPU6050 is upside down as the URDF says.
+- **Motors:** The first drive commands moved nothing, because the motor battery wasn't connected to the driver. Once it was, both wheels turned forward on a forward command.
+- **Encoders:** The counts stayed at 0. The board's pin report showed A changing and both B channels never changing. The left green wire was broken and was replaced, and the firmware now reads the left B on GPIO 14, where the wiring diagram has it, instead of 17. The left count then ran backwards, so its sign was flipped.
+- **Measured (2026-11-10):** 1,497 counts per wheel turn, from a 34:1 gearbox. The wheels stop 0.75 s after the last command. In the air both start from rest at PWM 125, with deadband 51 and 42 and slope 1,743 and 1,732 PWM per m/s, and the closed loop holds 0.02 to 0.25 m/s within 1 to 2%. All four changes are committed on the firmware branch (`0051e9a`, not pushed) and flashed.
+- **Bridge:** `encoder_cpr` went from 3,436 to 1,497 in `main.launch.py` and the `diffdrive_node.py` default. The odometry test now allows one count of rounding at that resolution, and checks a straight move's heading to within 1e-12 instead of exactly.
+- **Not Done:** Driving through `/cmd_vel`, the floor step, the IMU's yaw-rate sign, a 5-minute watch for left-count jumps at rest, and pushing the firmware branch.

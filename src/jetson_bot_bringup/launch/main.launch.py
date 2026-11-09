@@ -314,7 +314,7 @@ def launch_setup(context, *args, **kwargs):
                     'baud': 115200,
                     'wheel_separation': 0.212, # Manual Measurement
                     'wheel_radius': 0.034,
-                    'encoder_cpr': 3436,
+                    'encoder_cpr': 1497, # Hand test, 2026-11-10: 4 edges x 11 pulses x 34:1
                     'publish_tf': False # Disable for EKF compatibility
                 }]
             ))

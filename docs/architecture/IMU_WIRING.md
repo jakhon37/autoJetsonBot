@@ -4,7 +4,7 @@ This document defines the physical connection between the **MPU6050 6-Axis IMU**
 
 ## 🔌 Pin Mapping
 
-The firmware on the board uses these pins. That build (`MOTOR-ESP32S3` with IMU code from `imu_viz`) was never committed. The rebuilt firmware on MOTOR-ESP32S3's `quadrature-speed-control` branch uses the same pins. **Ensure the robot is powered off before wiring.**
+The firmware on the board uses these pins: MOTOR-ESP32S3's `quadrature-speed-control` branch since 2026-11-10, which found the IMU at its first boot. The older build it replaced used the same pins. **Ensure the robot is powered off before wiring.**
 
 | MPU6050 Pin | ESP32-S3 Pin | Function | Wire Color (Typical) |
 | :--- | :--- | :--- | :--- |

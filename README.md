@@ -107,11 +107,17 @@ The full node graph, TF tree, serial protocol and launch modes are in [SYSTEM_AR
 
 ## Results
 
-| Simulation: driving in the Gazebo lab | Simulation: Nav2 costmap |
+| Simulation: driving in the Gazebo lab (June 2026, Foxy) | Simulation: Nav2 costmap (June 2026, Foxy) |
 | :---: | :---: |
 | <img src="assets/sim/gazebo_sim.gif" alt="Robot driving in the Gazebo lab world with lidar rays" width="420"> | <img src="assets/sim/nav2_costmap.jpg" alt="Nav2 global costmap with inflated walls" width="420"> |
 | **Real robot: map from the lidar** | **Web dashboard** |
 | <img src="assets/results/map_real_lidar_2026-08-21.png" alt="Occupancy grid built from the real lidar" width="300"> | <img src="assets/ui/web_dashboard.png" alt="Web dashboard with lidar view, teleop pad and robot metrics" width="420"> |
+
+<p align="center">
+  <img src="assets/results/sim_slam_imu_frame_fix.png" alt="Three occupancy grids: before the IMU frame fix the room is rotated with doubled walls, after it the walls are straight and match the reference map" width="720">
+  <br>
+  <em>SLAM in Gazebo under Humble (November 2026), before and after the simulated IMU's frame fix, next to the world's map</em>
+</p>
 
 <p align="center">
   <picture>
@@ -120,7 +126,7 @@ The full node graph, TF tree, serial protocol and launch modes are in [SYSTEM_AR
   </picture>
 </p>
 
-- **Simulation:** Mapping and autonomous goals worked with EKF-fused odometry. A Gazebo run under Humble checked the code review fixes and caught a reversed heading from the simulated IMU, now fixed.
+- **Simulation:** Mapping and autonomous goals worked with EKF-fused odometry. A Gazebo run under Humble checked the code review fixes and caught a reversed heading from the simulated IMU that smeared SLAM maps, now fixed (above).
 - **Robot:** Under Humble on the Xavier NX, the lidar runs at 6.46 Hz and `slam_toolbox` builds maps. Encoders and IMU stream at 50 Hz and the full TF chain is up.
 - **Before the first drive:** A hand test showed the encoders report 9 to 10 times fewer counts per turn than configured, and no direction. That's being fixed in a rebuilt motor firmware.
 - **Camera:** The ESP32-CAM streams 320×240 at about 10 fps over Wi-Fi. Firmware changes cut its idle ping from about 300 ms to 13 ms and let it rejoin Wi-Fi on its own.

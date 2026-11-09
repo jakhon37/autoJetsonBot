@@ -442,3 +442,12 @@ Append concise summaries of work done here. For technical details on *why* thing
 - **Jetson:** The checkout is back on `master` at `d236b78` since PR #9 merged.
 - **Docs:** The status board and the README said the robot hadn't been driven through `/cmd_vel`. They now match the drive in the entry above.
 - **Not Done:** Merging either firmware branch into `main`, the floor step and the bias calibration.
+
+---
+
+## Session: 2026-11-10 @ 02:50 (Floor Tuning, Gyro Offsets and the EKF on the Floor)
+- **Floor:** `wheel_test.py hold --on-floor` at 0.03 and 0.15 m/s set the feed-forward for the floor (deadband 58 and 88, slope 1,893 and 1,740). With it the trims stayed within 11 PWM. A first 0.15 m/s run lost the left encoder (`no_counts`, 33 counts) to a loose wire, which was reseated, and a hand test and a lifted run passed after. Flashed as `9bce74b`.
+- **Gyro:** The `i` line's 2 decimals hid the gyro's offsets. With 4 (`991ffb9`), 60 s at rest gave −0.0092, −0.0569 and −0.0122 rad/s, now subtracted in the firmware (`474c42e`). The heading drift at rest from the gyro went from 0.7°/s to 0.006°/s.
+- **ROS on the Floor:** Two 30 cm drives through `/cmd_vel` read 30.9 and 31.3 cm on `/odom`, with the wheels and the gyro within 2.3° of straight, but `/odom_filtered` turned −14.9° and +47.3°, and SLAM followed. At rest it saw a 16 mm/s sideways slide. A second EKF fusing only the wheels' speeds and the gyro's yaw rate read +1.9° on the same drive. The stack was stopped with `docker restart`, and the maps kept their dates.
+- **EKF Fix:** `ekf.yaml` now fuses just that, and a config test fails on the old settings. In Gazebo it read 30.0 cm and 0.0° on a 30 cm drive and followed the gyro through a turn.
+- **Not Done:** The EKF's check on the robot, learning the gyro's offsets while the wheels are stopped (z read +0.003 rad/s again 20 minutes into the run), and the motor firmware's unit tests, whose wheel model still assumes the first estimates.

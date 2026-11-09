@@ -16,6 +16,7 @@ What was tested, on what, and what it showed. Simulation work ran in Docker on a
 | 8 | [Gazebo check of the code review fixes](#8-gazebo-check-of-the-code-review-fixes) | Simulation | 2026-11-09 | Fixes confirmed, and three more bugs found and fixed |
 | 9 | [First drive with the new motor firmware](#9-first-drive-with-the-new-motor-firmware) | Robot | 2026-11-09 to 10 | Encoders fixed, 1,497 counts per turn, speeds within 1 to 2% with the wheels lifted |
 | 10 | [Driving through ROS and the EKF heading](#10-driving-through-ros-and-the-ekf-heading) | Robot | 2026-11-10 | `/odom` within 3% of commands, and the EKF now follows turns |
+| 11 | [Floor tuning, gyro offsets and the EKF](#11-floor-tuning-gyro-offsets-and-the-ekf-on-the-floor) | Robot, simulation | 2026-11-10 | Feed-forward set for the floor, gyro offsets in firmware, and EKF settings that turned straight drives into turns, fixed |
 
 ---
 
@@ -261,9 +262,34 @@ With the heading reversed, SLAM drew the room rotated with doubled walls. Nav2 w
 
 ---
 
+## 11. Floor Tuning, Gyro Offsets and the EKF on the Floor
+
+**Goal:** Set the motor feed-forward for the floor, remove the gyro's offsets at rest, and drive through ROS on the floor.
+
+**Setup:** The robot on the floor of the room it maps. First `MOTOR-ESP32S3`'s `wheel_test.py hold --on-floor` at 0.03 and 0.15 m/s, following step 10 of its first-drive checklist. Then the gyro read at rest for 60 s, with nothing sent to the board. Then `./robot.sh robot` and a script that sent 0.1 m/s for 3 s and 0.5 rad/s for 3 s through `/cmd_vel`, and compared `/odom`, `/odom_filtered`, the gyro and SLAM's map pose.
+
+| Check | Before | After |
+| :--- | ---: | ---: |
+| Floor trims at 0.03 / 0.15 m/s, left wheel (PWM) | +11 / +29 | +9 / 0 |
+| Floor trims at 0.03 / 0.15 m/s, right wheel (PWM) | +46 / +47 | −11 / −9 |
+| Gyro z at rest | −0.0122 rad/s | −0.0001 rad/s |
+| Heading drift at rest from the gyro | 0.7°/s | 0.006°/s |
+
+| 30 cm straight drive through `/cmd_vel` | Distance | Heading |
+| :--- | ---: | ---: |
+| Wheels (`/odom`), two drives | 30.9 and 31.3 cm | +1.8° and +2.3° |
+| Gyro, second drive | | +1.8° |
+| EKF as it was (`/odom_filtered`) | 30.9 and 31.3 cm | −14.9° and +47.3° |
+| EKF with wheel speeds and the gyro's yaw rate only, second drive | 31.1 cm | +1.9° |
+| SLAM's map pose | 6.5 and 28.8 cm | −35.9° and +41.2° |
+
+**Result:** On the floor the right wheel needed about 46 PWM more than in the air at every speed, and the left wheel a steeper slope: the deadbands are now 58 and 88 and the slopes 1,893 and 1,740. With those, both wheels held the requests within 0.003 m/s. A first 0.15 m/s run lost the left encoder to a loose wire, reseated before these numbers. The gyro's values had only 2 decimals, which hid offsets of 0.01 to 0.06 rad/s. With 4 they were measured and are now subtracted in the firmware, but about 20 minutes into the ROS run z read +0.003 rad/s at rest again, likely from warming up. The EKF was the bigger problem. It fused the wheels' x and y as well as their speeds, and the uncalibrated accelerometer, and settled the conflicts by turning its heading, so straight drives read as turns and SLAM followed. At rest it saw a 16 mm/s sideways slide. An EKF fusing only the wheels' speeds, sideways included, and the gyro's yaw rate, run beside it, matched the wheels and the gyro. In Gazebo the same settings read 30.0 cm and 0.0° on a 30 cm drive, and through a turn followed the gyro's 71.7° rather than the wheels' 77.3°.
+
+---
+
 ## What's Next
 
-1. **On the floor:** The floor step of the first-drive checklist, which raises the feed-forward for the floor.
-2. **Calibration:** Calibrate the IMU gyro bias, which now drifts the EKF's heading about 1°/s at rest, and check that the front of the scan matches the front of the robot.
+1. **EKF on the robot:** Pull and rebuild on the Jetson, and repeat the straight drive and a turn with the new `ekf.yaml`.
+2. **Calibration:** Keep learning the gyro's offsets in the firmware while the wheels are stopped, since they drift as the robot warms up, and check that the front of the scan matches the front of the robot.
 3. **Hardware mapping run:** A full mapping run and a Nav2 goal on the real robot.
 4. **Camera in ROS:** A node that reads the ESP32-CAM stream, for camera-based docking, which is developed in a separate project.

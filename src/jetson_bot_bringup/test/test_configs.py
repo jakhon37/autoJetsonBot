@@ -55,7 +55,23 @@ def test_ekf_takes_heading_changes_from_the_gyro():
     assert ekf['odom0_config'][vyaw] is True
 
 
+def _fused(config):
+    return {i for i, on in enumerate(config) if on}
+
+
+def test_ekf_fuses_only_wheel_speeds_and_the_gyro_rate():
+    """Verify that the EKF takes speeds from the wheels and only the yaw rate from the IMU."""
+    # With the wheels' x and y and the uncalibrated accelerometer fused too, the EKF's heading
+    # turned -15 and +47 degrees on two 30 cm straight drives on the floor, with the wheels and
+    # the gyro both reading about +2.
+    ekf = _params('ekf.yaml', 'ekf_filter_node')
+    vx, vy, vyaw = 6, 7, 11
+    assert _fused(ekf['odom0_config']) == {vx, vy, vyaw}
+    assert _fused(ekf['imu0_config']) == {vyaw}
+
+
 if __name__ == '__main__':
     test_ekf_is_the_only_odom_tf_publisher_in_sim()
     test_sim_odom_covariance_is_not_zero()
     test_ekf_takes_heading_changes_from_the_gyro()
+    test_ekf_fuses_only_wheel_speeds_and_the_gyro_rate()

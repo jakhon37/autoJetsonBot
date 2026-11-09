@@ -16,26 +16,32 @@ ekf_filter_node:
     base_link_frame: base_footprint  # Match existing robot root
     world_frame: odom           # Fusion happens in odom frame
 
-    # 1. Odometry from Wheel Encoders (per imu_nav2_roadmap_v2)
+    # 1. Wheel speeds: forward, sideways and yaw rate. Sideways is always 0 for this robot, which
+    # keeps the EKF from inventing a slide. Not the wheels' x and y: with them, their speeds and the
+    # accelerometer all fused, the EKF settled the conflict by turning its heading, -15 and +47
+    # degrees on two 30 cm straight drives on the floor on 2026-11-10.
     odom0: /odom
-    odom0_config: [true,  true,  false, 
-                   false, false, false, 
-                   true,  false, false, 
+    odom0_config: [false, false, false,
+                   false, false, false,
+                   true,  true,  false,
                    false, false, true,
                    false, false, false]
     odom0_differential: false
     odom0_relative: false
     odom0_queue_size: 10
 
-    # 2. IMU from Madgwick Filter (per imu_nav2_roadmap_v2)
-    # Yaw rate, not yaw: Madgwick runs without a magnetometer, so its yaw holds no heading.
-    # Fusing it pinned the EKF's heading through a 90 degree hand turn on 2026-11-10.
+    # 2. IMU from Madgwick Filter (per imu_nav2_roadmap_v2): the gyro's yaw rate only.
+    # Not yaw: Madgwick runs without a magnetometer, so its yaw holds no heading. Fusing it pinned
+    # the EKF's heading through a 90 degree hand turn on 2026-11-10.
+    # Not the accelerometer: it's uncalibrated (10.33 m/s^2 at rest), and fused, it made the EKF
+    # see a 16 mm/s sideways slide with the robot standing still. Roll and pitch don't count in
+    # two_d_mode.
     imu0: /imu/data
-    imu0_config: [false, false, false, 
-                  true,  true,  false, 
-                  false, false, false, 
-                  true,  true,  true,
-                  true,  true,  false]
+    imu0_config: [false, false, false,
+                  false, false, false,
+                  false, false, false,
+                  false, false, true,
+                  false, false, false]
     imu0_differential: false
     imu0_relative: true
     imu0_queue_size: 10
@@ -43,7 +49,7 @@ ekf_filter_node:
 
     # Process Noise Covariance (relative trust) - tuned per imu_nav2_roadmap_v2
     # [x, y, z, roll, pitch, yaw, vx, vy, vz, vroll, vpitch, vyaw, ax, ay, az]
-    # Trust the IMU for yaw rate, encoders for position/velocity. High cov on IMU accel.
+    # Trust the IMU for yaw rate and the encoders for velocity.
     process_noise_covariance: [0.05, 0.0,    0.0,    0.0,    0.0,    0.0,    0.0,     0.0,     0.0,    0.0,     0.0,     0.0,    0.0,    0.0,    0.0,
                                0.0,  0.05,  0.0,    0.0,    0.0,    0.0,    0.0,     0.0,     0.0,    0.0,     0.0,     0.0,    0.0,    0.0,    0.0,
                                0.0,  0.0,   0.06,   0.0,    0.0,    0.0,    0.0,     0.0,     0.0,    0.0,     0.0,     0.0,    0.0,    0.0,    0.0,

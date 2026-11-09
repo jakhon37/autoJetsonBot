@@ -44,6 +44,18 @@ def test_sim_odom_covariance_is_not_zero():
         assert all(isinstance(v, float) and v > 0.0 for v in diagonal)
 
 
+def test_ekf_takes_heading_changes_from_the_gyro():
+    """Verify that the EKF fuses the IMU's yaw rate but not the Madgwick filter's yaw."""
+    # Without a magnetometer Madgwick's yaw holds no heading. Fusing it kept the EKF's heading
+    # within 6 degrees through a 90 degree hand turn on the robot.
+    ekf = _params('ekf.yaml', 'ekf_filter_node')
+    yaw, vyaw = 5, 11  # [x, y, z, roll, pitch, yaw, vx, vy, vz, vroll, vpitch, vyaw, ax, ay, az]
+    assert ekf['imu0_config'][yaw] is False
+    assert ekf['imu0_config'][vyaw] is True
+    assert ekf['odom0_config'][vyaw] is True
+
+
 if __name__ == '__main__':
     test_ekf_is_the_only_odom_tf_publisher_in_sim()
     test_sim_odom_covariance_is_not_zero()
+    test_ekf_takes_heading_changes_from_the_gyro()

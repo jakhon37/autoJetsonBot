@@ -203,12 +203,12 @@ What was tested, on what, and what it showed. Simulation work ran in Docker on a
 | EKF (`/odom_filtered` and its transform) | −86° to −95° | +95° |
 
 <p align="center">
-  <img src="../../assets/results/sim_slam_imu_frame_fix.png" alt="Three occupancy grids: before the fix the room is rotated with doubled walls, after it the walls are straight and match the reference map" width="90%">
+  <img src="../../assets/results/map_sim_slam_2026-11-09.png" alt="Occupancy grid that slam_toolbox built while the robot drove in the Gazebo lab world" width="45%">
   <br>
-  <em>SLAM in Gazebo before and after the IMU frame fix, next to the world's reference map</em>
+  <em>SLAM map built in Gazebo under Humble after the fixes (2026-11-09)</em>
 </p>
 
-With the heading reversed, SLAM drew the room rotated with doubled walls. Nav2 weaved on a straight 1.7 m goal, turning at up to 0.84 rad/s and drifting 18 cm sideways in its first metre. Naming the frame `imu_link` in `imu.xacro` fixed both: the same goal then drifted 7 cm over 1.5 m. A unit test now checks the frame.
+With the heading reversed, SLAM drew the room rotated with doubled walls. Nav2 weaved on a straight 1.7 m goal, turning at up to 0.84 rad/s and drifting 18 cm sideways in its first metre. Naming the frame `imu_link` in `imu.xacro` fixed both: SLAM now draws the room's walls straight (above), and the same goal drifted 7 cm over 1.5 m. A unit test now checks the frame.
 
 **Found: the dashboard badge stuck at Canceling.** Nav2 sends CANCELED 20 ms after CANCELING and publishes status only on a change. The dashboard throttled that topic to one message per 500 ms, and rosbridge drops messages inside the window rather than delaying them, so CANCELED never arrived. Without the throttle, the badge goes from Executing through Canceling to Idle within 30 ms of the cancel.
 

@@ -30,9 +30,9 @@ flowchart LR
 ## 2. Navigate
 
 1. Set the map name in `src/jetson_bot_bringup/config/unified_robot_config.yaml`, then `./robot.sh build`.
-2. Switch modes with `./robot.sh map2nav`, which saves the map first if you were mapping, or start with `./robot.sh nav`. Both run on the robot with the committed config. In simulation, use `./robot.sh sim mode:=navigation`.
+2. Switch modes with `./robot.sh map2nav`, which saves the map first if you were mapping, or start with `./robot.sh nav`. Both run on the robot with the committed config. In simulation, use `./robot.sh sim mode:=navigation`. It loads the map named in the YAML, which is `lab_map_v2` from the robot, so for the simulated room load `src/jetson_bot_bringup/worlds/lab_small_light.yaml` through the `/map_server/load_map` service.
 3. AMCL assumes the robot starts at the map origin. If it doesn't, give it the starting pose with **2D Pose Estimate** in RViz. Until AMCL has a pose, RViz reports that the `map` frame doesn't exist.
-4. Send a goal with **2D Goal Pose** in RViz. Nav2 plans globally, follows with the DWB local planner and runs recovery behaviours if it gets stuck. The dashboard's goal button publishes the same `/goal_pose` message as that tool, and its cancel button calls Nav2's cancel service. Neither has run against Nav2 since that change on 2026-11-07.
+4. Send a goal with **2D Goal Pose** in RViz. Nav2 plans globally, follows with the DWB local planner and runs recovery behaviours if it gets stuck. The dashboard's goal button publishes the same `/goal_pose` message as that tool, and its cancel button calls Nav2's cancel service. Both were checked against Nav2 in simulation on 2026-11-09.
 
 <p align="center">
   <img src="../../assets/sim/nav2_costmap.jpg" alt="Nav2 costmap in RViz beside the Gazebo world" width="90%">

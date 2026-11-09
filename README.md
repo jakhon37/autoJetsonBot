@@ -120,12 +120,12 @@ The full node graph, TF tree, serial protocol and launch modes are in [SYSTEM_AR
   </picture>
 </p>
 
-- **Simulation:** Mapping and autonomous goals worked with EKF-fused odometry.
+- **Simulation:** Mapping and autonomous goals worked with EKF-fused odometry. A Gazebo run under Humble checked the code review fixes and caught a reversed heading from the simulated IMU, now fixed.
 - **Robot:** Under Humble on the Xavier NX, the lidar runs at 6.46 Hz and `slam_toolbox` builds maps. Encoders and IMU stream at 50 Hz and the full TF chain is up.
 - **Before the first drive:** A hand test showed the encoders report 9 to 10 times fewer counts per turn than configured, and no direction. That's being fixed in a rebuilt motor firmware.
 - **Camera:** The ESP32-CAM streams 320×240 at about 10 fps over Wi-Fi. Firmware changes cut its idle ping from about 300 ms to 13 ms and let it rejoin Wi-Fi on its own.
 
-All seven experiments, with method and numbers, are in [RESULTS.md](docs/experiments/RESULTS.md).
+All eight experiments, with method and numbers, are in [RESULTS.md](docs/experiments/RESULTS.md).
 
 ## Project Status
 

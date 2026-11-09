@@ -132,7 +132,7 @@ All ten experiments, with method and numbers, are in [RESULTS.md](docs/experimen
 | :--- | :--- | :--- |
 | Mapping (`slam_toolbox`) | ✅ Working | ✅ Maps built from the real lidar |
 | Localization and Nav2 goals | ✅ Working | ⏳ Not run yet, waiting for calibrated odometry |
-| Wheel odometry | ✅ Working | ⚠️ Encoders measured at 1,497 counts per turn, `/odom` not yet checked while driving |
+| Wheel odometry | ✅ Working | ⚠️ Encoders measured at 1,497 counts per turn, `/odom` checked with the wheels lifted, not yet on the floor |
 | IMU and EKF fusion | ✅ Working | ⚠️ Heading follows turns, gyro bias not yet calibrated |
 | Motor control | ✅ Working | ⚠️ Closed-loop speed within 1 to 2% with the wheels lifted, not yet on the floor |
 | Web dashboard | ✅ Working | ✅ Teleop, lidar and telemetry used on the robot under Foxy |

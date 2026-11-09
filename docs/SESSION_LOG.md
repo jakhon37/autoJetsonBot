@@ -434,3 +434,11 @@ Append concise summaries of work done here. For technical details on *why* thing
 - **EKF Fix:** `ekf.yaml` fused Madgwick's yaw, which has no heading without a magnetometer. Fusing only the IMU's yaw rate, the same flat turn gave +105°, the rest being gyro bias. A config test now checks it.
 - **Gyro Bias:** About 0.02 rad/s at rest, so the EKF's heading now drifts about 1°/s when the robot is still. Calibrating it comes before a mapping run.
 - **Not Done:** The floor step and the bias calibration. The Jetson's checkout is on `ekf-gyro-yaw-rate` until that merges.
+
+---
+
+## Session: 2026-11-10 @ 02:25 (Firmware Branches on GitHub)
+- **Pushed:** `MOTOR-ESP32S3`'s `quadrature-speed-control` (through `0051e9a`, the build on the robot) and `myESP32CAM-BLACKBOX`'s `wifi-reliability` (`cc2aea2`, the build on the camera) went to GitHub as branches, after a check that their commits hold no Wi-Fi details from the home network. A later commit on the motor branch, `3bc7c8d`, changes only its `docs/FIRST_DRIVE.md`.
+- **Jetson:** The checkout is back on `master` at `d236b78` since PR #9 merged.
+- **Docs:** The status board and the README said the robot hadn't been driven through `/cmd_vel`. They now match the drive in the entry above.
+- **Not Done:** Merging either firmware branch into `main`, the floor step and the bias calibration.

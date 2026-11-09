@@ -425,3 +425,12 @@ Append concise summaries of work done here. For technical details on *why* thing
 - **Measured (2026-11-10):** 1,497 counts per wheel turn, from a 34:1 gearbox. The wheels stop 0.75 s after the last command. In the air both start from rest at PWM 125, with deadband 51 and 42 and slope 1,743 and 1,732 PWM per m/s, and the closed loop holds 0.02 to 0.25 m/s within 1 to 2%. All four changes are committed on the firmware branch (`0051e9a`, not pushed) and flashed.
 - **Bridge:** `encoder_cpr` went from 3,436 to 1,497 in `main.launch.py` and the `diffdrive_node.py` default. The odometry test now allows one count of rounding at that resolution, and checks a straight move's heading to within 1e-12 instead of exactly.
 - **Not Done:** Driving through `/cmd_vel`, the floor step, the IMU's yaw-rate sign, a 5-minute watch for left-count jumps at rest, and pushing the firmware branch.
+
+---
+
+## Session: 2026-11-10 @ 00:50 (Driving Through ROS and the EKF Heading)
+- **Bridge:** The Jetson pulled `master` with `encoder_cpr` 1,497 and rebuilt. With the hardware stack up and nothing else on `/cmd_vel`, 3 s at 0.1 m/s read 0.308 m on `/odom`, and 3 s turning left at 0.5 rad/s read +89.9°.
+- **IMU Heading:** A first hand-turn check was spoiled by lifting and tilting the robot. A clean one, flat on the table between two key presses, gave −107° from the gyro in its upside-down frame, which settles the yaw rate's sign. The EKF heading moved only +5.6°.
+- **EKF Fix:** `ekf.yaml` fused Madgwick's yaw, which has no heading without a magnetometer. Fusing only the IMU's yaw rate, the same flat turn gave +105°, the rest being gyro bias. A config test now checks it.
+- **Gyro Bias:** About 0.02 rad/s at rest, so the EKF's heading now drifts about 1°/s when the robot is still. Calibrating it comes before a mapping run.
+- **Not Done:** The floor step and the bias calibration. The Jetson's checkout is on `ekf-gyro-yaw-rate` until that merges.

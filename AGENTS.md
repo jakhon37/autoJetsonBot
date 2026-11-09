@@ -138,7 +138,7 @@ If `robot.sh stop` fails to terminate Gazebo, it is usually because `gzserver` i
 
 ## 🧪 Gazebo Check Lessons (Added 2026-11-09)
 
-*   **Name Every Sensor Frame:** Gazebo merges links on fixed joints into `base_footprint`, so a sensor plugin without `<frame_name>` stamps its data `base_footprint`. The IMU is mounted upside down (roll π), so its unnamed data turned the EKF's heading the wrong way once `diff_cont` stopped publishing TF. ROS 1's `<frameName>`, still in `camera.xacro`, is ignored too.
+*   **Name Every Sensor Frame:** Gazebo merges links on fixed joints into `base_footprint`, so a sensor plugin without `<frame_name>` stamps its data `base_footprint`. The IMU is mounted upside down (roll π), so its unnamed data turned the EKF's heading the wrong way once `diff_cont` stopped publishing TF. ROS 1's `<frameName>` is ignored too, which left the simulated camera's images stamped `base_footprint`.
 *   **rosbridge Throttling Drops Messages:** Inside a subscription's `throttle_rate` window, rosbridge 2.0.8 discards messages rather than delaying them, unless `queue_length` is set. Don't throttle topics that publish only on a change, like Nav2's goal status, which lost CANCELED that way.
 *   **Who Publishes a Transform:** Humble's `diff_drive_controller` keeps a `/tf` publisher even with `enable_odom_tf: false`, and ROS 2's `tf2_monitor` doesn't name broadcasters. To show the EKF is the only source, compare each `odom -> base_footprint` sample with `/odom_filtered` at the same stamp.
 *   **Sim Clock Rate:** Gazebo publishes `/clock` at 10 Hz, so in simulation the EKF publishes `/odom_filtered` and its transform at 10 Hz, not 30.

@@ -13,7 +13,7 @@ The stack follows **REP 120** and uses a Python Serial Bridge + mature Web UI. C
 | **Motor Driver** | ⚠️ Partial | The `jetson_bot_diffdrive` bridge runs, but the motors haven't been driven under Humble. |
 | **Web UI + Global Map** | ✅ Mature | Modular ES6, real-time map/pose/goal overlay. |
 | **EKF Fusion** | ⚠️ Configured | Madgwick, the EKF and `/odom_filtered` run, but aren't validated on hardware. See Known Issues. |
-| **Simulation** | ✅ Functional | Full when launched. Under Humble, needs an amd64 host. On 2026-11-09 the code review fixes ran in Gazebo on a PC, which found and fixed two more bugs, see Known Issues. |
+| **Simulation** | ✅ Functional | Full when launched. Under Humble, needs an amd64 host. On 2026-11-09 the code review fixes ran in Gazebo on a PC, which found and fixed three more bugs, see Known Issues. |
 | **Hardware** | ⚠️ Partial | On 2026-11-05 the RPLidar and ESP32-S3 passed read-only checks under Humble (`/scan` at 6.9 Hz, encoders and IMU at 50 Hz, SLAM building a map). On 2026-11-06 both encoders counted by hand, but far fewer per turn than configured and apparently in only one direction. Motors haven't been driven. The ESP32 camera streams to the Jetson over Wi-Fi but isn't connected to ROS yet. |
 
 **Primary Focus:** Phase 4 physical validation — mapping + Nav2 on the Jetson car.
@@ -38,7 +38,7 @@ See AGENTS.md for serial/EKF/physical tuning and robot.sh help.
 
 ## 🔎 Known Issues (Code Review, 2026-11-07)
 
-Found by reading the code while checking the docs. Seven were fixed on 2026-11-07, each in its own commit with a test where the repo allows one. On 2026-11-09 they ran in Gazebo under Humble on an amd64 PC, which found two more bugs, both fixed the same day. The bridge's changes still need the robot.
+Found by reading the code while checking the docs. Seven were fixed on 2026-11-07, each in its own commit with a test where the repo allows one. On 2026-11-09 they ran in Gazebo under Humble on an amd64 PC, which found three more bugs, all fixed the same day. The bridge's changes still need the robot.
 
 **Checked in simulation (2026-11-09):**
 
@@ -52,6 +52,7 @@ Found by reading the code while checking the docs. Seven were fixed on 2026-11-0
 
 * **Simulated IMU frame:** `imu.xacro` mounts `imu_link` upside down (roll π), and its Gazebo plugin named no frame, so once Gazebo merged the fixed joints the data was stamped `base_footprint`. The EKF fused the flipped readings without rotating them back and turned the wrong way: in a 4 s counter-clockwise spin `/odom` measured +100° and the EKF −86° to −95°. `diff_cont`'s transform hid this until the TF fix above turned it off. SLAM then drew the room rotated with doubled walls, and Nav2 weaved on a straight goal. The plugin now sets `<frame_name>imu_link</frame_name>`, `test_urdf.py` checks it, and in the same spin the EKF reads +95°. SLAM draws straight walls, and Nav2 drives the straight goal straight.
 * **Dashboard badge stuck at Canceling:** The dashboard subscribed to Nav2's goal status with `throttle_rate: 500`. rosbridge drops messages inside that window rather than delaying them, and Nav2 publishes status only on a change, so CANCELED, 20 ms after CANCELING, never arrived. The subscription is no longer throttled, and after a cancel the badge goes from Canceling to Idle within 30 ms.
+* **Simulated camera frame:** `camera.xacro` named its frame with ROS 1's `<frameName>`, which the ROS 2 plugin ignores, so `/camera/image_raw` was stamped `base_footprint`. It now uses `<frame_name>`, and Gazebo stamps the images `camera_optical_link`.
 
 **Still to check on the robot:**
 
@@ -64,7 +65,6 @@ Found by reading the code while checking the docs. Seven were fixed on 2026-11-0
 * **Firmware speed range:** In the open-loop firmware, every command from 0.01 to 0.25 m/s gets the same PWM (500), and output saturates at about 0.51 m/s, so Nav2's 0.26 m/s limit sits near the floor.
 * **Nav2 footprint:** `robot_radius` is 0.15 m, but the chassis corners are 0.181 m from `base_footprint`.
 * **IMU frame:** `imu_link` is upside down (roll π) in the URDF. Check it against the real MPU6050 before trusting the yaw rate's sign. The robot's bridge, and since 2026-11-09 the simulation, stamp IMU data `imu_link`, so the EKF applies that roll on both.
-* **Simulated camera frame:** `camera.xacro` names its frame with ROS 1's `<frameName>`, which the ROS 2 plugin ignores, so `/camera/image_raw` is stamped `base_footprint` instead of `camera_optical_link`.
 * **Simulation clock:** Gazebo publishes `/clock` at 10 Hz, so in simulation the EKF publishes at 10 Hz, not 30.
 * **Simulation map:** `./robot.sh sim mode:=navigation` loads `maps/lab_map_v2`, a map from the robot that doesn't cover the simulated room. Load `src/jetson_bot_bringup/worlds/lab_small_light.yaml` through the `/map_server/load_map` service, or point `map_dir` and `map_name` at it in the YAML.
 * **`robot.sh status` in simulation:** It runs the ESP32 checks there too, and they fail.

@@ -63,7 +63,7 @@ flowchart TB
 
 | Node | Package | Started when | Notes |
 | :--- | :--- | :--- | :--- |
-| `diffdrive_bridge` | `jetson_bot_diffdrive` | An ESP32 port is found | Wheel radius 0.034 m, separation 0.212 m, `encoder_cpr` 3,436, `publish_tf: false` |
+| `diffdrive_bridge` | `jetson_bot_diffdrive` | An ESP32 port is found | Wheel radius 0.034 m, separation 0.212 m, `encoder_cpr` 1,497, `publish_tf: false` |
 | `imu_bridge_node` | `jetson_bot_imu` | Always in hardware mode | Parses the raw `i` lines into `sensor_msgs/Imu` in `imu_link` |
 | `imu_filter` | `imu_filter_madgwick` | Always in hardware mode | `stateless: true`, `use_mag: false`, `publish_tf: false` |
 | `ekf_filter_node` | `robot_localization` | Always | 30 Hz, publishes `/odom_filtered` and `odom → base_footprint` |

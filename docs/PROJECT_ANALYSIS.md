@@ -2,19 +2,19 @@
 
 This is the primary status board. Consult this file to understand the current operational health and the immediate roadmap.
 
-## 📊 Current Status (Updated 2026-11-09)
+## 📊 Current Status (Updated 2026-11-10)
 
-The stack follows **REP 120** and uses a Python Serial Bridge + mature Web UI. Code phases are complete (Docker + sim verified on Foxy). On the Humble stack, the lidar and the ESP32-S3's encoder and IMU streams have been checked on hardware, but the motors haven't been driven yet. All work happens inside Docker (`./robot.sh`). The current target is a Jetson Xavier NX running ROS 2 Humble in Docker; Foxy stays available with `ROS_DISTRO=foxy`.
+The stack follows **REP 120** and uses a Python Serial Bridge + mature Web UI. Code phases are complete (Docker + sim verified on Foxy). On the Humble stack, the lidar and the ESP32-S3's encoder and IMU streams have been checked on hardware, and on 2026-11-10 both motors ran with the wheels lifted under a new closed-loop motor firmware. Driving through ROS and on the floor are next. All work happens inside Docker (`./robot.sh`). The current target is a Jetson Xavier NX running ROS 2 Humble in Docker; Foxy stays available with `ROS_DISTRO=foxy`.
 
 ### System Health
 | System | Status | Note |
 | :--- | :--- | :--- |
 | **TF Tree** | ✅ Standardized | `map → odom → base_footprint → base_link` (REP 120 everywhere). |
-| **Motor Driver** | ⚠️ Partial | The `jetson_bot_diffdrive` bridge runs, but the motors haven't been driven under Humble. |
+| **Motor Driver** | ⚠️ Wheels lifted only | Since 2026-11-10 the ESP32-S3 runs closed-loop speed control (`quadrature-speed-control`). With the wheels lifted, both hold 0.02 to 0.25 m/s within 1 to 2% and stop 0.75 s after commands stop. Not yet driven through `/cmd_vel` or on the floor. |
 | **Web UI + Global Map** | ✅ Mature | Modular ES6, real-time map/pose/goal overlay. |
 | **EKF Fusion** | ⚠️ Configured | Madgwick, the EKF and `/odom_filtered` run, but aren't validated on hardware. See Known Issues. |
 | **Simulation** | ✅ Functional | Full when launched. Under Humble, needs an amd64 host. On 2026-11-09 the code review fixes ran in Gazebo on a PC, which found and fixed three more bugs, see Known Issues. |
-| **Hardware** | ⚠️ Partial | On 2026-11-05 the RPLidar and ESP32-S3 passed read-only checks under Humble (`/scan` at 6.9 Hz, encoders and IMU at 50 Hz, SLAM building a map). On 2026-11-06 both encoders counted by hand, but far fewer per turn than configured and apparently in only one direction. Motors haven't been driven. The ESP32 camera streams to the Jetson over Wi-Fi but isn't connected to ROS yet. |
+| **Hardware** | ⚠️ Partial | The RPLidar and ESP32-S3 pass checks under Humble (`/scan` at about 7 Hz, encoders and IMU at 50 Hz, SLAM building a map). On 2026-11-09/10 the encoders were fixed and measured at 1,497 counts per turn, and both motors ran with the wheels lifted. Not driven on the floor yet. The ESP32 camera streams to the Jetson over Wi-Fi but isn't connected to ROS yet. |
 
 **Primary Focus:** Phase 4 physical validation — mapping + Nav2 on the Jetson car.
 Optimizations applied (2026-06):
@@ -28,13 +28,12 @@ Optimizations applied (2026-06):
 See [LESSONS_LEARNED.md](LESSONS_LEARNED.md) for serial/EKF/physical tuning and robot.sh help.
 
 ## 🚧 Critical Blockers
-* **Motors not driven yet under Humble (2026-11-05).** The ESP32-S3 works on its native USB socket, the one next to the RGB LED (`303a:1001` at `/dev/ttyACM0`). Only read-only checks have run, with 0 motor commands sent.
-* **Flashed motor firmware was never committed (2026-11-06).** It's `MOTOR-ESP32S3` with IMU code added from `imu_viz` (MPU6050 on SDA GPIO 1 and SCL GPIO 21, see `docs/architecture/IMU_WIRING.md`). No branch, tag or commit in any repo has the combined version, and `MOTOR-ESP32S3` alone sends encoder lines at 20 Hz with no IMU lines. Don't reflash from that repo as it stands, or the IMU stream goes away. It can be rebuilt from those two repos. June's notes and that repo suggest any drive command starts at about half power with a 500 ms timeout, but that's unconfirmed on the board, so keep the wheels off the ground for the first drive.
+* **Not driven through ROS or on the floor yet (2026-11-10).** The motors have only run from `MOTOR-ESP32S3`'s `wheel_test.py`, with the wheels lifted. Next: drive through `/cmd_vel` with the wheels still lifted and check `/odom`, then the floor step of that repo's `docs/FIRST_DRIVE.md`, which raises the feed-forward for the floor. The ESP32-S3 is on its native USB socket, the one next to the RGB LED (`303a:1001` at `/dev/ttyACM0`).
+* **Motor firmware branch not pushed (2026-11-10).** The board ran a build that was never committed, so it was backed up first, as a verified 16 MB image kept out of git because it may hold Wi-Fi details. It now runs `MOTOR-ESP32S3`'s `quadrature-speed-control` branch at `0051e9a`, which adds four commits from the first drive: the left encoder's B on GPIO 14, the left encoder's sign, `ENCODER_CPR` 1,497 and the measured feed-forward. The branch exists only on the PC, so push it before building the firmware anywhere else.
 * **ESP32 camera startup fix isn't merged (2026-11-06).** The camera is an AI-Thinker ESP32-CAM (OV2640) on Wi-Fi, not the Pi Camera v2 the docs assumed, so the kernel's `imx219` errors and the missing `/dev/video*` are expected. Its firmware, [`myESP32CAM-BLACKBOX`](https://github.com/jakhon37/myESP32CAM-BLACKBOX), used to try Wi-Fi once at boot and stay on its hotspot until reset, and to halt if the sensor failed to start. That repo's `wifi-reliability` branch, flashed but local only, retries Wi-Fi every 30 s and restarts on a sensor failure. The retry passed on hardware.
 * **ESP32 camera delivery at 640×480 is unreliable (2026-11-06).** On a phone charger away from the PC, one boot delivered nothing at 640×480 or larger for 20 minutes, with `/capture` returning HTTP 500 after 4 s, while 320×240 and 160×120 worked. The cause is unknown. After the camera was moved and rebooted, `http://192.168.219.118/stream` to the Jetson runs at 9.8 fps at 320×240 and about 3 fps at 640×480 with 24 KB frames, with stalls of up to 3 s at 640×480. The slowdown seen after 04:00, when an 18 KB page from flash downloaded at about 5 KB/s, is gone: the page now downloads at about 150 to 180 KB/s and idle ping is under 10 ms. Power source, position and time of day all changed together, so the cause of that recovery isn't known either. Video delay hasn't been measured.
 * **Nothing publishes camera images.** No launch file starts a camera node, and `camera_go` only opens a local video device, so `/camera/image_raw` has no source. The ESP32 camera needs a node that reads `/stream`. It must be the stream's only client because the firmware serves one request at a time, reconnect if the stream drops, and stamp frames on arrival because they carry no timestamps. It shouldn't poll `/capture`, since each call saves a file to the SD card.
-* **Encoders don't appear to report direction or the right scale (2026-11-06).** In a hand test of 5 turns forward and 5 back on each wheel, L moved -3,437 and R +3,866. Neither count reversed, and that's about 344 to 387 counts per turn against 3,436 configured. If the backward turns are confirmed, both B channels are suspect. Until this is fixed, odometry would report about 1/10 of real distance, always as backward, and a spin in place would read as reversing. Left and right aren't swapped. No measurement behind 3,436 was found: it goes back to May 2025, and the firmware's older `dev` branch says 360. L also jumped by -75,118 with no commands sent and R moving 103, after an earlier unexplained -133,420, and it was flagged as a connection problem on 2026-06-08 (Pin 18/GND). Don't change `encoder_cpr` until direction is fixed, because a firmware fix could change the count per turn.
-* **IMU bias not calibrated:** at rest the gyro's z axis reads about 0.024 rad/s (1.4°/s), and `/odom_filtered` yaw drifts about 0.1°/s. Phase 2a in the roadmap puts the bias in firmware, which needs the rebuild above, and gyro values currently arrive with only 2 decimals.
+* **IMU bias not calibrated:** at rest the gyro's z axis reads about 0.024 rad/s (1.4°/s), and `/odom_filtered` yaw drifts about 0.1°/s. Phase 2a in the roadmap puts the bias in firmware. The new motor firmware doesn't do that yet, and it still sends gyro values with only 2 decimals.
 
 ## 🔎 Known Issues (Code Review, 2026-11-07)
 
@@ -62,9 +61,10 @@ Found by reading the code while checking the docs. Seven were fixed on 2026-11-0
 **Open:**
 
 * **EKF inputs:** Madgwick runs `stateless` without a magnetometer, so its orientation has no heading, yet `ekf.yaml` fuses its yaw.
-* **Firmware speed range:** In the open-loop firmware, every command from 0.01 to 0.25 m/s gets the same PWM (500), and output saturates at about 0.51 m/s, so Nav2's 0.26 m/s limit sits near the floor.
 * **Nav2 footprint:** `robot_radius` is 0.15 m, but the chassis corners are 0.181 m from `base_footprint`.
-* **IMU frame:** `imu_link` is upside down (roll π) in the URDF. Check it against the real MPU6050 before trusting the yaw rate's sign. The robot's bridge, and since 2026-11-09 the simulation, stamp IMU data `imu_link`, so the EKF applies that roll on both.
+* **IMU frame:** `imu_link` is upside down (roll π) in the URDF. At rest on 2026-11-09 the real MPU6050 read about −10.2 m/s² on z, so its z axis points down too. The yaw rate's sign is still to check, by turning the robot by hand. The robot's bridge, and since 2026-11-09 the simulation, stamp IMU data `imu_link`, so the EKF applies that roll on both.
+* **ESP32-S3 download mode:** On 2026-11-09, after the Jetson rebooted, every reset through the board's USB control lines started the ESP32-S3 in its ROM download mode (`boot:0x2`, GPIO 0 read low), silent with the motors off, until its USB cable was unplugged for 5 s. Later flashes restarted it normally. If the board goes silent, power-cycle it first.
+* **Left encoder jumps:** The left count jumped by tens of thousands with nothing moving in June and on 2026-11-06, under the old firmware. The broken left encoder wire found on 2026-11-09 may explain them. Watch the counts at rest for a few minutes to confirm they're gone.
 * **Simulation clock:** Gazebo publishes `/clock` at 10 Hz, so in simulation the EKF publishes at 10 Hz, not 30.
 * **Simulation map:** `./robot.sh sim mode:=navigation` loads `maps/lab_map_v2`, a map from the robot that doesn't cover the simulated room. Load `src/jetson_bot_bringup/worlds/lab_small_light.yaml` through the `/map_server/load_map` service, or point `map_dir` and `map_name` at it in the YAML.
 * **`robot.sh status` in simulation:** It runs the ESP32 checks there too, and they fail.
@@ -117,12 +117,13 @@ Phases are accurate as of 2026-11-05. See `docs/plans/imu_nav2_roadmap_v2.md` fo
 - [x] RPLidar on Humble: health OK, `/scan` at 6.5 Hz (2026-11-05).
 - [ ] Check that the front of the scan matches the front of the robot.
 - [x] ESP32-S3 on Humble: encoders and IMU streaming at 50 Hz, `./robot.sh status` all OK (2026-11-05).
-- [ ] Test each wheel's encoder by hand, then drive the motors with someone present.
+- [x] Test each wheel's encoder by hand, then drive the motors with someone present (2026-11-10, wheels lifted: 1,497 counts per turn, speeds within 1 to 2%).
+- [ ] Drive through `/cmd_vel` with the wheels lifted, then on the floor.
 - [ ] Bring the ESP32 camera's stream into ROS.
 - [ ] Run `./robot.sh robot` on the Humble stack and do the bias calibration (Phase 2a in roadmap).
 - [ ] Complete a hardware mapping run and a Nav2 goal.
 
-## 🛠️ Active Context (2026-11-05)
-The Humble Docker port was made on the Jetson in 2026-08 and committed on 2026-11-05 (PR #2). Docker-only dev. Container idle until `./robot.sh sim/robot/nav`.
+## 🛠️ Active Context (2026-11-10)
+The Humble Docker port was made on the Jetson in 2026-08 and committed on 2026-11-05 (PR #2). The Jetson's checkout follows `master` since 2026-11-09. Docker-only dev. Container idle until `./robot.sh sim/robot/nav`.
 
-**Next for physical:** Check both encoders' B wires (see Critical Blockers), start the container only after USB devices are plugged in, then run bias calibration (Phase 2a in roadmap) and validate on hardware. Use `./robot.sh` for everything.
+**Next for physical:** Drive through `/cmd_vel` with the wheels lifted, now that the bridge uses 1,497 counts per turn, then on the floor, then the bias calibration (Phase 2a in roadmap). Start the container only after USB devices are plugged in. Use `./robot.sh` for everything.

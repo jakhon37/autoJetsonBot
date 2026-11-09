@@ -119,19 +119,12 @@ The full node graph, TF tree, serial protocol and launch modes are in [SYSTEM_AR
   <em>SLAM map built in Gazebo under Humble (November 2026)</em>
 </p>
 
-<p align="center">
-  <picture>
-    <source media="(prefers-color-scheme: dark)" srcset="assets/results/encoder_counts_dark.svg">
-    <img src="assets/results/encoder_counts_light.svg" alt="Encoders report 344 and 387 counts per wheel turn, against 3,436 configured" width="720">
-  </picture>
-</p>
-
 - **Simulation:** Mapping and autonomous goals work with EKF-fused odometry, rechecked under Humble in November 2026 (map above).
 - **Robot:** Under Humble on the Xavier NX, the lidar runs at 6.46 Hz and `slam_toolbox` builds maps. Encoders and IMU stream at 50 Hz and the full TF chain is up.
-- **Before the first drive:** A hand test showed the encoders report 9 to 10 times fewer counts per turn than configured, and no direction. That's being fixed in a rebuilt motor firmware.
+- **Motors:** A rebuilt closed-loop motor firmware holds requested wheel speeds from 0.02 to 0.25 m/s within 1 to 2%, with the wheels lifted. The encoders count 1,497 per wheel turn, and the motors stop 0.75 s after commands stop.
 - **Camera:** The ESP32-CAM streams 320×240 at about 10 fps over Wi-Fi. Firmware changes cut its idle ping from about 300 ms to 13 ms and let it rejoin Wi-Fi on its own.
 
-All eight experiments, with method and numbers, are in [RESULTS.md](docs/experiments/RESULTS.md).
+All nine experiments, with method and numbers, are in [RESULTS.md](docs/experiments/RESULTS.md).
 
 ## Project Status
 
@@ -139,9 +132,9 @@ All eight experiments, with method and numbers, are in [RESULTS.md](docs/experim
 | :--- | :--- | :--- |
 | Mapping (`slam_toolbox`) | ✅ Working | ✅ Maps built from the real lidar |
 | Localization and Nav2 goals | ✅ Working | ⏳ Not run yet, waiting for calibrated odometry |
-| Wheel odometry | ✅ Working | ⚠️ Scale and direction being fixed |
+| Wheel odometry | ✅ Working | ⚠️ Encoders measured at 1,497 counts per turn, `/odom` not yet checked while driving |
 | IMU and EKF fusion | ✅ Working | ⚠️ Running, gyro bias not yet calibrated |
-| Motor control | ✅ Working | ⏳ Not driven yet under Humble |
+| Motor control | ✅ Working | ⚠️ Closed-loop speed within 1 to 2% with the wheels lifted, not yet on the floor |
 | Web dashboard | ✅ Working | ✅ Teleop, lidar and telemetry used on the robot under Foxy |
 | Camera | ✅ Simulated camera, 640×480 at 10 Hz | ⚠️ Streams over Wi-Fi, not yet a ROS topic |
 

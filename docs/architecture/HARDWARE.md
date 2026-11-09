@@ -15,9 +15,9 @@ A two-wheel differential-drive robot with a front caster, built around a Jetson 
 | Part | Model | Connection | Notes |
 | :--- | :--- | :--- | :--- |
 | **Computer** | NVIDIA Jetson Xavier NX Developer Kit, 8 GB | Wi-Fi to the network | 6-core Carmel CPU, Volta GPU, 256 GB NVMe. L4T R35.6, Ubuntu 20.04, CUDA 11.4, Docker 28. Runs ROS 2 Humble in the `auto_ros:humble` container, in 20 W 6-core mode |
-| **Real-time controller** | ESP32-S3 dev board | Native USB to the Jetson (`303a:1001`, `/dev/ttyACM0`) | Firmware from [MOTOR-ESP32S3](https://github.com/jakhon37/MOTOR-ESP32S3) with IMU code from [imu_viz](https://github.com/jakhon37/imu_viz). Sends encoder and IMU lines at 50 Hz and stops the motors if no command arrives for 500 ms |
+| **Real-time controller** | ESP32-S3 dev board | Native USB to the Jetson (`303a:1001`, `/dev/ttyACM0`) | Runs the `quadrature-speed-control` branch of [MOTOR-ESP32S3](https://github.com/jakhon37/MOTOR-ESP32S3) since 2026-11-10: closed-loop wheel speed on quadrature encoders, encoder and IMU lines at 50 Hz, and motors stopped if no command arrives for 500 ms |
 | **Motor driver** | TB6612FNG dual H-bridge | PWM and direction pins from the ESP32-S3 | |
-| **Motors** | 2 × JGA25-370 geared DC motors (label reads 170 RPM) | Through the driver | Each has an AB Hall encoder with 11 pulses per motor turn |
+| **Motors** | 2 × JGA25-370 geared DC motors (label reads 170 RPM), 34:1 gearbox | Through the driver | Each has an AB Hall encoder with 11 pulses per motor turn, so 1,497 counts per wheel turn on all 4 edges |
 | **Wheels** | 68 mm rubber wheels and a front caster | | Wheel separation 0.212 m |
 | **IMU** | MPU6050 | I2C to the ESP32-S3 (SDA GPIO 1, SCL GPIO 21) | See [IMU_WIRING.md](IMU_WIRING.md) |
 | **Lidar** | Slamtec RPLidar A1 (A1M8-R6) | USB through a CP2102 adapter (`10c4:ea60`) | 360°, about 6.5 scans per second, 360 points per scan |
@@ -51,13 +51,13 @@ flowchart TB
 
 ## ESP32-S3 Pin Map
 
-From the `MOTOR-ESP32S3` source. The build on the board was never committed, so these are what the source says, not a check of the board.
+From the `MOTOR-ESP32S3` firmware the board runs since 2026-11-10, and checked on the robot: each wheel turned when driven alone, and both encoder channels counted in the hand test.
 
 | Signal | GPIO | Signal | GPIO |
 | :--- | :---: | :--- | :---: |
 | Left motor PWM (PWMA) | 11 | Right motor PWM (PWMB) | 6 |
 | Left direction (AIN1, AIN2) | 3, 10 | Right direction (BIN1, BIN2) | 8, 7 |
-| Left encoder A, B | 18, 17 | Right encoder A, B | 4, 5 |
+| Left encoder A, B | 18, 14 | Right encoder A, B | 4, 5 |
 | IMU SDA | 1 | IMU SCL | 21 |
 | Driver STBY | tied high | RGB status LED | 48 |
 
@@ -74,7 +74,7 @@ The dimensions were measured on 2026-06-07. These are the values the code uses.
 | Lidar | 0.064 m ahead of the axle, 0.161 m above the chassis floor (0.217 m above the ground) | `lidar.xacro` |
 | IMU frame | 0.1 m above the chassis floor on the axle line, upside down (roll π). Not measured | `imu.xacro` |
 | Mass | 1.4 kg recorded in the June audit. The URDF's links add up to 1.7 kg | URDF inertials |
-| Encoder counts per wheel turn | Configured 3,436. A hand test measured 344 to 387, see [RESULTS.md](../experiments/RESULTS.md#5-wheel-encoder-hand-test) | Bridge parameter `encoder_cpr` in `main.launch.py` |
+| Encoder counts per wheel turn | 1,497, from a 10-turn hand test on 2026-11-10, see [RESULTS.md](../experiments/RESULTS.md#9-first-drive-with-the-new-motor-firmware) | Bridge parameter `encoder_cpr` in `main.launch.py`, and `ENCODER_CPR` in the motor firmware |
 
 The frames follow REP 120. `base_footprint` sits on the floor, and `base_link` sits on the axle line at chassis-floor height, 0.056 m above it. Parts attached to `base_link` are placed by their height above the chassis floor, so the ground clearance isn't added again.
 

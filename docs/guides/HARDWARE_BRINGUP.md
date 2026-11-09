@@ -34,11 +34,11 @@ If a topic shows 0 Hz while its node is active, it's almost always a name or int
 
 ## 3. Before the First Drive
 
-1. **Lift the wheels off the ground.** In the motor firmware's source, any command above 0.01 m/s gets at least half power, so even a slow command starts hard.
-2. **Know the failsafe.** The ESP32-S3 stops the motors when no command arrives for 500 ms.
+1. **Lift the wheels off the ground.** The motor firmware starts each wheel with a short kick (PWM 550 for 40 ms), so a wheel can jerk. [MOTOR-ESP32S3](https://github.com/jakhon37/MOTOR-ESP32S3)'s `docs/FIRST_DRIVE.md` is the step-by-step checklist, with `wheel_test.py` for driving and measuring without ROS.
+2. **Know the failsafe.** The ESP32-S3 stops the motors when no command arrives for 500 ms. Measured on 2026-11-10: the wheels stopped 0.75 s after the last command.
 3. **Check encoder direction.** Turn each wheel forward by hand and watch the counts in `./robot.sh status`. Counts that move the same way in both directions mean the encoder's B channel isn't connected.
-4. **Calibrate.** Mark a wheel, turn it 10 times, and set `encoder_cpr` to the count divided by 10. Then calibrate the gyro bias with the robot still, and check that the front of the scan points to the front of the robot.
-5. **Check the IMU's axes.** The URDF mounts `imu_link` upside down (roll π). If the real MPU6050 isn't mounted that way, the EKF sees yaw rate with the wrong sign.
+4. **Calibrate.** Mark a wheel, turn it 10 times, and set `encoder_cpr` to the count divided by 10. On 2026-11-10 that gave 1,497, which is set. Then calibrate the gyro bias with the robot still, and check that the front of the scan points to the front of the robot.
+5. **Check the IMU's axes.** The URDF mounts `imu_link` upside down (roll π). At rest the real MPU6050 reads about −10 m/s² on z, which agrees. Turn the robot left by hand and check that `/odom_filtered`'s yaw rises, or the EKF sees yaw rate with the wrong sign.
 
 ## 4. Stop
 

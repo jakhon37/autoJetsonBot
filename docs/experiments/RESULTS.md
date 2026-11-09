@@ -14,6 +14,7 @@ What was tested, on what, and what it showed. Simulation work ran in Docker on a
 | 6 | [IMU at rest](#6-imu-at-rest) | Robot | 2026-11-05 | Gyro bias of 1.4°/s measured, calibration pending |
 | 7 | [ESP32-CAM video over Wi-Fi](#7-esp32-cam-video-over-wi-fi) | Camera | 2026-11-05 to 06 | 10 fps at 320×240, firmware fixes tested on hardware |
 | 8 | [Gazebo check of the code review fixes](#8-gazebo-check-of-the-code-review-fixes) | Simulation | 2026-11-09 | Fixes confirmed, and three more bugs found and fixed |
+| 9 | [First drive with the new motor firmware](#9-first-drive-with-the-new-motor-firmware) | Robot | 2026-11-09 to 10 | Encoders fixed, 1,497 counts per turn, speeds within 1 to 2% with the wheels lifted |
 
 ---
 
@@ -124,7 +125,7 @@ What was tested, on what, and what it showed. Simulation work ran in Docker on a
 - **Scale:** The encoders report 9 to 10 times fewer counts per turn than the bridge is configured for, so odometry would show about a tenth of the real distance. The left wheel's 10-turn total is almost exactly 3,436, so that value may have been measured over 10 turns and recorded as one.
 - **Direction:** Neither count reversed. The left count only fell and the right only rose, which is what the firmware does when the encoder's B channel reads high, as an unconnected input with a pull-up would. Every motion would then read as backward. This holds if the second five turns really were backward.
 
-**Next:** A rebuilt motor firmware (branch `quadrature-speed-control` in [MOTOR-ESP32S3](https://github.com/jakhon37/MOTOR-ESP32S3), not yet on the robot) decodes all four edges of both channels and checks direction. With 4 times as many counts per turn, `encoder_cpr` will be set from a new marked test once it's flashed.
+**Next:** Done in [experiment 9](#9-first-drive-with-the-new-motor-firmware). Both B channels were dead, and the rebuilt firmware, counting all four edges, measures 1,497 per turn, inside the 1,376 to 1,546 that four times this test's counts predicted.
 
 ---
 
@@ -218,9 +219,32 @@ With the heading reversed, SLAM drew the room rotated with doubled walls. Nav2 w
 
 ---
 
+## 9. First Drive with the New Motor Firmware
+
+**Goal:** Put the rebuilt motor firmware on the ESP32-S3, fix whatever stopped the encoders, and drive both wheels for the first time under Humble.
+
+**Setup:** The robot on a stand with the wheels lifted about 5 mm. The firmware is the `quadrature-speed-control` branch of [MOTOR-ESP32S3](https://github.com/jakhon37/MOTOR-ESP32S3): quadrature decoding on all 4 edges in hardware, feed-forward plus a closed loop per wheel, and a 500 ms command timeout. Its `wheel_test.py` ran in the Jetson's container, following that repo's first-drive checklist. The old firmware, never committed, was backed up first.
+
+**Found and fixed:**
+- **Board in download mode:** After the Jetson rebooted, every reset through the USB control lines started the ESP32-S3 in ROM download mode (`boot:0x2`), silent with the motors off. Unplugging its USB cable for 5 s fixed it.
+- **No motor power:** The first commands raised the PWM but moved nothing, until the motor battery was connected to the driver.
+- **Dead B channels:** In a 3 s drive, channel A changed 282 times on the left and 281 on the right, and B never changed. The left green wire was broken, and the firmware expected the left B on GPIO 17, while the wiring diagram and the robot have it on 14. With all 4 edges counted, a stuck B cancels every A pulse, so the counts stayed at 0. The old firmware counted A alone, which is why experiment 5 never saw a count reverse.
+- **Left count backwards:** The left motor is mounted mirrored, so its encoder's sign was flipped.
+
+| Measure | Left | Right |
+| :--- | ---: | ---: |
+| Counts per wheel turn, 10 turns forward / back | 1,497 / 1,496 | 1,500 / 1,496 |
+| Starts from rest at | PWM 125 | PWM 125 |
+| Deadband, slope | 51 PWM, 1,743 PWM per m/s | 42 PWM, 1,732 PWM per m/s |
+| Closed-loop speed against request, 0.02 to 0.25 m/s both ways | within 1 to 2% | within 1 to 2%, 8% at −0.02 m/s |
+
+**Result:** 1,497 counts per turn is 4 edges × 11 pulses × a 34:1 gearbox. The bridge had 3,436, which would have put `/odom` at 43% of the real distance, and now has 1,497. A gentle arc requested at 0.05 and 0.20 m/s ran at 0.051 and 0.202 m/s, a 0.005 m/s request moved neither wheel, and the wheels stopped 0.75 s after the last command. The measured values are in the firmware and flashed. All of this was with the wheels in the air, so driving through ROS and on the floor come next.
+
+---
+
 ## What's Next
 
-1. **First drive:** Flash the rebuilt motor firmware, then a first drive with the wheels off the ground, following its checklist.
-2. **Calibration:** Set `encoder_cpr` from a marked test, calibrate the IMU gyro bias, and check that the front of the scan matches the front of the robot.
+1. **Drive through ROS and on the floor:** Drive through `/cmd_vel` with the wheels lifted and check `/odom`, then the floor step of the first-drive checklist, which raises the feed-forward for the floor.
+2. **Calibration:** Calibrate the IMU gyro bias, check the sign of the IMU's yaw rate, and check that the front of the scan matches the front of the robot.
 3. **Hardware mapping run:** A full mapping run and a Nav2 goal on the real robot.
 4. **Camera in ROS:** A node that reads the ESP32-CAM stream, for camera-based docking, which is developed in a separate project.

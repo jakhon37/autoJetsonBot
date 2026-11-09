@@ -5,7 +5,7 @@
 **Target:** ESP32-S3 (PlatformIO / Arduino Core)  
 **Status:** Unrealized design, see the note below
 
-> **What's on the robot (2026-11-07):** The firmware on the board is open loop: PWM = v × 2000 on a 0 to 1023 scale, at least 500 above 0.01 m/s, with a 500 ms command timeout. It comes from [MOTOR-ESP32S3](https://github.com/jakhon37/MOTOR-ESP32S3) with IMU code from [imu_viz](https://github.com/jakhon37/imu_viz), and that build was never committed. It sends `e <left> <right>` and `i ax ay az gx gy gz` at 50 Hz each, and `READY` at boot, over the S3's native USB. The bridge negates the right wheel's velocity before sending and its count after receiving. The real pins are in [HARDWARE.md](HARDWARE.md#esp32-s3-pin-map). A rebuild with feed-forward and a closed-loop trim, closer to this design, is on MOTOR-ESP32S3's `quadrature-speed-control` branch and hasn't been flashed.
+> **What's on the robot (2026-11-10):** The board runs [MOTOR-ESP32S3](https://github.com/jakhon37/MOTOR-ESP32S3)'s `quadrature-speed-control` branch: feed-forward plus a closed-loop trim per wheel, on encoders decoded on all 4 edges, with a 500 ms command timeout. That's closer to this design than the open-loop build it replaced. It sends `e <left> <right>` and `i ax ay az gx gy gz` at 50 Hz each, and `READY` at boot, over the S3's native USB. The bridge negates the right wheel's velocity before sending and its count after receiving. With the wheels lifted it holds 0.02 to 0.25 m/s within 1 to 2%. The real pins are in [HARDWARE.md](HARDWARE.md#esp32-s3-pin-map).
 
 ---
 

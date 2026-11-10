@@ -17,6 +17,7 @@ What was tested, on what, and what it showed. Simulation work ran in Docker on a
 | 9 | [First drive with the new motor firmware](#9-first-drive-with-the-new-motor-firmware) | Robot | 2026-11-09 to 10 | Encoders fixed, 1,497 counts per turn, speeds within 1 to 2% with the wheels lifted |
 | 10 | [Driving through ROS and the EKF heading](#10-driving-through-ros-and-the-ekf-heading) | Robot | 2026-11-10 | `/odom` within 3% of commands, and the EKF now follows turns |
 | 11 | [Floor tuning, gyro offsets and the EKF](#11-floor-tuning-gyro-offsets-and-the-ekf-on-the-floor) | Robot, simulation | 2026-11-10 | Feed-forward set for the floor, gyro offsets in firmware, and EKF settings that turned straight drives into turns, fixed |
+| 12 | [The EKF on the robot and the lidar's frame](#12-the-ekf-on-the-robot-the-lidars-frame-and-the-left-encoder) | Robot, simulation | 2026-11-10 | The EKF matched the wheels and the gyro, and the lidar's frame, 90° off, corrected |
 
 ---
 
@@ -287,9 +288,36 @@ With the heading reversed, SLAM drew the room rotated with doubled walls. Nav2 w
 
 ---
 
+## 12. The EKF on the Robot, the Lidar's Frame and the Left Encoder
+
+**Goal:** Check experiment 11's EKF settings on the robot, and find out why SLAM still disagreed.
+
+**Setup:** `./robot.sh robot` with the new `ekf.yaml`, and the script from experiment 11: 60 s at rest, then 0.1 m/s for 3 s and 0.5 rad/s for 3 s through `/cmd_vel`. For the lidar, the median of 10 scans before and after placing an object around the robot. Then the corrected frame in Gazebo, where the simulated lidar turns with it.
+
+| On the robot | Wheels (`/odom`) | Gyro | EKF (`/odom_filtered`) | SLAM's map pose |
+| :--- | ---: | ---: | ---: | ---: |
+| 30 cm straight | 31.0 cm, +2.7° | +2.3° | 30.9 cm, +2.4° | 22.0 cm, +12.8° |
+| Left turn, 86° asked | +79.8° | +79.1° | +79.1° | +79.1° |
+| Heading at rest, about 8 hours after power-on | 0.0°/min | +5.8°/min | +4.8°/min | +4.8°/min |
+
+| Object placed | Where it showed in the scan |
+| :--- | ---: |
+| Straight ahead of the robot | +100° to +103° |
+| Front-left, first try | +143° to +149° |
+| Front-left, second try | +115° to +116° |
+
+| In Gazebo, lidar turned −90° | Wheels | Gyro | EKF | SLAM's map pose |
+| :--- | ---: | ---: | ---: | ---: |
+| 30 cm straight | 30.2 cm, 0.0° | 0.0° | 30.2 cm, 0.0° | 30.2 cm, 0.0° |
+| Left turn | +77.7° | +72.0° | +71.7° | +71.7° |
+
+**Result:** The EKF now agrees with the wheels and the gyro on the floor, where the old settings read −14.9° and +47.3°, and follows the gyro through turns. At rest it follows the gyro's offset too, which had moved to 0.1°/s after about 8 hours powered, so learning that offset in the firmware matters. SLAM still read straight drives wrong, because the lidar's 0° points to the robot's right while `laser_joint` and a static transform in `main.launch.py` both said forward. A turn looks the same either way, so turns matched. Both, and the dashboard's lidar view, now turn the scan −90°. In Gazebo SLAM then matched the EKF, the dashboard's front distance read 2.94 m against 2.92 m in the scan straight ahead, and fitting the scan's change on the straight drive found the direction of travel at +87.1° for the true +90°. On the robot a −90° try was inconclusive: only the URDF had changed, and the launch file's static transform won on the next start. The two drives after it curved right, and the robot fell once, because the left encoder's B wire dropped out under power. It toggled 20 times while A toggled 122, the counts mostly cancelled, and the board drove that wheel harder until it flagged `no_counts`. The gyro read right turns (−19.7° and −13.3°) while `/odom` claimed left ones. A hand test after reseating passed, so the wire needs a proper fix before the lidar's exact angle is measured.
+
+---
+
 ## What's Next
 
-1. **EKF on the robot:** Pull and rebuild on the Jetson, and repeat the straight drive and a turn with the new `ekf.yaml`.
-2. **Calibration:** Keep learning the gyro's offsets in the firmware while the wheels are stopped, since they drift as the robot warms up, and check that the front of the scan matches the front of the robot.
+1. **Left encoder wire:** Fix the B wire properly, then check that both pins toggle about equally and that `/odom` agrees with the gyro on a floor drive.
+2. **Calibration:** Measure the lidar's exact angle from the scan's change on a straight drive, and keep learning the gyro's offsets in the firmware while the wheels are stopped, since they drift as the robot warms up.
 3. **Hardware mapping run:** A full mapping run and a Nav2 goal on the real robot.
 4. **Camera in ROS:** A node that reads the ESP32-CAM stream, for camera-based docking, which is developed in a separate project.

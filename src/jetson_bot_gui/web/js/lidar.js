@@ -1,4 +1,9 @@
 // autoJetsonBot — Lidar & Canvas Renderer
+
+// The lidar's 0 degree points to the robot's right, so scan angles are turned by this to draw them
+// in the robot's frame. Same as laser_joint's yaw in lidar.xacro (test_configs checks it).
+const LIDAR_YAW = -1.5708;
+
 export class LidarRenderer {
   constructor(app) {
     this.app = app;
@@ -65,8 +70,8 @@ export class LidarRenderer {
       }
 
       // Calculate Front Distance (Average of center +/- 10 degrees)
-      // Standard Lidar: 0 rad is Forward. Some start at -PI.
-      const centerIdx = Math.floor((0 - msg.angle_min) / msg.angle_increment);
+      // The robot's forward is at -LIDAR_YAW in the scan.
+      const centerIdx = Math.floor((-LIDAR_YAW - msg.angle_min) / msg.angle_increment);
       const span = Math.floor((10 * Math.PI / 180) / msg.angle_increment);
       const frontSector = msg.ranges.slice(Math.max(0, centerIdx - span), Math.min(msg.ranges.length, centerIdx + span));
       const validFront = frontSector.filter(r => r > 0 && isFinite(r));
@@ -145,7 +150,7 @@ export class LidarRenderer {
       if (this._lidarRanges && this._lidarRanges.length > 0) {
         this._lidarRanges.forEach((r, i) => {
           if (!isFinite(r) || r <= 0 || r > 6) return;
-          const angle = this._lidarAngleMin + i * this._lidarAngleInc;
+          const angle = this._lidarAngleMin + i * this._lidarAngleInc + LIDAR_YAW;
           const px = cx + r * scale * Math.cos(angle);
           const py = cy - r * scale * Math.sin(angle);
           if (px >= 0 && px <= W && py >= 0 && py <= H) {

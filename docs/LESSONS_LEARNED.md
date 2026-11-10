@@ -111,7 +111,7 @@ If `robot.sh stop` fails to terminate Gazebo, it is usually because `gzserver` i
     *   `base_footprint` is at floor level ($z=0$).
     *   `base_link` is on the axle line at the height of the chassis floor ($z=0.056$). The chassis box is centred 6.1 cm ahead of it.
     *   Children of `base_link` or `chassis` are placed by their height above the chassis floor, so don't add the ground clearance again.
-*   **Lidar Offset Logic:** The RPLidar A1 is positioned at `x=0.064` (forward of axle) and `z=0.161` above the chassis floor, which is 0.217 m above the ground. This accounts for the 9.7cm chassis height plus the 6.4cm mount height.
+*   **Lidar Offset Logic:** The RPLidar A1 is positioned at `x=0.064` (forward of axle) and `z=0.161` above the chassis floor, which is 0.217 m above the ground. This accounts for the 9.7cm chassis height plus the 6.4cm mount height. It's turned so its 0° points to the robot's right, which `laser_joint` gives as yaw −90° (2026-11-10).
 *   **Clearance Check:** With `wheel_separation: 0.212m` and a 17.8cm chassis, each chassis side is **1.7cm** from the wheel's centre plane, leaving a 0.4 cm gap to the inner face of the 2.6 cm wide wheel. This eliminates numerical jitter and "explosive" repulsion in Gazebo.
 *   **The Overlap Paradox:** Gazebo Classic can handle internal geometry overlaps IF stiffness (`kp`) is extremely high (1M+). If you lower `kp` to "optimize" performance, the collision energy is unlocked, causing sliding. Fix geometry FIRST before softening physics.
 *   **AMCL-Centric UI:** When visualizing paths or goals in a robot-relative UI, always transform from the Map frame using `/amcl_pose`, not `/odom`. Odometry drift will cause the path to "float" away from the Lidar walls; AMCL keeps them anchored.
@@ -162,3 +162,12 @@ If `robot.sh stop` fails to terminate Gazebo, it is usually because `gzserver` i
 *   **Gyro Offsets Move With Temperature:** Offsets measured after a flash were off by 0.003 rad/s (0.17°/s) about 20 minutes into a ROS run, so fixed constants won't hold them.
 *   **A Loose Encoder Wire Shows as `no_counts`:** The board then drives that wheel on feed-forward alone. Reseat the connector and rerun `wheel_test.py turns` before trusting the counts again.
 *   **The Floor Needs Its Own Feed-Forward:** On the floor the right wheel needed about 46 PWM more than in the air at every speed. Set the values from `hold --on-floor` trims, as in the firmware's first-drive checklist.
+
+## 📡 Robot Check Lessons (Added 2026-11-10)
+
+*   **Check Which Way the Lidar Faces:** Put an object straight ahead of the robot and find it in the scan, comparing the median of several scans before and after. On this robot it showed at +101°, so the lidar's 0° points right. SLAM still matched turns, which look the same either way, but read a 31 cm straight drive as 22 cm and a 12.8° turn.
+*   **One Frame, One Value:** `main.launch.py` publishes the URDF's fixed frames again as static transforms, and TF keeps whichever copy arrives last, so a yaw changed in one place showed after one start and not the next. Change both. `test_configs.py` checks that they match.
+*   **No ": " in the URDF:** gazebo_ros2_control passes the whole URDF as a `--param` override, which rcl reads as YAML. A colon and a space, even in a comment, kept `diff_cont` from loading, so the simulated robot had no `/odom`.
+*   **A Half-Dead Encoder Curves the Robot:** When one channel of a quadrature encoder drops out, the counts mostly cancel instead of stopping, so the board sees a slow wheel and drives it harder. On the floor the robot curved right while `/odom` claimed a left curve, and the gyro was right. The `d` line's pin counts show it: the dead channel toggles far less than the other.
+*   **Wait for Odometry After a Start:** Right after `./robot.sh robot`, a new ROS process took more than 2 s to get `/odom`. A check that drives should wait for odometry and SLAM's pose, and refuse to drive without them.
+*   **Stop Before Relaunching:** `./robot.sh sim` and `./robot.sh robot` stop a running stack first and, in mapping mode, save its map over `lab_map_v2`. When that map isn't wanted, stop or restart the container before relaunching.

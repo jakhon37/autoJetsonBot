@@ -12,16 +12,51 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import ast
+import math
 import os
+import re
+import xml.etree.ElementTree as ET
 
 import yaml
 
-CONFIG_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'config')
+PKG_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+CONFIG_DIR = os.path.join(PKG_DIR, 'config')
+URDF_DIR = os.path.join(os.path.dirname(PKG_DIR), 'jetson_bot_description', 'urdf')
+LIDAR_JS = os.path.join(os.path.dirname(PKG_DIR), 'jetson_bot_gui', 'web', 'js', 'lidar.js')
 
 
 def _params(file_name, node):
     with open(os.path.join(CONFIG_DIR, file_name), 'r') as f:
         return yaml.safe_load(f)[node]['ros__parameters']
+
+
+def _launch_static_transforms():
+    """Return main.launch.py's static transforms by child frame, as their old-style arguments."""
+    with open(os.path.join(PKG_DIR, 'launch', 'main.launch.py'), 'r') as f:
+        tree = ast.parse(f.read())
+    statics = {}
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Tuple) and len(node.elts) == 2 and isinstance(node.elts[0], ast.List):
+            try:
+                args, name = ast.literal_eval(node)
+            except ValueError:
+                continue
+            if isinstance(name, str) and name.endswith('_broadcaster'):
+                statics[args[7]] = args
+    return statics
+
+
+def _urdf_fixed_joint(child):
+    """Return the parent, xyz and rpy of the URDF's fixed joint to the child link."""
+    for file_name in ('robot_core.xacro', 'lidar.xacro'):
+        for joint in ET.parse(os.path.join(URDF_DIR, file_name)).getroot().iter('joint'):
+            if joint.get('type') == 'fixed' and joint.find('child').get('link') == child:
+                origin = joint.find('origin')
+                return (joint.find('parent').get('link'),
+                        [float(v) for v in origin.get('xyz').split()],
+                        [float(v) for v in origin.get('rpy').split()])
+    raise AssertionError(f'No fixed joint to {child} in the URDF')
 
 
 def test_ekf_is_the_only_odom_tf_publisher_in_sim():
@@ -55,6 +90,40 @@ def test_ekf_takes_heading_changes_from_the_gyro():
     assert ekf['odom0_config'][vyaw] is True
 
 
+def test_launch_static_transforms_repeat_the_urdf():
+    """Verify that main.launch.py's static transforms equal the URDF's fixed joints."""
+    # TF keeps whichever copy arrives last. On 2026-11-10 a lidar yaw changed only in lidar.xacro
+    # showed on the robot after one start and not after the next.
+    statics = _launch_static_transforms()
+    assert set(statics) == {'base_link', 'chassis', 'laser_frame'}
+    for child, (x, y, z, yaw, pitch, roll, parent, _) in statics.items():
+        xyz = [float(x), float(y), float(z)]
+        rpy = [float(roll), float(pitch), float(yaw)]
+        assert _urdf_fixed_joint(child) == (parent, xyz, rpy)
+
+
+def test_urdf_has_no_colon_and_space():
+    """Verify that the URDF survives gazebo_ros2_control, which passes it as a --param override."""
+    # rcl reads that value as YAML, where ': ' starts a key. One in a comment in lidar.xacro kept
+    # diff_cont from loading in Gazebo, so the simulated robot had no /odom (2026-11-10).
+    for name in sorted(os.listdir(URDF_DIR)):
+        with open(os.path.join(URDF_DIR, name), 'r') as f:
+            for number, line in enumerate(f, 1):
+                assert ': ' not in line, f'{name}:{number}'
+
+
+def test_lidar_zero_points_to_the_robots_right():
+    """Verify that the URDF and the dashboard turn the scan by the lidar's mounting."""
+    # On the robot on 2026-11-10 an object straight ahead showed at +101 degrees in the scan, and
+    # objects to the front-left at +115 and +145. The exact angle is still to be measured.
+    _, _, rpy = _urdf_fixed_joint('laser_frame')
+    assert -105 < math.degrees(rpy[2]) < -75
+    with open(LIDAR_JS, 'r') as f:
+        dashboard = re.search(r'const LIDAR_YAW = (-?[0-9.]+);', f.read())
+    assert dashboard is not None, 'lidar.js does not turn the scan'
+    assert float(dashboard.group(1)) == rpy[2]
+
+
 def _fused(config):
     return {i for i, on in enumerate(config) if on}
 
@@ -75,3 +144,6 @@ if __name__ == '__main__':
     test_sim_odom_covariance_is_not_zero()
     test_ekf_takes_heading_changes_from_the_gyro()
     test_ekf_fuses_only_wheel_speeds_and_the_gyro_rate()
+    test_launch_static_transforms_repeat_the_urdf()
+    test_urdf_has_no_colon_and_space()
+    test_lidar_zero_points_to_the_robots_right()

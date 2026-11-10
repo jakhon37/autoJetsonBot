@@ -2,10 +2,13 @@
 <robot xmlns:xacro="http://www.ros.org/wiki/xacro" >
 <!-- /home/jetson/myspace/autoJetsonBot/src/my_robot_launch/urdf/lidar.xacro -->
 
+    <!-- The lidar's 0 degree points to the robot's right. On the robot on 2026-11-10 an object
+         straight ahead showed at +101 degrees in the scan. main.launch.py publishes this joint again
+         as a static transform, and the dashboard turns scans by the same yaw. -->
     <joint name="laser_joint" type="fixed">
         <parent link="chassis"/>
         <child link="laser_frame"/>
-        <origin xyz="0.064 0 0.161" rpy="0 0 0"/>
+        <origin xyz="0.064 0 0.161" rpy="0 0 -1.5708"/>
     </joint>
 
     <link name="laser_frame">

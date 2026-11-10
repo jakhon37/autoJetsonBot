@@ -97,7 +97,7 @@ flowchart TD
     odom -->|"EKF, on the robot and in sim"| bf["base_footprint"]
     bf -->|"fixed, z 0.056"| bl["base_link"]
     bl --> ch["chassis"]
-    ch -->|"x 0.064, z 0.161"| laser["laser_frame"]
+    ch -->|"x 0.064, z 0.161, yaw −90°"| laser["laser_frame"]
     ch --> cam["camera_link"]
     cam --> camopt["camera_optical_link"]
     bl -->|"z 0.1, roll π"| imu["imu_link"]

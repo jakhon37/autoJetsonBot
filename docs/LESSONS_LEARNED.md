@@ -153,3 +153,12 @@ If `robot.sh stop` fails to terminate Gazebo, it is usually because `gzserver` i
 *   **Encoder Resolution in Tests:** At 1,497 counts per turn and 50 Hz, one count is about 7 mm/s of wheel speed, so speed tolerances in odometry tests must allow a count of rounding.
 *   **Madgwick Without a Magnetometer Has No Heading:** In `stateless` mode with `use_mag: false`, its orientation comes from gravity alone, so a flat turn doesn't change its yaw. The EKF fused that yaw and kept its heading within 6° through a 90° hand turn. Fuse the IMU's yaw rate only.
 *   **Test the Heading by Hand, Flat:** With the wheels lifted, turning the robot by hand shows what the IMU and EKF do while the wheels say nothing moved. Keep it flat and measure only between two key presses: lifting or tilting it changes what the accelerometer sees, and the filter's output swings with it.
+
+## 🧭 Floor and EKF Lessons (Added 2026-11-10)
+
+*   **Fuse Each Thing Once:** Fusing the wheels' x and y along with their speeds, plus an uncalibrated accelerometer, gave the EKF conflicts it settled by turning its heading, so straight drives read as 15° and 47° turns. For a differential drive, fuse the wheels' vx, vy (always 0, which rules out sideways slides) and vyaw, and the gyro's vyaw.
+*   **Try EKF Settings Side by Side:** A second `ekf_node` with `publish_tf: false` and its output remapped, for example to `/odom_filtered_test`, sees the same data as the real one without touching TF or SLAM, so one drive compares both.
+*   **Send Enough Decimals:** In steps of 0.01 rad/s, the gyro's offsets of 0.01 to 0.06 rad/s couldn't be measured. The `i` line now sends 4 decimals.
+*   **Gyro Offsets Move With Temperature:** Offsets measured after a flash were off by 0.003 rad/s (0.17°/s) about 20 minutes into a ROS run, so fixed constants won't hold them.
+*   **A Loose Encoder Wire Shows as `no_counts`:** The board then drives that wheel on feed-forward alone. Reseat the connector and rerun `wheel_test.py turns` before trusting the counts again.
+*   **The Floor Needs Its Own Feed-Forward:** On the floor the right wheel needed about 46 PWM more than in the air at every speed. Set the values from `hold --on-floor` trims, as in the firmware's first-drive checklist.

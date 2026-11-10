@@ -176,12 +176,13 @@ def launch_setup(context, *args, **kwargs):
     # launch timing, docker Gazebo clock, message filters in slam/rviz) the frames can be
     # "Unknown" causing all laser drops and "no transform" for robot model.
     # We publish the chain explicitly + early (0-stamp statics) so TF is always resolvable:
-    # base_footprint -> base_link (0.056) -> chassis -> laser_frame (0.064,0,0.161)
+    # base_footprint -> base_link (0.056) -> chassis -> laser_frame (0.064,0,0.161, yaw -90 deg)
     # This makes slam receive scans and rviz show robot + map.
+    # Each must equal its URDF joint: TF keeps whichever copy arrives last (test_configs checks).
     for args, nm in [
         (['0', '0', '0.056', '0', '0', '0', 'base_footprint', 'base_link'], 'base_link_broadcaster'),
         (['0', '0', '0', '0', '0', '0', 'base_link', 'chassis'], 'chassis_broadcaster'),
-        (['0.064', '0', '0.161', '0', '0', '0', 'chassis', 'laser_frame'], 'laser_frame_broadcaster'),
+        (['0.064', '0', '0.161', '-1.5708', '0', '0', 'chassis', 'laser_frame'], 'laser_frame_broadcaster'),
     ]:
         entities.append(Node(
             package='tf2_ros',

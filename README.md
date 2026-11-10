@@ -124,7 +124,7 @@ The full node graph, TF tree, serial protocol and launch modes are in [SYSTEM_AR
 - **Motors:** A rebuilt closed-loop motor firmware holds requested wheel speeds from 0.02 to 0.25 m/s within 1 to 2%, with the wheels lifted. The encoders count 1,497 per wheel turn, and the motors stop 0.75 s after commands stop. Driven through ROS, `/odom` matches the commands within 3%. On the floor, with feed-forward set there, both wheels hold requests within 0.003 m/s.
 - **Camera:** The ESP32-CAM streams 320×240 at about 10 fps over Wi-Fi. Firmware changes cut its idle ping from about 300 ms to 13 ms and let it rejoin Wi-Fi on its own.
 
-All twelve experiments, with method and numbers, are in [RESULTS.md](docs/experiments/RESULTS.md).
+All thirteen experiments, with method and numbers, are in [RESULTS.md](docs/experiments/RESULTS.md).
 
 ## Project Status
 
@@ -133,7 +133,7 @@ All twelve experiments, with method and numbers, are in [RESULTS.md](docs/experi
 | Mapping (`slam_toolbox`) | ✅ Working | ✅ Maps built from the real lidar |
 | Localization and Nav2 goals | ✅ Working | ⏳ Not run yet, waiting for calibrated odometry |
 | Wheel odometry | ✅ Working | ✅ 30.9 and 31.3 cm on `/odom` for 30 cm driven on the floor |
-| IMU and EKF fusion | ✅ Working | ✅ Heading follows the wheels and gyro on floor drives and turns |
+| IMU and EKF fusion | ✅ Working | ✅ Heading follows the wheels and gyro on floor drives and turns, and holds at rest |
 | Motor control | ✅ Working | ✅ Closed-loop speed within 0.003 m/s on the floor |
 | Web dashboard | ✅ Working | ✅ Teleop, lidar and telemetry used on the robot under Foxy |
 | Camera | ✅ Simulated camera, 640×480 at 10 Hz | ⚠️ Streams over Wi-Fi, not yet a ROS topic |

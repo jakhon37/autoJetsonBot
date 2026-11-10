@@ -18,6 +18,7 @@ What was tested, on what, and what it showed. Simulation work ran in Docker on a
 | 10 | [Driving through ROS and the EKF heading](#10-driving-through-ros-and-the-ekf-heading) | Robot | 2026-11-10 | `/odom` within 3% of commands, and the EKF now follows turns |
 | 11 | [Floor tuning, gyro offsets and the EKF](#11-floor-tuning-gyro-offsets-and-the-ekf-on-the-floor) | Robot, simulation | 2026-11-10 | Feed-forward set for the floor, gyro offsets in firmware, and EKF settings that turned straight drives into turns, fixed |
 | 12 | [The EKF on the robot and the lidar's frame](#12-the-ekf-on-the-robot-the-lidars-frame-and-the-left-encoder) | Robot, simulation | 2026-11-10 | The EKF matched the wheels and the gyro, and the lidar's frame, 90° off, corrected |
+| 13 | [Gyro offsets learned at rest](#13-gyro-offsets-learned-at-rest) | Robot | 2026-11-10 | The firmware re-learns the gyro's offsets whenever the robot stands still, and the EKF's heading held within 0.11°/min at rest |
 
 ---
 
@@ -315,9 +316,31 @@ With the heading reversed, SLAM drew the room rotated with doubled walls. Nav2 w
 
 ---
 
+## 13. Gyro Offsets Learned at Rest
+
+**Goal:** Keep the gyro's offsets right as they drift, so the heading holds while the robot stands still.
+
+**Setup:** `MOTOR-ESP32S3`'s [`gyro-offset-learning`](https://github.com/jakhon37/MOTOR-ESP32S3/tree/gyro-offset-learning) branch (`e23d577`). The firmware counts the robot as still when neither motor gets power and neither wheel's count moves by 2. After 1 s still, it averages the gyro over 2 s windows. A window is used only if each axis's standard deviation is under 0.015 rad/s, which a hand on the robot exceeds, and its mean is within 0.02 rad/s of the offsets measured in experiment 11, which a slow turn exceeds. Each used window moves the offsets a quarter of the way to its mean, and the `d` line reports them. On the robot, 13 hours after power-on: the old firmware's gyro for 60 s at rest, the flash, the new firmware for 3 minutes at rest, then `./robot.sh robot` and 60 s at rest through ROS. Nothing was driven, and the only command sent to the board was `d`.
+
+| At rest | Old firmware | New firmware |
+| :--- | ---: | ---: |
+| Gyro x / y / z | −0.00165 / +0.00089 / −0.00005 rad/s | −0.00001 / +0.00002 / +0.00001 rad/s |
+| Heading drift from the gyro | −0.17°/min | +0.04°/min |
+| Heading drift on `/odom_filtered` | +4.8°/min (experiment 12, 8 hours after power-on) | −0.11°/min |
+
+| Gyro offsets, rad/s | x | y | z |
+| :--- | ---: | ---: | ---: |
+| Measured in experiment 11, where learning starts | −0.0092 | −0.0569 | −0.0122 |
+| Implied by the old firmware's readings | −0.01085 | −0.05601 | −0.01225 |
+| Learned, 6 minutes after the flash | −0.0108 | −0.0558 | −0.0121 |
+
+**Result:** The learned offsets match what the old firmware's readings implied within 0.0002 rad/s, and with them the gyro reads within 0.00002 rad/s of zero at rest. In the first 3.5 minutes 102 windows were used and none turned down. Through ROS the EKF's heading moved −0.11°/min at rest, where experiment 12 saw it creep +4.8°/min. Opening the board's port from the ROS bridge didn't restart it, so learning carries on across stack restarts. On this day z had come back near its starting offset, so the check shows the learning finding the right offsets but not yet correcting a drift as large as experiment 12's 0.0017 rad/s on the robot. The firmware's offline tests follow a 0.002 rad/s drift, and turn down a hand on the robot and a slow turn.
+
+---
+
 ## What's Next
 
 1. **Left encoder wire:** Fix the B wire properly, then check that both pins toggle about equally and that `/odom` agrees with the gyro on a floor drive.
-2. **Calibration:** Measure the lidar's exact angle from the scan's change on a straight drive, and keep learning the gyro's offsets in the firmware while the wheels are stopped, since they drift as the robot warms up.
+2. **Calibration:** Measure the lidar's exact angle from the scan's change on a straight drive. After the robot has been on for hours, check in the `d` line that the gyro's learned offsets have followed its drift.
 3. **Hardware mapping run:** A full mapping run and a Nav2 goal on the real robot.
 4. **Camera in ROS:** A node that reads the ESP32-CAM stream, for camera-based docking, which is developed in a separate project.

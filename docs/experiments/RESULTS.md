@@ -21,6 +21,7 @@ What was tested, on what, and what it showed. Simulation work ran in Docker on a
 | 13 | [Gyro offsets learned at rest](#13-gyro-offsets-learned-at-rest) | Robot | 2026-11-10 | The firmware re-learns the gyro's offsets whenever the robot stands still, and the EKF's heading held within 0.11°/min at rest |
 | 14 | [The CSI camera in ROS](#14-the-csi-camera-in-ros) | Robot | 2026-11-23 | 15 fps on `/camera/image_raw`, 14 ms after capture, shown in the Web UI |
 | 15 | [The camera's colour](#15-the-cameras-colour) | Robot | 2026-11-23 | White paper neutral grey to within about 3% across the frame, from a magenta cast that turned pink at the edges |
+| 16 | [Hardware recheck after rewiring](#16-hardware-recheck-after-rewiring) | Robot | 2026-11-23 | The left encoder holds under power. Reversed encoder power, a dead 5V pin and reversed motor plugs found and fixed, and the lifted wheels hold 0.100 m/s |
 
 ---
 
@@ -377,9 +378,43 @@ With the heading reversed, SLAM drew the room rotated with doubled walls. Nav2 w
 
 ---
 
+## 16. Hardware Recheck After Rewiring
+
+**Goal:** Show the robot is ready for floor tests again, after the left encoder's B wire was redone and the lidar's USB plugged back in.
+
+**Setup:** `MOTOR-ESP32S3`'s `tools/wheel_test.py` in the robot's container, with the ROS stack stopped and both wheels lifted for every motor command. The pin changes come from the firmware's `d` report, which samples the lines at its 100 Hz control tick, so they show that a line is alive rather than count its edges. A push by hand on the floor, with the motors off, settled which way the wheels count. Then `./robot.sh robot`, a subscriber that published nothing for 60 s with the robot untouched, and 0.1 m/s for 3 s and 0.5 rad/s for 3 s through `/cmd_vel`, still lifted.
+
+| Found | Why | Fixed by |
+| :--- | :--- | :--- |
+| No counts or pin changes on any encoder line in a hand test, all four lines high | The encoders' power was reversed: blue (+) read −3.3 V against black | Swapping blue and black |
+| Neither wheel turned while the board applied PWM 247 and 262 | The driver's logic supply and STBY came from the ESP32's 5V pin, which read 0.2 V on USB with nothing else attached | Moving the driver's VCC to 3.3 V |
+| Both wheels turned backward on a forward request, with no fault | Both motor plugs reversed, which swaps each motor's leads and its encoder's A and B together. Pushed forward about 45 cm by hand, the left counted −3,159 and the right +3,138 | Firmware `7f52d48`, which swaps both motors' IN1 and IN2 and flips both encoder signs |
+
+| Lifted, firmware `7f52d48` | Left | Right |
+| :--- | ---: | ---: |
+| 2 s at 0.1 m/s, one wheel at a time | +1,737 counts, 0.106 m/s, turned forward | −1,840 counts, 0.106 m/s, turned forward |
+| 20 s at 0.1 m/s, both wheels | +14,369 counts | −14,466 counts |
+| Speed, PWM and trim at the end | 0.100 m/s, 191, −56 | 0.100 m/s, 182, −80 |
+| A and B pin changes in the 20 s | 939 and 923 | 953 and 943 |
+| Faults | none | none |
+
+| Through ROS | Result |
+| :--- | :--- |
+| `/scan` | 6.25 Hz, 360 beams, a median of 139 valid, health OK |
+| `/imu/data_raw` and `/odom` | 50.05 and 50.02 Hz |
+| `/odom_filtered` | 30.00 Hz, heading +0.056° in a minute at rest |
+| Gyro z at rest | −0.00002 rad/s, standard deviation 0.0023 rad/s |
+| `/camera/image_raw/compressed` | 15.00 fps |
+| 0.1 m/s for 3 s through `/cmd_vel`, lifted | 34.5 cm forward on `/odom`, for 30 cm asked |
+| 0.5 rad/s for 3 s, lifted | +107.0° on `/odom`, for 86° asked |
+
+**Result:** The left encoder's B wire now holds under power. Over 20 s at speed it changed 923 times to A's 939, within one of A in every second once up to speed, where on 2026-11-10 it changed 20 times to A's 122 in one drive. Three faults from the rewiring had to be found first, each hidden behind the one before. The last is the easiest to miss: with a motor plug reversed, the motor and its encoder flip together, so the speed loop sees a wheel doing just what it was asked, and only someone watching the wheel, or a push on the floor, shows it going backward. In the air the wheels ran fast for about a second before the trim caught up, because the feed-forward is set for the floor: the 20 s hold's first second gave 864 and 938 counts, against about 702 a second after. So the lifted `/cmd_vel` drives read 15% and 24% long, where the air tuning of 2026-11-10 gave 30.8 cm and 89.9°. That floor feed-forward was measured with each motor turning the other way electrically, so it needs checking on the floor, together with `/odom` against the gyro. After the Jetson was shut down, the motor board started in download mode once more, and esptool's watchdog reset woke it.
+
+---
+
 ## What's Next
 
-1. **Left encoder wire:** Fix the B wire properly, then check that both pins toggle about equally and that `/odom` agrees with the gyro on a floor drive.
+1. **Floor check:** The left encoder's B wire now holds under power (experiment 16). Drive slowly on the floor to check that `/odom` agrees with the gyro, and check the floor feed-forward again, since both motors now run on their other polarity for forward.
 2. **Calibration:** Measure the lidar's exact angle from the scan's change on a straight drive. After the robot has been on for hours, check in the `d` line that the gyro's learned offsets have followed its drift.
 3. **Hardware mapping run:** A full mapping run and a Nav2 goal on the real robot.
 4. **Camera:** Lock the lens, check the colour correction under daylight, and calibrate the wide-angle lens (intrinsics and distortion) for camera-based docking, which is developed in a separate project.

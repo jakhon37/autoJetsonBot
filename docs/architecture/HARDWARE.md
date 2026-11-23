@@ -15,8 +15,8 @@ A two-wheel differential-drive robot with a front caster, built around a Jetson 
 | Part | Model | Connection | Notes |
 | :--- | :--- | :--- | :--- |
 | **Computer** | NVIDIA Jetson Xavier NX Developer Kit, 8 GB | Wi-Fi to the network | 6-core Carmel CPU, Volta GPU, 256 GB NVMe. L4T R35.6, Ubuntu 20.04, CUDA 11.4, Docker 28. Runs ROS 2 Humble in the `auto_ros:humble` container, in 20 W 6-core mode |
-| **Real-time controller** | ESP32-S3 dev board | Native USB to the Jetson (`303a:1001`, `/dev/ttyACM0`) | Runs [MOTOR-ESP32S3](https://github.com/jakhon37/MOTOR-ESP32S3)'s `gyro-offset-learning` branch (`quadrature-speed-control` plus gyro offsets learned at rest) since 2026-11-10: closed-loop wheel speed on quadrature encoders, encoder and IMU lines at 50 Hz, and motors stopped if no command arrives for 500 ms |
-| **Motor driver** | TB6612FNG dual H-bridge | PWM and direction pins from the ESP32-S3 | |
+| **Real-time controller** | ESP32-S3 dev board, a copy of Espressif's DevKitC with a CH343 on its COM socket | Native USB to the Jetson (`303a:1001`, `/dev/ttyACM0`) | Runs [MOTOR-ESP32S3](https://github.com/jakhon37/MOTOR-ESP32S3)'s `reversed-motor-wiring` branch since 2026-11-23: `gyro-offset-learning` (`quadrature-speed-control` plus gyro offsets learned at rest), with both motors and encoders reversed to match the motor plugs (see the pin map). Closed-loop wheel speed on quadrature encoders, encoder and IMU lines at 50 Hz, and motors stopped if no command arrives for 500 ms. Its 5V pin gets no power from USB |
+| **Motor driver** | TB6612FNG dual H-bridge | PWM and direction pins from the ESP32-S3 | Logic supply (VCC, with STBY tied to it) from the ESP32-S3's 3.3 V since 2026-11-23, since the board's 5V pin is dead on USB. The motors run from VM |
 | **Motors** | 2 × JGA25-370 geared DC motors (label reads 170 RPM), 34:1 gearbox | Through the driver | Each has an AB Hall encoder with 11 pulses per motor turn, so 1,497 counts per wheel turn on all 4 edges |
 | **Wheels** | 68 mm rubber wheels and a front caster | | Wheel separation 0.212 m |
 | **IMU** | MPU6050 | I2C to the ESP32-S3 (SDA GPIO 1, SCL GPIO 21) | See [IMU_WIRING.md](IMU_WIRING.md) |
@@ -51,7 +51,7 @@ flowchart TB
 
 ## ESP32-S3 Pin Map
 
-From the `MOTOR-ESP32S3` firmware the board runs since 2026-11-10, and checked on the robot: each wheel turned when driven alone, and both encoder channels counted in the hand test.
+The physical wiring, from the `MOTOR-ESP32S3` firmware and checked on the robot: each wheel turned when driven alone, and both encoder channels counted, by hand on 2026-11-10 and under power on 2026-11-23.
 
 | Signal | GPIO | Signal | GPIO |
 | :--- | :---: | :--- | :---: |
@@ -59,7 +59,9 @@ From the `MOTOR-ESP32S3` firmware the board runs since 2026-11-10, and checked o
 | Left direction (AIN1, AIN2) | 3, 10 | Right direction (BIN1, BIN2) | 8, 7 |
 | Left encoder A, B | 18, 14 | Right encoder A, B | 4, 5 |
 | IMU SDA | 1 | IMU SCL | 21 |
-| Driver STBY | tied high | RGB status LED | 48 |
+| Driver STBY | tied to the driver's VCC (3.3 V) | RGB status LED | 48 |
+
+Both motor plugs are reversed since the rewiring on 2026-11-23, which swaps each motor's leads and its encoder's A and B against the wiring of 2026-11-10. The firmware makes up for it: `config.h` swaps IN1 and IN2 on both motors, so GPIO 10 and 7 go high for a positive request, and flips both encoder signs. If the plugs are ever turned round, revert that commit (`7f52d48`) and flash again.
 
 ## Camera
 
@@ -95,7 +97,7 @@ The frames follow REP 120. `base_footprint` sits on the floor, and `base_link` s
   <img src="../../assets/wiring/cirkit_wiring_original.png" alt="Cirkit Designer wiring diagram of the first version: Jetson Nano, ESP32-S3, TB6612FNG, encoder motors, MPU6050, RPLidar, Pi camera, two battery packs with converters" width="70%">
 </p>
 
-Drawn in Cirkit Designer for the first version of the robot, which had a Jetson Nano. The Raspberry Pi camera module in the drawing isn't wired. The robot now has the Xavier NX and the CSI camera listed above, so use this diagram for the ESP32-S3 side only, and check pins against the table above.
+Drawn in Cirkit Designer for the first version of the robot, which had a Jetson Nano. The Raspberry Pi camera module in the drawing isn't wired. The robot now has the Xavier NX and the CSI camera listed above, so use this diagram for the ESP32-S3 side only, and check pins against the table above. Since 2026-11-23 the driver's VCC comes from 3.3 V, not the 5V pin the drawing shows, and the motor plugs are reversed (see the pin map).
 
 ## Reference Sheets
 

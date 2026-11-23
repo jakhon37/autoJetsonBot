@@ -2,15 +2,18 @@
 """Serve the robot's CSI camera as an MJPEG stream on the Jetson host.
 
 Argus, NVIDIA's camera stack, runs on the Jetson host but isn't in the ROS container. So this
-script reads the camera here and encodes JPEG on the Jetson's hardware encoder. In the container,
-jetson_bot_camera's mjpeg_camera_node turns the stream into ROS images. robot.sh starts this
-script when the Jetson has /dev/video0, and stops it with the robot.
+script reads the camera here, corrects its colour shading (see camera_shading.py) and encodes
+JPEG. In the container, jetson_bot_camera's mjpeg_camera_node turns the stream into ROS images.
+robot.sh starts this script when the Jetson has /dev/video0, and stops it with the robot.
 
 Endpoints, on 127.0.0.1 unless --host says otherwise:
-  /stream        multipart MJPEG; each part has an X-Timestamp header with the capture time
-                 in seconds since the epoch
-  /snapshot.jpg  the latest frame
-  /health        one line of text
+  /stream             multipart MJPEG; each part has an X-Timestamp header with the capture
+                      time in seconds since the epoch
+  /snapshot.jpg       the latest frame; ?raw=1 gives it without the colour correction
+  /health             one line of text
+  /calibrate          measure the colour shading on the next frames, with white paper over the
+                      lens, save it to --color-map and use it (./robot.sh camera-color)
+  /shading            how far the colour strays from the middle's, before and after correction
 
 By hand: python3 tools/csi_camera_server.py --flip 3, then on the Jetson
 curl -o frame.jpg http://127.0.0.1:8091/snapshot.jpg
@@ -23,9 +26,13 @@ import signal
 import sys
 import threading
 import time
+import urllib.parse
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
+import camera_shading
+import cv2
 import gi
+import numpy as np
 
 gi.require_version('Gst', '1.0')
 from gi.repository import Gst  # noqa: E402
@@ -43,28 +50,45 @@ FLIPS = {
 SENSOR_W, SENSOR_H = 1640, 1232
 FIRST_FRAME_S = 20.0  # Argus can take a few seconds to start
 STALL_S = 10.0
+CALIBRATION_FRAMES = 30
 
 
 class Camera:
-    """Run the GStreamer pipeline and keep the latest JPEG frame."""
+    """Run the GStreamer pipeline, correct each frame and keep the latest as JPEG."""
 
-    def __init__(self, sensor_id, width, height, fps, flip, quality):
+    def __init__(self, sensor_id, width, height, fps, flip, quality, color_map):
         out_w, out_h = (height, width) if flip in (1, 3) else (width, height)
         self.size = (out_w, out_h)
+        self.flip = flip
+        self.quality = quality
+        self.color_map = color_map
+        # nvvidconv scales and turns the frames on the Jetson's video hardware and hands them
+        # over as BGRx, so the colour correction can work on them.
         self.pipeline = Gst.parse_launch(
             f'nvarguscamerasrc sensor-id={sensor_id} ! '
             f'video/x-raw(memory:NVMM),width={SENSOR_W},height={SENSOR_H},framerate={fps}/1 ! '
             f'nvvidconv flip-method={flip} ! '
-            f'video/x-raw(memory:NVMM),width={out_w},height={out_h} ! '
-            f'nvjpegenc quality={quality} ! '
+            f'video/x-raw,format=BGRx,width={out_w},height={out_h} ! '
             'appsink name=sink max-buffers=1 drop=true sync=false')
         self.sink = self.pipeline.get_by_name('sink')
         self.cond = threading.Condition()
         self.jpeg = None
+        self.raw = None
         self.stamp = 0.0
         self.count = 0
         self.error = None
         self.times = collections.deque(maxlen=31)
+        self.correction = None
+        self.correction_note = 'off'
+        self.calibration = None  # [frames wanted, frames summed, sum] while measuring
+        self.calibrate_lock = threading.Lock()
+        if color_map and os.path.exists(color_map):
+            try:
+                gain_r, gain_b = camera_shading.load(color_map)
+                self.correction = camera_shading.Correction(gain_r, gain_b, flip, self.size)
+                self.correction_note = f'on, from {os.path.basename(color_map)}'
+            except (OSError, ValueError, KeyError) as exc:
+                print(f'colour map {color_map} not used: {exc}', file=sys.stderr, flush=True)
 
     def run(self, stop):
         """Pull frames until stop is set or the pipeline fails, then release the camera."""
@@ -95,23 +119,57 @@ class Camera:
         if not ok:
             return
         try:
-            data = bytes(info.data)
+            data = np.frombuffer(info.data, np.uint8).copy()
         finally:
             buf.unmap(info)
         now = time.time()
         stamp = now
-        # The buffer's time is in pipeline running time. Its age turns it into wall time, which
-        # leaves out the time spent in the encoder. Fall back to now if it looks wrong.
+        # The buffer's time is in pipeline running time. Its age turns it into wall time.
+        # Fall back to now if it looks wrong.
         clock = self.pipeline.get_clock()
         if clock is not None and buf.pts != Gst.CLOCK_TIME_NONE:
             age = (clock.get_time() - self.pipeline.get_base_time() - buf.pts) / Gst.SECOND
             if 0.0 <= age < 1.0:
                 stamp = now - age
+        w, h = self.size
+        stride = data.size // h  # rows can be padded
+        raw = cv2.cvtColor(data.reshape(h, stride)[:, :w * 4].reshape(h, w, 4), cv2.COLOR_BGRA2BGR)
+        calibration = self.calibration
+        if calibration is not None and calibration[1] < calibration[0]:
+            calibration[2] += raw
+            calibration[1] += 1
+        correction = self.correction
+        frame = correction.apply(raw) if correction is not None else raw
+        ok, jpeg = cv2.imencode('.jpg', frame, [cv2.IMWRITE_JPEG_QUALITY, self.quality])
+        if not ok:
+            return
         with self.cond:
-            self.jpeg, self.stamp = data, stamp
+            self.jpeg, self.raw, self.stamp = jpeg.tobytes(), raw, stamp
             self.count += 1
             self.times.append(now)
             self.cond.notify_all()
+
+    def calibrate(self, frames=CALIBRATION_FRAMES):
+        """Measure the colour shading on the next frames, save it and use it. Returns a report."""
+        if not self.color_map:
+            raise camera_shading.NotPlainError('the server was started without --color-map')
+        with self.calibrate_lock:
+            w, h = self.size
+            self.calibration = [frames, 0, np.zeros((h, w, 3), np.float64)]
+            deadline = time.time() + 5.0 + frames / 5.0
+            while self.calibration[1] < frames:
+                if time.time() > deadline or self.error:
+                    self.calibration = None
+                    raise camera_shading.NotPlainError('the camera sent too few frames')
+                time.sleep(0.05)
+            total = self.calibration[2]
+            self.calibration = None
+            avg = (total / frames).astype(np.float32)
+            gain_r, gain_b, report = camera_shading.measure(avg, self.flip)
+            camera_shading.save(self.color_map, gain_r, gain_b, frames, report)
+            self.correction = camera_shading.Correction(gain_r, gain_b, self.flip, self.size)
+            self.correction_note = f'on, measured {time.strftime("%Y-%m-%d %H:%M")}'
+            return report
 
     def fps(self):
         with self.cond:
@@ -127,7 +185,7 @@ class Camera:
         if not count:
             return 'waiting for the first frame'
         return (f'ok frames={count} fps={self.fps():.1f} age={time.time() - stamp:.2f}s '
-                f'size={self.size[0]}x{self.size[1]}')
+                f'size={self.size[0]}x{self.size[1]} color={self.correction_note}')
 
 
 def make_handler(camera, stop):
@@ -143,20 +201,45 @@ def make_handler(camera, stop):
             self.end_headers()
             self.wfile.write(body)
 
+        def _text(self, text, code=200):
+            self._send((text + '\n').encode(), 'text/plain', code)
+
         def do_GET(self):
-            if self.path == '/health':
-                self._send((camera.health() + '\n').encode(), 'text/plain')
-            elif self.path == '/snapshot.jpg':
+            url = urllib.parse.urlsplit(self.path)
+            query = urllib.parse.parse_qs(url.query)
+            if url.path == '/health':
+                self._text(camera.health())
+            elif url.path == '/snapshot.jpg':
                 with camera.cond:
-                    jpeg = camera.jpeg
+                    jpeg, raw = camera.jpeg, camera.raw
                 if jpeg is None:
-                    self._send(b'no frame yet\n', 'text/plain', 503)
+                    self._text('no frame yet', 503)
+                elif query.get('raw') == ['1']:
+                    ok, body = cv2.imencode('.jpg', raw, [cv2.IMWRITE_JPEG_QUALITY, 92])
+                    self._send(body.tobytes(), 'image/jpeg')
                 else:
                     self._send(jpeg, 'image/jpeg')
-            elif self.path == '/stream':
+            elif url.path == '/calibrate':
+                try:
+                    report = camera.calibrate()
+                    self._text(f'saved to {camera.color_map} and in use; {report}')
+                except camera_shading.NotPlainError as exc:
+                    self._text(f'not measured: {exc}', 409)
+            elif url.path == '/shading':
+                with camera.cond:
+                    raw = camera.raw
+                if raw is None:
+                    self._text('no frame yet', 503)
+                    return
+                lines = [f'as the camera gives it: {camera_shading.spread(raw)}']
+                if camera.correction is not None:
+                    corrected = camera.correction.apply(raw)
+                    lines.append(f'corrected: {camera_shading.spread(corrected)}')
+                self._text('\n'.join(lines))
+            elif url.path == '/stream':
                 self._stream()
             else:
-                self._send(b'not found\n', 'text/plain', 404)
+                self._text('not found', 404)
 
         def _stream(self):
             self.send_response(200)
@@ -192,6 +275,8 @@ def main():
     parser.add_argument('--flip', type=int, default=0, choices=sorted(FLIPS),
                         help='; '.join(f'{k}: {v}' for k, v in FLIPS.items()))
     parser.add_argument('--quality', type=int, default=80, help='JPEG quality, 1 to 100')
+    parser.add_argument('--color-map', help='colour shading file: used if it exists, '
+                        'written by /calibrate')
     parser.add_argument('--pid-file', help='write this process id here while running')
     args = parser.parse_args()
 
@@ -213,7 +298,8 @@ def main():
 def serve(args):
     """Run the camera and the HTTP server until a signal, a camera error or a stall."""
     Gst.init(None)
-    camera = Camera(args.sensor_id, args.width, args.height, args.fps, args.flip, args.quality)
+    camera = Camera(args.sensor_id, args.width, args.height, args.fps, args.flip, args.quality,
+                    args.color_map)
     stop = threading.Event()
     server = ThreadingHTTPServer((args.host, args.port), make_handler(camera, stop))
     server.daemon_threads = True
@@ -228,7 +314,8 @@ def serve(args):
     worker.start()
     w, h = camera.size
     print(f'camera server on http://{args.host}:{args.port}/: {w}x{h} at {args.fps} fps, '
-          f'flip {args.flip} ({FLIPS[args.flip]})', flush=True)
+          f'flip {args.flip} ({FLIPS[args.flip]}), colour correction {camera.correction_note}',
+          flush=True)
 
     started = time.time()
     last_count, last_change = 0, started

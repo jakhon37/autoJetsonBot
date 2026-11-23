@@ -46,6 +46,7 @@ CORE COMMANDS:
     nav         Force Navigation Mode (auto-saves map if was mapping)
     map2nav     Save current map (if mapping) + switch to Nav2 (recommended for hardware)
     stop        Stop all robot processes and clean up ports
+    camera-color  Measure the camera's colour shading: cover the lens with white paper first
 
 UTILITY COMMANDS:
     image       Build the Docker image (Humble by default)
@@ -254,12 +255,24 @@ start_camera_server() {
     ( setsid nohup python3 "$(pwd)/tools/csi_camera_server.py" --port "$CAMERA_PORT" \
         --width "${CAMERA_WIDTH:-820}" --height "${CAMERA_HEIGHT:-616}" \
         --fps "${CAMERA_FPS:-15}" --flip "${CAMERA_FLIP:-0}" --pid-file "$CAMERA_PID_FILE" \
+        --color-map "$(pwd)/tools/camera_color_shading.json" \
         > "$CAMERA_LOG" 2>&1 < /dev/null & )
     for _ in $(seq 1 25); do
         camera_server_running && return 0
         sleep 0.2
     done
     log_warn "The camera server didn't start; see ${CAMERA_LOG}"
+}
+
+# Measure the camera's colour shading with white paper over the lens; the server saves it to
+# tools/camera_color_shading.json and uses it from then on.
+calibrate_camera_color() {
+    if ! camera_server_running; then
+        log_error "The camera server isn't running. Start the robot first: ./robot.sh robot"
+        exit 1
+    fi
+    log_info "Measuring the camera's colour shading. White paper must cover the whole lens..."
+    curl -s -m 30 "http://127.0.0.1:${CAMERA_PORT}/calibrate" || log_error "The camera server didn't answer."
 }
 
 stop_camera_server() {
@@ -704,6 +717,7 @@ case "${1:-help}" in
     build)           build_workspace ;;
     auto)            install_deps; build_workspace ;;
     status)          show_status ;;
+    camera-color)    calibrate_camera_color ;;
     remote)          print_remote_access ;;
     logs)            docker exec "$CONTAINER_NAME" tail -f /tmp/sim.log ;;
     verify)          verify_fusion ;;

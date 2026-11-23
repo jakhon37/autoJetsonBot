@@ -25,6 +25,7 @@ What was tested, on what, and what it showed. Simulation work ran in Docker on a
 | 17 | [Floor calibration after the rewiring](#17-floor-calibration-after-the-rewiring) | Robot | 2026-11-23 | Floor feed-forward set again, the motor plugs found swapped left for right rather than reversed, and the remounted lidar measured at 0°, after which SLAM matched the wheels |
 | 18 | [Mapping run and the first Nav2 goal](#18-mapping-run-and-the-first-nav2-goal) | Robot, simulation | 2026-11-24 | The room mapped as `lab_map_v3`, and the first Nav2 goal on the robot reached: 1.0 m asked, 6.5 cm short by tape, inside the 10 cm tolerance. The EKF's distance read 8.5% short of the wheels under Nav2's load |
 | 19 | [Wheel speeds timed by the motor board](#19-wheel-speeds-timed-by-the-motor-board) | Robot | 2026-11-24 | On the same 1 m Nav2 goal, the EKF's distance within 0.1% of the wheels at a load average of 11 to 15, where it had read 8.5% short |
+| 20 | [Map saving and teleop speeds in Gazebo](#20-map-saving-and-teleop-speeds-in-gazebo) | Simulation | 2026-11-24 | Saves from the dashboard and `robot.sh` checked and reported, saved maps reload with unknown cells unknown, and teleop starts at 0.15 m/s and 0.5 rad/s |
 
 ---
 
@@ -543,9 +544,37 @@ The robot weaved slightly left and right on the way, as in experiment 18: the wh
 
 ---
 
+## 20. Map Saving and Teleop Speeds in Gazebo
+
+**Goal:** Check the fixes for the map-saving faults and the teleop speeds found in experiment 18 before they reach the robot.
+
+**Setup:** ROS 2 Humble in Docker on the amd64 PC, as in experiment 8, in a container of its own on the change's checkout, with `ROS_LOCALHOST_ONLY=1` and a ROS domain of its own. Mapping mode now starts Nav2's map saver beside slam_toolbox, with a 15 s wait for `/map` and `free_thresh` 0.196, and the dashboard and `robot.sh` save through it. `./robot.sh sim` started mapping with Gazebo headless, a script drove the simulated robot for 18 s, and SLAM's map grew to 120 × 120 cells. Saves ran from `./robot.sh` and from the dashboard in a browser on the PC. Then `./robot.sh map2nav`, and Nav2's map server loaded the saved map.
+
+| Check | Result |
+| :--- | :--- |
+| Map saver | Active 0.3 s after it started, beside slam_toolbox, in two of three launches. In the third its answer to its lifecycle manager's configure request was lost ("failed to send response"), so it was never activated, but it saved all the same |
+| `./robot.sh save-map sim_cli_test` | Saved in 3.0 s, 0.06 s of it in the saver, and printed 316 occupied, 10,046 free and 4,038 unknown cells, the same as SLAM's `/map` |
+| Dashboard Save Map | "Map saved" in 0.1 to 0.2 s |
+| Saving into a folder that doesn't exist | The dashboard said "Map NOT saved" after 0.1 s. `save-map` and `nav` exited 1, and `nav` left SLAM running |
+| `./robot.sh map2nav` | Saved once, not again while stopping, then started Nav2 |
+| The saved map in Nav2's map server | 10,845 free, 333 occupied and 3,222 unknown cells, as in its image |
+| The same image with `free_thresh` 0.25 | 14,067 free and none unknown, every unknown cell loaded as free |
+| Committed `lab_map_v2`, now 0.196 | 2,168 free and 10,222 unknown cells, as in its image |
+| `config.json` missing | `robot.sh` saved as `lab_map_v3`, from `unified_robot_config.yaml`. The dashboard refused to save without a map name |
+| Save Map in navigation mode | "Map NOT saved: Service /map_saver/save_map does not exist", and `save-map` said there was nothing to save |
+| Teleop defaults | 0.15 m/s forward and 0.5 rad/s turning on `/cmd_vel`, also in a browser that had stored 1.0 and 2.0 |
+
+**Found: a slow save held back the dashboard's teleop.** rosbridge handles each connection's messages in turn. While a save on the dashboard's connection waited 15 s for a map that never came, 2 s of forward commands pressed at its start reached `/cmd_vel` 14 s late, all within 11 ms, when the save answered. The stop button would have waited the same way. The dashboard now saves over a connection of its own. With slam_toolbox stopped, so that nothing published `/map`, Save Map then said "Map NOT saved" after 15.1 s, and forward commands pressed during the save reached `/cmd_vel` on time.
+
+**Found: the saver's lifecycle manager took it down during a slow save.** The saver answers nothing else while it waits for `/map`, its bond heartbeats included. 4 s into that save its lifecycle manager logged "CRITICAL FAILURE: SERVER map_saver IS DOWN", and brought it back about a second after the save ended, so for that second there was nothing to save through. That manager only starts the saver, so its bond is now off. With it off, the same slow save left the saver and its service up. A lost answer, as in the third launch, could also strike a save, so `tools/save_map.py` counts a save without an answer as saved when both files were written after it asked.
+
+**Result:** Saves from the dashboard and from `robot.sh` work, say so only when the files were written, and report a failed save as failed. A saved map loads in Nav2 with its unknown cells unknown. The saver now runs for the whole mapping session, so a save no longer waits for a new node to find the others, which took about 3 s on the Jetson. Still to check on the robot.
+
+---
+
 ## What's Next
 
-1. **Map saving:** Save maps with a wait long enough for the busy Jetson and with `free_thresh` 0.196, and have the Web UI report a failed save.
+1. **Map saving on the robot:** Save from the dashboard and with `./robot.sh save-map` on the Jetson, and check that the map reloads with its unknown cells unknown (experiment 20).
 2. **Longer goals:** Goals with turns and across more of the room, a tighter yaw tolerance, and the dashboard's goal button on the robot.
 3. **Calibration:** After the robot has been on for hours, check in the `d` line that the gyro's learned offsets have followed its drift. Counts per wheel turn haven't been measured again since the rewiring.
 4. **Camera:** Lock the lens, check the colour correction under daylight, and calibrate the wide-angle lens (intrinsics and distortion) for camera-based docking, which is developed in a separate project.

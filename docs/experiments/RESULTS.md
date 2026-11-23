@@ -353,6 +353,7 @@ With the heading reversed, SLAM drew the room rotated with doubled walls. Nav2 w
 | `/camera/image_raw`, 820×616 `bgr8` | 15.0 messages a second, a median 54 ms (at most 68 ms) after capture |
 | Web UI stream, 320×240 | 14.8 fps |
 | `./robot.sh stop f`, then `./robot.sh robot` | Camera released and restarted, `lab_map_v2` left unchanged |
+| Web UI showing the camera, CPU of the camera node and `web_video_server` | 62% and 26% of a core with the first, re-encoded stream; 2.6% and 3.1% once the page asked for `ros_compressed` (later that day) |
 
 **Result:** The camera reaches ROS at its full 15 fps. The node's first version managed 1.7 frames a second, with frames up to 5 s old. Assigning `bytes` to a `uint8[]` message field makes rclpy check every element in Python, which took about half a second for one 820×616 image. The node now passes an `array('B')`. It also publishes from a second thread that takes only the newest frame, so a slow subscriber drops frames instead of building a backlog. When the camera was fitted, its lens had been turned out of focus: nothing was sharp at any distance, and ceiling lights showed as discs about 200 pixels wide. It was refocused by hand and is now sharp from about 0.5 m to the far wall.
 

@@ -41,9 +41,9 @@ Deterministic and lightweight ASCII protocol optimized for the `jetson_bot_diffd
 *   **Timeout:** If no `m` command is received for **500ms**, motors are immediately braked (E-Stop).
 
 ### 3.2 Uplink (ESP32 → Jetson)
-*   **Format:** `e <left_ticks> <right_ticks>\n`
-*   **Units:** Cumulative signed integers (int32_t).
-*   **Frequency:** 20Hz (Synchronized to control loop).
+*   **Format:** `e <left_ticks> <right_ticks> <micros>\r\n`
+*   **Units:** Cumulative signed integers (int32_t), and the board's clock in microseconds (uint32_t, wraps every 71.6 minutes) when the control task read them.
+*   **Frequency:** 50Hz, from counts the control task reads every 10 ms.
 
 ---
 

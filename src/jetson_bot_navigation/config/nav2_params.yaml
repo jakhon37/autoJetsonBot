@@ -228,11 +228,12 @@ map_server:
     use_sim_time: false
     yaml_filename: "lab_map.yaml"
 
+# Started with slam_toolbox in mapping mode, as in nav2_params_humble.yaml.
 map_saver:
   ros__parameters:
     use_sim_time: false
-    save_map_timeout: 5.0
-    free_thresh_default: 0.25
+    save_map_timeout: 15000  # Foxy reads milliseconds, as an integer. Humble reads seconds
+    free_thresh_default: 0.196  # unknown pixels (205) load as 0.196, so 0.25 made them free
     occupied_thresh_default: 0.65
     map_subscribe_transient_local: True
 

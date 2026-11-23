@@ -86,7 +86,8 @@ class RobotController {
 
   async fetchConfig() {
     try {
-      const res = await fetch('config.json');
+      // The launch rewrites it, and Save Map reads it again before each save.
+      const res = await fetch('config.json', { cache: 'no-store' });
       if (!res.ok) { this.log('No remote config, using defaults', 'warning'); return; }
       const cfg = await res.json();
       if (cfg.map_name) this.config.map_name = cfg.map_name;

@@ -262,11 +262,15 @@ map_server:
     use_sim_time: false
     yaml_filename: ""
 
+# Started with slam_toolbox in mapping mode. It saves the maps for the Web UI's Save Map and
+# robot.sh (tools/save_map.py), which leave the thresholds to it.
 map_saver:
   ros__parameters:
     use_sim_time: false
-    save_map_timeout: 5.0
-    free_thresh_default: 0.25
+    save_map_timeout: 15.0  # s to receive /map, with room for the busy Jetson
+    # Unknown cells are saved as pixel 205, which loads as occupancy 0.196. Nav2's default 0.25
+    # loaded every unknown cell as free.
+    free_thresh_default: 0.196
     occupied_thresh_default: 0.65
     map_subscribe_transient_local: True
 

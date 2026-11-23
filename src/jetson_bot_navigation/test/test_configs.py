@@ -124,9 +124,26 @@ def test_foxy_and_humble_match():
         assert _costmap(foxy, name)['inflation_layer'] == _costmap(humble, name)['inflation_layer']
 
 
+def test_map_saver_keeps_unknown_cells_unknown():
+    """Verify that the map saver mapping mode runs writes maps that load unknown as unknown."""
+    # An unknown pixel (205) loads as occupancy 0.196, so Nav2's default free_thresh of 0.25
+    # loaded every unknown cell as free. The Web UI and robot.sh leave the thresholds to it.
+    foxy, humble = (_nav2(f)['map_saver']['ros__parameters'] for f in NAV2_FILES)
+    for saver in (foxy, humble):
+        assert 1 - 254 / 255 < saver['free_thresh_default'] < 1 - 205 / 255
+        assert 1 - 205 / 255 < saver['occupied_thresh_default'] < 1
+        assert saver['map_subscribe_transient_local'] is True
+    # Foxy reads the wait for /map in milliseconds, as an integer, and Humble in seconds. Its
+    # default of 2 s was shorter than the 3 s a new node took to find the others on the Jetson.
+    assert isinstance(foxy['save_map_timeout'], int)
+    assert isinstance(humble['save_map_timeout'], float)
+    assert foxy['save_map_timeout'] == humble['save_map_timeout'] * 1000 >= 10000
+
+
 if __name__ == '__main__':
     test_nav2_yaml_validity()
     test_footprint_covers_the_chassis()
     test_speed_limits_agree()
     test_goal_tolerances_agree()
     test_foxy_and_humble_match()
+    test_map_saver_keeps_unknown_cells_unknown()

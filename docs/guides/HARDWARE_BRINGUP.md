@@ -56,7 +56,7 @@ That also stops the camera server, which runs on the host. `docker stop auto_ros
 `./robot.sh robot` starts the camera server on the Jetson host and the camera node in the container. [HARDWARE.md](../architecture/HARDWARE.md#camera) explains the split. The launch log's hardware audit prints the server's health, and the server's own log is `/tmp/autojetsonbot_camera_server.log` on the Jetson. To check by hand:
 
 ```bash
-curl -s http://127.0.0.1:8091/health                  # on the Jetson: ok frames=... fps=15.0 ...
+curl -s http://127.0.0.1:8091/health                  # on the Jetson: ok frames=... fps=15.0 ... jpeg=hardware ...
 curl -s -o frame.jpg http://127.0.0.1:8091/snapshot.jpg
 ros2 topic hz /camera/image_raw/compressed            # in the container: about 15
 ```
@@ -66,4 +66,5 @@ The Web UI's camera panel shows `/camera/image_raw/compressed` as it is, through
 - **No `/dev/video0`:** The camera wasn't found at boot. Power off, reseat the ribbon at both ends with the latches closed, and boot. When the sensor doesn't answer, `journalctl -k -b | grep imx219` shows `error -121`.
 - **Blurry picture:** The lens focuses by turning. Out focuses nearer and in focuses farther. Set it on a still scene 2 to 3 m away, then lock it with its ring or a dab of glue, since vibration turns it.
 - **Picture turned:** Set `CAMERA_FLIP`, listed in `./robot.sh help`.
+- **`jpeg=software` in `/health`:** The Jetson's JPEG engine didn't start or stopped answering, and the server's log says why. The picture is the same, at about a third of a core more. To compare the two by hand, stop the robot and run `python3 tools/csi_camera_server.py --jpeg software`, or `--jpeg hardware`, which refuses to start without the engine.
 - **Colour off, or pink toward the edges:** Tape plain white paper over the whole lens, under the room's usual light and not mixed with daylight from one side. Then run `./robot.sh camera-color`. It measures 30 frames, saves `tools/camera_color_shading.json` and uses it at once. `curl -s http://127.0.0.1:8091/shading` then shows how even the paper is. Measure again after changing the lens or its focus.

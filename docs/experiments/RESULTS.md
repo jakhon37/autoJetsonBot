@@ -25,6 +25,7 @@ What was tested, on what, and what it showed. Simulation work ran in Docker on a
 | 17 | [Floor calibration after the rewiring](#17-floor-calibration-after-the-rewiring) | Robot | 2026-11-23 | Floor feed-forward set again, the motor plugs found swapped left for right rather than reversed, and the remounted lidar measured at 0°, after which SLAM matched the wheels |
 | 18 | [Mapping run and the first Nav2 goal](#18-mapping-run-and-the-first-nav2-goal) | Robot, simulation | 2026-11-24 | The room mapped as `lab_map_v3`, and the first Nav2 goal on the robot reached: 1.0 m asked, 6.5 cm short by tape, inside the 10 cm tolerance. The EKF's distance read 8.5% short of the wheels under Nav2's load |
 | 19 | [Wheel speeds timed by the motor board](#19-wheel-speeds-timed-by-the-motor-board) | Robot | 2026-11-24 | On the same 1 m Nav2 goal, the EKF's distance within 0.1% of the wheels at a load average of 11 to 15, where it had read 8.5% short |
+| 20 | [The camera's JPEG on the Jetson's encoder](#20-the-cameras-jpeg-on-the-jetsons-encoder) | Robot | 2026-11-24 | The camera server from three quarters of a core to a third, and frames reach ROS a median 21 ms after capture instead of 36, with the same picture |
 
 ---
 
@@ -540,6 +541,46 @@ Saving and loading the map showed two faults. slam_toolbox's `save_map` service 
 **Result:** The EKF's distance matched the wheels within 0.03% on the goal that had left it 8.5% short, with the Jetson busier than then. Rebuilt from the same run's timing, the old rule would have left it 6.0% short. In simulation the board's time also keeps every line's speed right when lines arrive together, late, after a stall or after a lost line. On the board checked, the stamps came exactly 20,000 µs apart, so no line carried an older read. If a line sent in the same millisecond as a read carries the read before, the stamp still times it right, while one 50 Hz period per line would read it at half or one and a half times the speed. That averages out, but in simulation it moved the EKF's distance by about 1% a minute, so lines without the time, from older firmware, are a fallback.
 
 The robot weaved slightly left and right on the way, as in experiment 18: the wheels' turn rate swung by about 0.1 rad/s every 2 s or so, and the EKF's followed it. The robot really turned that way, as it did before this change. A dashboard tab left open in Firefox on the PC reconnected to rosbridge 24 times a second during the run, each connection lasting about 9 ms, and rosbridge took 59% of a core. That added to the load. The dashboard's reconnect logic was the cause, and it was fixed the same night.
+
+---
+
+## 20. The Camera's JPEG on the Jetson's Encoder
+
+**Goal:** Take the camera server's JPEG encoding off the CPU, where it has run since the colour correction (experiment 15) and taken about 70% of a core, and win back about half a core. The picture, the timestamps and every endpoint should stay as they were, with a software fallback.
+
+**Setup:** The server corrects each frame's colour on the CPU, so the frames can't stay in the video hardware's memory on the way to the encoder. They now go to `nvjpegenc`, the Jetson's JPEG engine, through a second pipeline, `appsrc ! nvjpegenc ! appsink`, as full-range YCbCr 4:2:0 that the server makes with OpenCV (`tools/camera_jpeg.py`). If `nvjpegenc` doesn't start, or fails later, the server encodes with OpenCV, and `/health` says which. The server also runs OpenCV on one thread now, and no longer copies each frame once more after taking it from GStreamer. On the robot at night, around 05:00, each version of the server ran for 60 s with one client reading `/stream` on the Jetson, three times over. Then the whole stack ran in navigation mode for 60 s, first with master's camera files and then with these, while a subscriber in the container read `/camera/image_raw/compressed`. The camera looked at a dark room and a laptop screen. At that light the sensor's noise made frames of about 256 KB, where daylight frames were 50 to 75 KB (experiment 14), which makes JPEG encoding dearer.
+
+| Camera server alone, 60 s, three runs each | CPU, % of one core | Capture to the client, median and p95 |
+| :--- | ---: | ---: |
+| Master: software JPEG, OpenCV's default threads | 75.4, 74.0, 74.3 | 23.4 and 48.4 ms |
+| Master on one OpenCV thread | 53.5, 53.0, 53.2 | 22.6 and 48.1 ms |
+| Master on one thread, without the extra copy of each frame (one run) | 41.7 | 21.9 and 24.1 ms |
+| This change, software JPEG (the fallback) | 41.8, 41.5, 41.9 | 21.8 and 24.0 ms |
+| This change, JPEG on the Jetson's engine | 32.5, 32.8, 32.4 | 17.1 and 19.4 ms |
+| `nvargus-daemon`, Argus's own process, in every run | 21 to 23 | |
+
+| Each frame's work on one thread, median of 449 frames | Time | Share of a core at 15 fps |
+| :--- | ---: | ---: |
+| Taking the frame from GStreamer, BGRx to BGR, colour correction | 0.55, 0.36 and 0.45 ms | 2.0% |
+| OpenCV's JPEG encoding, quality 80 | 8.95 ms | 13.4% |
+| Full-range YCbCr for the engine: YCrCb at full size, chroma halved after | 6.00 ms | 9.0% |
+| The same, luma from grey and YCrCb from a half-size frame (used) | 1.87 ms | 2.8% |
+| Pushing the frame to `nvjpegenc` and pulling its JPEG | 0.72 ms | 1.1% |
+
+| Whole stack in navigation mode, 66 s each | Master | This change |
+| :--- | ---: | ---: |
+| Camera server | 77.7% of a core | 33.8% |
+| `nvargus-daemon`, camera node, `web_video_server` | 23.2%, 4.8%, 1.4% | 23.6%, 4.8%, 1.4% |
+| `/camera/image_raw/compressed` | 14.98 fps, 255 KB | 15.03 fps, 257 KB |
+| Capture to the subscriber, median and p95 | 36.3 and 66.9 ms | 21.1 and 23.9 ms |
+
+| Picture, on one corrected frame from the camera | Size | Against the frame before encoding |
+| :--- | ---: | ---: |
+| OpenCV, quality 80 | 237 KB | 29.16 dB, mean colour within 0.6 grey levels |
+| Jetson's engine, quality 80, from this change's YCbCr | 239 KB | 29.16 dB, mean colour within 0.7 grey levels |
+| On a stored photo with a black-to-white ramp: OpenCV, then the engine through `nvvidconv`'s conversion | 44 KB, then 42 KB | 42.2 dB, then 26.9 dB, with black decoded at 16 and white at 235 |
+
+**Result:** The camera server takes a third of a core where it took three quarters: 0.42 of a core won back with the server alone, and 0.44 with the whole stack running. Frames reach ROS a median 21 ms after capture instead of 36, and 95% within 24 ms instead of 67. The picture is the same: at the same quality setting the engine's JPEG is within 1% of OpenCV's size and decodes as close to the frame. Three changes share the gain. OpenCV's default pool, a thread per core, spent more CPU waiting for work than doing it, since each step on these frames takes about a millisecond: one thread saved 21 points. The extra copy of each 2 MB frame cost 11.5 points and doubled the slowest frames' delay, more than a copy should take, for reasons not looked into. The engine saved the last 9. Of the third of a core left, more than half is in Argus's capture threads, and `nvargus-daemon` takes about a quarter of a core besides. The first try sent BGRx frames through `nvvidconv` to the engine, which looked the same size but decoded washed out: `nvvidconv` converts to video range whatever colorimetry its caps ask for, and JPEG decoders read full range. In both stack runs rosbridge took about 80% of a core: in the second, a dashboard tab connected 2,871 times in the 106 s the stack ran. It was an open tab still running the dashboard's code from before its reconnect fix, made the same night.
 
 ---
 

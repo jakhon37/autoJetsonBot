@@ -122,9 +122,9 @@ The full node graph, TF tree, serial protocol and launch modes are in [SYSTEM_AR
 - **Simulation:** Mapping and autonomous goals work with EKF-fused odometry, rechecked under Humble in November 2026 (map above).
 - **Robot:** Under Humble on the Xavier NX, the lidar runs at 6.46 Hz and `slam_toolbox` builds maps. Encoders and IMU stream at 50 Hz and the full TF chain is up.
 - **Motors:** A rebuilt closed-loop motor firmware holds requested wheel speeds from 0.02 to 0.25 m/s within 1 to 2%, with the wheels lifted. The encoders count 1,497 per wheel turn, and the motors stop 0.75 s after commands stop. Driven through ROS, `/odom` matches the commands within 3%. On the floor, with feed-forward set there, both wheels hold requests within 0.003 m/s.
-- **Camera:** The CSI camera reaches ROS at 15 fps, 820×616 over its full field of view, 14 ms after capture. The Jetson host reads it through Argus and encodes JPEG in hardware, and a node in the container publishes the stream, since the container has no Argus.
+- **Camera:** The CSI camera reaches ROS at 15 fps, 820×616 over its full field of view, about 20 ms after capture. The container has no Argus, so the Jetson host reads the camera, corrects its colour from a measurement on white paper and serves JPEG, and a node in the container publishes the stream. White paper comes out neutral grey to within about 3% across the frame, where the camera alone gave it a magenta cast that turned pink at the edges.
 
-All fourteen experiments, with method and numbers, are in [RESULTS.md](docs/experiments/RESULTS.md).
+All fifteen experiments, with method and numbers, are in [RESULTS.md](docs/experiments/RESULTS.md).
 
 ## Project Status
 

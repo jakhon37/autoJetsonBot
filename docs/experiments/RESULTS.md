@@ -20,6 +20,7 @@ What was tested, on what, and what it showed. Simulation work ran in Docker on a
 | 12 | [The EKF on the robot and the lidar's frame](#12-the-ekf-on-the-robot-the-lidars-frame-and-the-left-encoder) | Robot, simulation | 2026-11-10 | The EKF matched the wheels and the gyro, and the lidar's frame, 90° off, corrected |
 | 13 | [Gyro offsets learned at rest](#13-gyro-offsets-learned-at-rest) | Robot | 2026-11-10 | The firmware re-learns the gyro's offsets whenever the robot stands still, and the EKF's heading held within 0.11°/min at rest |
 | 14 | [The CSI camera in ROS](#14-the-csi-camera-in-ros) | Robot | 2026-11-23 | 15 fps on `/camera/image_raw`, 14 ms after capture, shown in the Web UI |
+| 15 | [The camera's colour](#15-the-cameras-colour) | Robot | 2026-11-23 | White paper neutral grey to within about 3% across the frame, from a magenta cast that turned pink at the edges |
 
 ---
 
@@ -357,9 +358,27 @@ With the heading reversed, SLAM drew the room rotated with doubled walls. Nav2 w
 
 ---
 
+## 15. The Camera's Colour
+
+**Goal:** Take out the pink the camera showed toward the edges of every picture.
+
+**Setup:** White printer paper taped over the whole lens under the room's ceiling light, so every part of the picture should be the same grey. `tools/camera_shading.py` averaged 30 frames over a 32×24 grid and compared red and blue with green in each cell. It corrects only those ratios, not brightness, so uneven light on the paper doesn't spoil the measurement. The camera server applies the gains to every frame as one 8-bit multiply. The measurement refuses a picture that varies like a scene or is clipped to white: it refused the room before the paper went on.
+
+| White paper over the lens | As the camera gives it | Corrected |
+| :--- | ---: | ---: |
+| Red/green across the frame, worst cell against the middle | 49% | 3.2% |
+| Blue/green, the same | 13% | 2.9% |
+| 95% of cells within, red/green and blue/green | 45% and 11% | 1.8% and 1.6% |
+| Whole picture's red/green and blue/green | 1.146 and 1.142 | 1.004 and 0.986 |
+| `/camera/image_raw/compressed` | 15.0 fps, 14 ms after capture (experiment 14) | 14.7 fps, a median 19 ms after capture |
+
+**Result:** White paper now comes out neutral grey to within about 3% across the frame. The correction itself takes under 1 ms a frame, but JPEG now has to be encoded in software, since the frames pass through the correction on the CPU. The server uses about 70% of one of the Jetson's six cores. The target colour mattered. Matching every cell to the middle turned the whole picture cyan-grey, because the camera's own white balance had balanced the pink edges against a cyan middle. Matching the average kept the magenta cast the white balance leaves on everything. Bringing white paper to neutral grey removes both.
+
+---
+
 ## What's Next
 
 1. **Left encoder wire:** Fix the B wire properly, then check that both pins toggle about equally and that `/odom` agrees with the gyro on a floor drive.
 2. **Calibration:** Measure the lidar's exact angle from the scan's change on a straight drive. After the robot has been on for hours, check in the `d` line that the gyro's learned offsets have followed its drift.
 3. **Hardware mapping run:** A full mapping run and a Nav2 goal on the real robot.
-4. **Camera:** Lock the lens, correct the pink toward the picture's edges, and calibrate the wide-angle lens (intrinsics and distortion) for camera-based docking, which is developed in a separate project.
+4. **Camera:** Lock the lens, check the colour correction under daylight, and calibrate the wide-angle lens (intrinsics and distortion) for camera-based docking, which is developed in a separate project.

@@ -12,6 +12,13 @@ class TimedHandler(http.server.SimpleHTTPRequestHandler):
     timeout = 5
     protocol_version = 'HTTP/1.1'
 
+    def end_headers(self):
+        # Without this, browsers keep app.js and the other modules for days and a normal reload
+        # doesn't fetch an updated UI. no-cache makes them ask each time, and the answer is a
+        # short 304 Not Modified when nothing changed.
+        self.send_header('Cache-Control', 'no-cache')
+        super().end_headers()
+
 
 class ThreadedHTTPServer(http.server.ThreadingHTTPServer):
     allow_reuse_address = True

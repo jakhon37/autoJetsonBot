@@ -29,8 +29,8 @@ class RobotController {
       publishRate:   100,
       maxLinearVel:  1.0,
       maxAngularVel: 2.0,
-      cameraUrl:     'http://localhost:8080/stream?topic=/camera/image_raw&type=mjpeg&width=320&height=240',
-      cameraUrlFallback: 'http://localhost:8080/stream?topic=/camera/camera/image_raw&type=mjpeg&width=320&height=240',
+      cameraUrl:     'http://localhost:8080/stream?topic=/camera/image_raw&type=ros_compressed',
+      cameraUrlFallback: 'http://localhost:8080/stream?topic=/camera/image_raw&type=mjpeg&width=320&height=240',
       topics: {
         cmdVel:      '/cmd_vel',
         jointStates: '/joint_states',
@@ -236,10 +236,13 @@ class RobotController {
     const host = this._pageHost();
     const wsProto = window.location.protocol === 'https:' ? 'wss' : 'ws';
     const httpProto = window.location.protocol === 'https:' ? 'https' : 'http';
+    // ros_compressed passes the camera node's JPEGs (/camera/image_raw/compressed) straight to
+    // the browser, so nothing decodes or re-encodes frames for this view. The fallback decodes
+    // the raw topic and re-encodes it at 320x240, for a camera without a compressed topic.
     this.config.cameraUrl =
-      `${httpProto}://${host}:8080/stream?topic=/camera/image_raw&type=mjpeg&width=320&height=240`;
+      `${httpProto}://${host}:8080/stream?topic=/camera/image_raw&type=ros_compressed`;
     this.config.cameraUrlFallback =
-      `${httpProto}://${host}:8080/stream?topic=/camera/camera/image_raw&type=mjpeg&width=320&height=240`;
+      `${httpProto}://${host}:8080/stream?topic=/camera/image_raw&type=mjpeg&width=320&height=240`;
     return `${wsProto}://${host}:9090`;
   }
 
@@ -362,6 +365,7 @@ class RobotController {
     const placeholder = document.getElementById('cameraPlaceholder');
     const btn = document.getElementById('cameraToggleBtn');
     const statusTxt = placeholder.querySelector('p:last-child');
+    clearTimeout(this._cameraCheck);
     if (img.src && img.src !== window.location.href) {
       img.src = ''; img.style.display = 'none';
       placeholder.style.display = 'flex';
@@ -370,9 +374,8 @@ class RobotController {
       return;
     }
     const tryUrl = (url, isFallback) => {
-      img.src = url; img.style.display = 'block'; placeholder.style.display = 'none';
-      btn.textContent = '⏸ Pause Feed';
-      img.onerror = () => {
+      const fail = () => {
+        clearTimeout(this._cameraCheck);
         if (!isFallback && this.config.cameraUrlFallback) tryUrl(this.config.cameraUrlFallback, true);
         else {
           img.src = ''; img.style.display = 'none'; placeholder.style.display = 'flex';
@@ -380,6 +383,16 @@ class RobotController {
           btn.textContent = '▶ Start Feed';
         }
       };
+      img.src = url; img.style.display = 'block'; placeholder.style.display = 'none';
+      btn.textContent = '⏸ Pause Feed';
+      img.onerror = fail;
+      // A stream with no frames doesn't raise an error (no compressed topic, say), so check
+      // that a frame has arrived.
+      if (!isFallback) {
+        this._cameraCheck = setTimeout(() => {
+          if (img.src === url && img.naturalWidth === 0) fail();
+        }, 4000);
+      }
     };
     tryUrl(this.config.cameraUrl, false);
   }

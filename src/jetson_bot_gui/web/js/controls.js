@@ -28,14 +28,12 @@ export class ControlsManager {
       document.getElementById('angularValue').textContent = this.app.angularScale.toFixed(2);
     });
 
-    // Settings inputs live update
-    document.getElementById('maxLinearVel').addEventListener('change', (e) => {
-      this.app.config.maxLinearVel = parseFloat(e.target.value) || 1.0;
-      this.app._saveSettings();
+    // Settings inputs live update. The speed limits last until the page is reloaded.
+    document.getElementById('maxLinearVel').addEventListener('change', () => {
+      this.app.config.maxLinearVel = this.app.numberInput('maxLinearVel');
     });
-    document.getElementById('maxAngularVel').addEventListener('change', (e) => {
-      this.app.config.maxAngularVel = parseFloat(e.target.value) || 2.0;
-      this.app._saveSettings();
+    document.getElementById('maxAngularVel').addEventListener('change', () => {
+      this.app.config.maxAngularVel = this.app.numberInput('maxAngularVel');
     });
     document.getElementById('publishRate').addEventListener('change', (e) => {
       const hz = parseFloat(e.target.value) || 10;

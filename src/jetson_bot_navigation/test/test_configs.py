@@ -14,6 +14,7 @@
 
 import math
 import os
+import re
 import xml.etree.ElementTree as ET
 
 import yaml
@@ -21,6 +22,7 @@ import yaml
 PKG_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 CONFIG_DIR = os.path.join(PKG_DIR, 'config')
 URDF_DIR = os.path.join(os.path.dirname(PKG_DIR), 'jetson_bot_description', 'urdf')
+WEB_DIR = os.path.join(os.path.dirname(PKG_DIR), 'jetson_bot_gui', 'web')
 NAV2_FILES = ('nav2_params.yaml', 'nav2_params_humble.yaml')
 COSTMAPS = ('local_costmap', 'global_costmap')
 
@@ -140,6 +142,30 @@ def test_map_saver_keeps_unknown_cells_unknown():
     assert foxy['save_map_timeout'] == humble['save_map_timeout'] * 1000 >= 10000
 
 
+def test_dashboard_teleop_starts_at_nav2_speeds():
+    """Verify that the Web UI's teleop starts at the speeds Nav2 drives at."""
+    # Teleop sends Max Linear and Max Angular Velocity times the speed sliders. Their defaults
+    # sent 0.5 m/s and 1 rad/s while the robot was mapped on 2026-11-24, where it had been
+    # checked at Nav2's 0.15 m/s and 0.5 rad/s.
+    with open(os.path.join(WEB_DIR, 'index.html'), 'r') as f:
+        html = f.read()
+    with open(os.path.join(WEB_DIR, 'js', 'app.js'), 'r') as f:
+        app = f.read()
+
+    def input_value(element_id):
+        tag = re.search(rf'<input [^>]*id="{element_id}"[^>]*>', html).group(0)
+        return float(re.search(r'\svalue="([0-9.]+)"', tag).group(1))
+
+    def starting_scale(name):
+        return float(re.search(rf'this\.{name}\s*=\s*([0-9.]+);', app).group(1))
+
+    dwb = _nav2('nav2_params_humble.yaml')['controller_server']['ros__parameters']['FollowPath']
+    for limit, slider, nav2 in (('maxLinearVel', 'linearScale', dwb['max_vel_x']),
+                                ('maxAngularVel', 'angularScale', dwb['max_vel_theta'])):
+        assert starting_scale(slider) == input_value(slider), slider  # the slider shows it
+        assert math.isclose(input_value(limit) * starting_scale(slider), nav2), limit
+
+
 if __name__ == '__main__':
     test_nav2_yaml_validity()
     test_footprint_covers_the_chassis()
@@ -147,3 +173,4 @@ if __name__ == '__main__':
     test_goal_tolerances_agree()
     test_foxy_and_humble_match()
     test_map_saver_keeps_unknown_cells_unknown()
+    test_dashboard_teleop_starts_at_nav2_speeds()

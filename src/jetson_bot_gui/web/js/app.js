@@ -27,8 +27,8 @@ class RobotController {
     this.config = {
       rosbridgeUrl:  'ws://localhost:9090',
       publishRate:   100,
-      maxLinearVel:  1.0,
-      maxAngularVel: 2.0,
+      maxLinearVel:  null,  // from index.html's inputs, in init()
+      maxAngularVel: null,
       cameraUrl:     'http://localhost:8080/stream?topic=/camera/image_raw&type=ros_compressed',
       cameraUrlFallback: 'http://localhost:8080/stream?topic=/camera/image_raw&type=mjpeg&width=320&height=240',
       topics: {
@@ -104,11 +104,17 @@ class RobotController {
 
   _syncAllSettingsFromDOM() {
     this.config.rosbridgeUrl = document.getElementById('rosbridgeUrl').value || 'ws://localhost:9090';
-    this.config.maxLinearVel  = parseFloat(document.getElementById('maxLinearVel').value) || 1.0;
-    this.config.maxAngularVel = parseFloat(document.getElementById('maxAngularVel').value) || 2.0;
+    this.config.maxLinearVel  = this.numberInput('maxLinearVel');
+    this.config.maxAngularVel = this.numberInput('maxAngularVel');
     const hz = parseFloat(document.getElementById('publishRate').value) || 10;
     this.config.publishRate   = Math.round(1000 / hz);
     this._syncTopicConfig();
+  }
+
+  // A number input's value, or its default in index.html when it's empty or not a number.
+  numberInput(id) {
+    const el = document.getElementById(id);
+    return parseFloat(el.value) || parseFloat(el.defaultValue);
   }
 
   // ── Theme ─────────────────────────────────────────────────────────────
@@ -142,11 +148,11 @@ class RobotController {
 
   // ── Settings persistence ──────────────────────────────────────────────
 
+  // The speed limits aren't kept: each load starts at index.html's checked speeds. Pages
+  // before 2026-11-24 stored 1.0 m/s and 2.0 rad/s here, which loading now ignores.
   _saveSettings() {
     const s = {
       rosbridgeUrl:     document.getElementById('rosbridgeUrl').value,
-      maxLinearVel:     document.getElementById('maxLinearVel').value,
-      maxAngularVel:    document.getElementById('maxAngularVel').value,
       publishRate:      document.getElementById('publishRate').value,
       cmdVelTopic:      document.getElementById('cmdVelTopic').value,
       jointStatesTopic: document.getElementById('jointStatesTopic').value,
@@ -160,8 +166,6 @@ class RobotController {
       const s = JSON.parse(localStorage.getItem('robotSettings') || '{}');
       const set = (id, val) => { const el = document.getElementById(id); if (el && val !== undefined) el.value = val; };
       set('rosbridgeUrl',      s.rosbridgeUrl);
-      set('maxLinearVel',      s.maxLinearVel);
-      set('maxAngularVel',     s.maxAngularVel);
       set('publishRate',       s.publishRate);
       set('cmdVelTopic',       s.cmdVelTopic);
       set('jointStatesTopic',  s.jointStatesTopic);

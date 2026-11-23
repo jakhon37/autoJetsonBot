@@ -11,39 +11,12 @@ from launch.substitutions import LaunchConfiguration, PythonExpression
 from launch.conditions import IfCondition
 from launch_ros.actions import Node
 
-
-def _serial_by_id():
-    root = '/dev/serial/by-id'
-    mapping = {}
-    if os.path.isdir(root):
-        for name in sorted(os.listdir(root)):
-            mapping[name] = os.path.realpath(os.path.join(root, name))
-    return mapping
-
-
-def find_esp32_port():
-    """Prefer USB by-id (QinHeng/WCH/ESP). Skip the lidar CP2102 adapter."""
-    skip = ('cp210', 'silicon_labs', 'rplidar')
-    prefer = ('espressif', 'esp32', 'jtag_serial', '1a86', 'qinheng',
-              'usb_single_serial', 'wch', 'arduino', 'usbmodem')
-    by_id = _serial_by_id()
-    for name, path in by_id.items():
-        low = name.lower()
-        if any(s in low for s in skip):
-            continue
-        if any(s in low for s in prefer) and os.path.exists(path):
-            return path, name
-    for name, path in by_id.items():
-        if 'ttyACM' in path and os.path.exists(path):
-            return path, name
-    for p in ('/dev/ttyACM0', '/dev/ttyACM1', '/dev/ttyACM2'):
-        if os.path.exists(p):
-            return p, p
-    return None, None
+# Shared with the bridge and ./robot.sh status, so all three take the same motor board port
+from jetson_bot_diffdrive.serial_ports import com_socket_warning, find_esp32_port, serial_by_id
 
 
 def find_lidar_port():
-    by_id = _serial_by_id()
+    by_id = serial_by_id()
     for name, path in by_id.items():
         low = name.lower()
         if ('cp210' in low or 'silicon_labs' in low) and os.path.exists(path):
@@ -315,8 +288,9 @@ def launch_setup(context, *args, **kwargs):
         # No explicit static publisher to avoid TF_REPEATED_DATA warnings.
         # EKF uses the TF tree (footprint -> base_link -> imu_link) for lever arm.
         
-        # 3. Python Serial Bridge (USB by-id — ttyACM numbers change after ESP32 reset)
-        motor_port, motor_id = find_esp32_port()
+        # 3. Python Serial Bridge. The port is found by USB ID, since ttyACM numbers change after
+        # an ESP32 reset and both of the board's sockets show up as ttyACM.
+        motor_port, motor_id, motor_socket = find_esp32_port()
         if motor_port:
             hardware_active = True
             entities.append(Node(
@@ -333,7 +307,11 @@ def launch_setup(context, *args, **kwargs):
                     'publish_tf': False # Disable for EKF compatibility
                 }]
             ))
-            print(f"✅ [HARDWARE] Motor Bridge: FOUND at {motor_port} ({motor_id})")
+            if motor_socket == 'com':
+                print("⚠️  [HARDWARE WARNING] Motor Bridge: "
+                      + com_socket_warning(motor_port, motor_id))
+            else:
+                print(f"✅ [HARDWARE] Motor Bridge: FOUND at {motor_port} ({motor_id})")
         else:
             print("❌ [HARDWARE ERROR] Motor ESP32 serial port NOT FOUND. Connect its native USB socket (not COM).")
 

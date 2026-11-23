@@ -10,6 +10,7 @@ How to connect, start and check the real robot. The parts and wiring are in [HAR
 | RPLidar A1 | Jetson USB, through its CP2102 adapter | `10c4:ea60`, `/dev/ttyUSB0` |
 | IMX219 camera | The Jetson's CAM0 connector, by CSI ribbon, with the power off | `/dev/video0`, if it was found at boot |
 
+- **Use the ESP32-S3's native socket, not COM.** Its COM socket (a CH343, `1a86:55d3`) also shows up as `/dev/ttyACM0`, but the firmware doesn't talk there, so the bridge gets no wheel or IMU data. When the COM socket is all they find, launch's hardware audit and `./robot.sh status` say so.
 - **Plug in first, then start the container.** Docker only sees USB devices that exist when the container starts, so restart it after plugging anything in.
 - **Connect the camera with the power off, then boot.** The Jetson looks for a CSI camera only at boot, and plugging one in while powered can damage it. `journalctl -k -b | grep imx219` shows `subdev imx219 9-0010 bound` when it was found.
 

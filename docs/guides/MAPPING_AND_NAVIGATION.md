@@ -44,7 +44,7 @@ The dashboard's Save Map goes through slam_toolbox, which gives the saver only 2
 
 ## Tips for the Real Robot
 
-- **Odometry:** Nav2 uses the EKF's `/odom_filtered`, and `slam_toolbox` takes odometry from the `odom → base_footprint` transform, which the EKF publishes on the robot. With Nav2 running on the busy Jetson, the EKF's distance read 8.5% short of the wheels, see [RESULTS.md](../experiments/RESULTS.md#18-mapping-run-and-the-first-nav2-goal).
+- **Odometry:** Nav2 uses the EKF's `/odom_filtered`, and `slam_toolbox` takes odometry from the `odom → base_footprint` transform, which the EKF publishes on the robot. With Nav2 running on the busy Jetson, the EKF's distance read 8.5% short of the wheels until the bridge timed the wheel speeds by the motor board's clock. Since then it has matched them within 0.1%, see [RESULTS.md](../experiments/RESULTS.md#19-wheel-speeds-timed-by-the-motor-board).
 - **Speed:** Drive slowly while mapping. The lidar gives about 6.5 scans a second. The dashboard's teleop sends Max Linear Velocity and Max Angular Velocity times its sliders, 0.5 m/s and 1 rad/s by default, so set them to 0.3 and 1.0 for 0.15 m/s and 0.5 rad/s.
 - **Costmap tuning:** Inflation `cost_scaling_factor` sets how fast cost falls away from walls. Low values make walls look thick, and both Nav2 configs use 3.5.
 - **Footprint:** Nav2 treats the robot as a 0.19 m circle about the axle's centre, which holds the chassis' front corners, 0.181 m away, as it turns in place. With 0.30 m inflation it keeps clear of walls, so it needs passages of about 0.4 m.

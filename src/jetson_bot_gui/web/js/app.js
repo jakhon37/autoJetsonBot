@@ -300,26 +300,34 @@ class RobotController {
     this._syncTopicConfig();
     this.updateConnectionStatus('connecting');
     this.log(`Connecting to ${url}…`, 'info');
-    if (this.ros) { try { this.ros.close(); } catch (_) {} }
-    
-    this.ros = new ROSLIB.Ros({ url });
-    
-    this.ros.on('connection', () => {
+    // The connection being replaced is closed without its handlers. Before, its close event
+    // scheduled another connect(), which closed the next connection the same way, and every
+    // attempt that failed while rosbridge was down added one more such loop. A tab left open
+    // through the stack's restarts reconnected 24 times a second, each time subscribing again.
+    this._dropConnection();
+
+    const ros = new ROSLIB.Ros({ url });
+    this.ros = ros;
+
+    ros.on('connection', () => {
+      if (ros !== this.ros) return;
       this.isConnected = true;
       this._reconnectDelay = 1000;
       this.updateConnectionStatus('connected');
       this.setupROSTopics();
       this.log('Connected to robot', 'info');
     });
-    
-    this.ros.on('error', (err) => {
+
+    ros.on('error', (err) => {
+      if (ros !== this.ros) return;
       this.isConnected = false;
       this.updateConnectionStatus('disconnected');
       this.log(`Connection error: ${err}`, 'error');
       this._scheduleReconnect();
     });
-    
-    this.ros.on('close', () => {
+
+    ros.on('close', () => {
+      if (ros !== this.ros) return;
       this.isConnected = false;
       this.updateConnectionStatus('disconnected');
       this.log('Connection closed', 'warning');
@@ -331,16 +339,30 @@ class RobotController {
     this._userDisconnected = true;
     if (this._reconnectTimer) { clearTimeout(this._reconnectTimer); this._reconnectTimer = null; }
     this._teardownROSTopics();
-    if (this.ros) { try { this.ros.close(); } catch (_) {} }
+    this._dropConnection();
     this.isConnected = false;
     this.updateConnectionStatus('disconnected');
     this.log('Disconnected', 'info');
   }
 
+  // Closes the current connection, if any, without letting it report or reconnect. this.ros
+  // stays set, since the managers create topics on it. roslib throws on an 'error' event that
+  // nothing listens to, and a socket closed while connecting still reports one.
+  _dropConnection() {
+    if (!this.ros) return;
+    this.ros.removeAllListeners();
+    this.ros.on('error', () => {});
+    try { this.ros.close(); } catch (_) {}
+  }
+
+  // One reconnect at a time: a failed attempt reports both an error and a close.
   _scheduleReconnect() {
-    if (this._userDisconnected) return;
+    if (this._userDisconnected || this._reconnectTimer) return;
     this.log(`Reconnecting in ${this._reconnectDelay / 1000}s…`, 'warning');
-    this._reconnectTimer = setTimeout(() => this.connect(), this._reconnectDelay);
+    this._reconnectTimer = setTimeout(() => {
+      this._reconnectTimer = null;
+      this.connect();
+    }, this._reconnectDelay);
     this._reconnectDelay = Math.min(this._reconnectDelay * 2, 30000);
   }
 

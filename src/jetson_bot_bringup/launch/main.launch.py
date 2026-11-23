@@ -1,4 +1,6 @@
 import os
+import urllib.error
+import urllib.request
 import yaml
 import json
 from ament_index_python.packages import get_package_share_directory
@@ -50,6 +52,18 @@ def find_lidar_port():
         if os.path.exists(p):
             return p, p
     return None, None
+
+
+def camera_server_health(stream_url):
+    """Ask the camera server next to stream_url for its /health line; None if it doesn't answer."""
+    health_url = stream_url.rsplit('/', 1)[0] + '/health'
+    try:
+        with urllib.request.urlopen(health_url, timeout=1.0) as resp:
+            return resp.read(200).decode('ascii', 'replace').strip()
+    except urllib.error.HTTPError as exc:
+        return f'answers, no /health: HTTP {exc.code}'  # another MJPEG server, an ESP32-CAM say
+    except Exception:
+        return None
 
 
 def launch_setup(context, *args, **kwargs):
@@ -344,7 +358,27 @@ def launch_setup(context, *args, **kwargs):
             print(f"✅ [HARDWARE] RPLidar: FOUND at {lidar_port} ({lidar_id})")
         else:
             print("❌ [HARDWARE ERROR] Lidar serial port NOT FOUND. Connect RPLidar via USB.")
-        
+
+        # 4. CSI camera. Argus, NVIDIA's camera stack, runs on the Jetson host and isn't in this
+        # container. So robot.sh starts tools/csi_camera_server.py on the host, and this node turns
+        # its MJPEG stream into /camera/image_raw (what the Web UI shows) and
+        # /camera/image_raw/compressed. camera_url:='' leaves the camera out.
+        camera_url = LaunchConfiguration('camera_url').perform(context)
+        if camera_url:
+            entities.append(Node(
+                package='jetson_bot_camera',
+                executable='mjpeg_camera_node',
+                output='screen',
+                parameters=[{'url': camera_url, 'frame_id': 'camera_optical_link'}]
+            ))
+            health = camera_server_health(camera_url)
+            if health:
+                print(f"✅ [HARDWARE] Camera: stream at {camera_url} ({health})")
+            else:
+                print(f"❌ [HARDWARE] Camera stream not answering at {camera_url}. robot.sh starts "
+                      "it when the Jetson has /dev/video0, which a CSI camera only gets at boot. "
+                      "The camera node keeps retrying.")
+
         if not hardware_active:
             print("🛑 [FATAL WARNING] No critical sensors found. SLAM/Navigation will be DISABLED to prevent crash.")
             print("🚀 [INFO] Web UI and Telemetry will remain active for debugging.")
@@ -453,5 +487,7 @@ def generate_launch_description():
         DeclareLaunchArgument('y', default_value='', description='Spawn Y position'),
         DeclareLaunchArgument('z', default_value='', description='Spawn Z position'),
         DeclareLaunchArgument('yaw', default_value='', description='Spawn yaw (radians)'),
+        DeclareLaunchArgument('camera_url', default_value='http://127.0.0.1:8091/stream',
+                              description='Hardware camera MJPEG stream; empty leaves it out'),
         OpaqueFunction(function=launch_setup)
     ])

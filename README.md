@@ -56,7 +56,7 @@ flowchart LR
 - **Mapping and navigation:** `slam_toolbox` in async mode, AMCL, and Nav2 with the DWB planner, tuned costmaps and recovery behaviours.
 - **Web dashboard:** Modular ES6 front end over rosbridge, with teleop, a stop button, live lidar, map and path overlay, wheel RPM and system metrics.
 - **Docker workflow:** `robot.sh` builds the image, compiles the workspace and launches simulation, hardware or navigation mode. Humble is the default, and Foxy is still available.
-- **Measured bring-up:** The Humble port runs on the Xavier NX, and the lidar, telemetry, encoders, IMU and Wi-Fi camera were each tested on the robot, with numbers in [RESULTS.md](docs/experiments/RESULTS.md).
+- **Measured bring-up:** The Humble port runs on the Xavier NX, and the lidar, telemetry, encoders, IMU and camera were each tested on the robot, with numbers in [RESULTS.md](docs/experiments/RESULTS.md).
 
 ## The Robot
 
@@ -71,7 +71,7 @@ flowchart LR
 | **Computer** | NVIDIA Jetson Xavier NX Developer Kit, 8 GB, running ROS 2 Humble in Docker |
 | **Real-time controller** | ESP32-S3 with a TB6612FNG motor driver, on the Jetson's USB |
 | **Drive** | Differential drive, 2 × JGA25-370 gear motors with Hall encoders, 68 mm wheels, front caster |
-| **Sensors** | RPLidar A1 (360° lidar), MPU6050 (6-axis IMU), ESP32-CAM (Wi-Fi camera) |
+| **Sensors** | RPLidar A1 (360° lidar), MPU6050 (6-axis IMU), IMX219 CSI camera with a wide-angle lens |
 | **Size** | 19.4 × 17.8 × 9.7 cm chassis, wheel separation 0.212 m |
 
 Parts, wiring, pin map and measurements are in [HARDWARE.md](docs/architecture/HARDWARE.md).
@@ -122,9 +122,9 @@ The full node graph, TF tree, serial protocol and launch modes are in [SYSTEM_AR
 - **Simulation:** Mapping and autonomous goals work with EKF-fused odometry, rechecked under Humble in November 2026 (map above).
 - **Robot:** Under Humble on the Xavier NX, the lidar runs at 6.46 Hz and `slam_toolbox` builds maps. Encoders and IMU stream at 50 Hz and the full TF chain is up.
 - **Motors:** A rebuilt closed-loop motor firmware holds requested wheel speeds from 0.02 to 0.25 m/s within 1 to 2%, with the wheels lifted. The encoders count 1,497 per wheel turn, and the motors stop 0.75 s after commands stop. Driven through ROS, `/odom` matches the commands within 3%. On the floor, with feed-forward set there, both wheels hold requests within 0.003 m/s.
-- **Camera:** The ESP32-CAM streams 320×240 at about 10 fps over Wi-Fi. Firmware changes cut its idle ping from about 300 ms to 13 ms and let it rejoin Wi-Fi on its own.
+- **Camera:** The CSI camera reaches ROS at 15 fps, 820×616 over its full field of view, 14 ms after capture. The Jetson host reads it through Argus and encodes JPEG in hardware, and a node in the container publishes the stream, since the container has no Argus.
 
-All thirteen experiments, with method and numbers, are in [RESULTS.md](docs/experiments/RESULTS.md).
+All fourteen experiments, with method and numbers, are in [RESULTS.md](docs/experiments/RESULTS.md).
 
 ## Project Status
 
@@ -136,7 +136,7 @@ All thirteen experiments, with method and numbers, are in [RESULTS.md](docs/expe
 | IMU and EKF fusion | ✅ Working | ✅ Heading follows the wheels and gyro on floor drives and turns, and holds at rest |
 | Motor control | ✅ Working | ✅ Closed-loop speed within 0.003 m/s on the floor |
 | Web dashboard | ✅ Working | ✅ Teleop, lidar and telemetry used on the robot under Foxy |
-| Camera | ✅ Simulated camera, 640×480 at 10 Hz | ⚠️ Streams over Wi-Fi, not yet a ROS topic |
+| Camera | ✅ Simulated camera, 640×480 at 10 Hz | ✅ CSI camera on `/camera/image_raw` at 15 fps, shown in the dashboard |
 
 The live status board, with every open problem, is [PROJECT_ANALYSIS.md](docs/PROJECT_ANALYSIS.md).
 
@@ -164,12 +164,14 @@ autoJetsonBot/
 ├── src/                        # ROS 2 workspace
 │   ├── jetson_bot_bringup/     # Launch files, worlds, unified_robot_config.yaml, EKF config
 │   ├── jetson_bot_description/ # URDF/xacro model of the robot
+│   ├── jetson_bot_camera/      # Publishes the camera's MJPEG stream as ROS images
 │   ├── jetson_bot_diffdrive/   # Python serial bridge to the ESP32-S3
 │   ├── jetson_bot_imu/         # Turns the ESP32's IMU lines into sensor_msgs/Imu
 │   ├── jetson_bot_slam/        # slam_toolbox configuration
 │   ├── jetson_bot_navigation/  # Nav2 configuration
 │   ├── jetson_bot_gui/         # Web dashboard and telemetry
 │   └── jetson_bot_detection/   # Object detection demo, not wired to a camera yet
+├── tools/                      # Host-side helpers, such as the CSI camera server
 ├── maps/                       # Saved occupancy grids (.pgm + .yaml)
 ├── docs/                       # Architecture, guides, results, plans, project records
 ├── assets/                     # Photos, screenshots, results figures, wiring, reference sheets
@@ -194,7 +196,7 @@ autoJetsonBot/
 | Repository | Role |
 | :--- | :--- |
 | [MOTOR-ESP32S3](https://github.com/jakhon37/MOTOR-ESP32S3) | ESP32-S3 motor, encoder and IMU firmware |
-| [myESP32CAM-BLACKBOX](https://github.com/jakhon37/myESP32CAM-BLACKBOX) | ESP32-CAM Wi-Fi camera firmware |
+| [myESP32CAM-BLACKBOX](https://github.com/jakhon37/myESP32CAM-BLACKBOX) | Firmware for the ESP32-CAM, the robot's Wi-Fi camera until November 2026 |
 | [autonomous_ROS](https://github.com/jakhon37/autonomous_ROS) | The earlier project this one grew from |
 
 ## License

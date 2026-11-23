@@ -8,10 +8,10 @@ How to connect, start and check the real robot. The parts and wiring are in [HAR
 | :--- | :--- | :--- |
 | ESP32-S3 motor board | Jetson USB, using the board's **native USB socket**, the one next to the RGB LED | `303a:1001`, `/dev/ttyACM0` |
 | RPLidar A1 | Jetson USB, through its CP2102 adapter | `10c4:ea60`, `/dev/ttyUSB0` |
-| ESP32-CAM | Power only, no data cable | Its own address on Wi-Fi |
+| IMX219 camera | The Jetson's CAM0 connector, by CSI ribbon, with the power off | `/dev/video0`, if it was found at boot |
 
 - **Plug in first, then start the container.** Docker only sees USB devices that exist when the container starts, so restart it after plugging anything in.
-- **Keep the camera off the Jetson's data lines.** Its CH340 adapter also appears as `/dev/ttyUSB*`, so launch could take it for the lidar, and opening its port resets the camera.
+- **Connect the camera with the power off, then boot.** The Jetson looks for a CSI camera only at boot, and plugging one in while powered can damage it. `journalctl -k -b | grep imx219` shows `subdev imx219 9-0010 bound` when it was found.
 
 ## 2. Start and Check
 
@@ -42,12 +42,26 @@ If a topic shows 0 Hz while its node is active, it's almost always a name or int
 
 ## 4. Stop
 
-`./robot.sh stop` saves the map if the robot was in mapping mode, and so do `up`, `sim`, `robot`, `nav` and `map2nav`, which can overwrite a map in `maps/`. To end a test without saving, stop the container instead:
+`./robot.sh stop` saves the map if the robot was in mapping mode, and so do `up`, `sim`, `robot`, `nav` and `map2nav`, which can overwrite a map in `maps/`. To end a test without saving, restart the container first, which stops SLAM before anything can save:
 
 ```bash
-docker stop auto_ros_humble
+./robot.sh stop f
 ```
+
+That also stops the camera server, which runs on the host. `docker stop auto_ros_humble` saves nothing either, but leaves the camera server running until the next `./robot.sh` command.
 
 ## Camera
 
-The ESP32-CAM serves MJPEG at `http://<camera-ip>/stream`, which you can open in any browser. It serves one client at a time, and its frames carry no timestamps. Every `/capture` call also saves a photo to its SD card. The stream rates measured so far are in [RESULTS.md](../experiments/RESULTS.md#7-esp32-cam-video-over-wi-fi).
+`./robot.sh robot` starts the camera server on the Jetson host and the camera node in the container. [HARDWARE.md](../architecture/HARDWARE.md#camera) explains the split. The launch log's hardware audit prints the server's health, and the server's own log is `/tmp/autojetsonbot_camera_server.log` on the Jetson. To check by hand:
+
+```bash
+curl -s http://127.0.0.1:8091/health                  # on the Jetson: ok frames=... fps=15.0 ...
+curl -s -o frame.jpg http://127.0.0.1:8091/snapshot.jpg
+ros2 topic hz /camera/image_raw/compressed            # in the container: about 15
+```
+
+The Web UI's camera panel shows `/camera/image_raw` through `web_video_server` on port 8080.
+
+- **No `/dev/video0`:** The camera wasn't found at boot. Power off, reseat the ribbon at both ends with the latches closed, and boot. When the sensor doesn't answer, `journalctl -k -b | grep imx219` shows `error -121`.
+- **Blurry picture:** The lens focuses by turning. Out focuses nearer and in focuses farther. Set it on a still scene 2 to 3 m away, then lock it with its ring or a dab of glue, since vibration turns it.
+- **Picture turned:** Set `CAMERA_FLIP`, listed in `./robot.sh help`.

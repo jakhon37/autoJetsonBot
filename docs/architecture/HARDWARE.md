@@ -21,7 +21,7 @@ A two-wheel differential-drive robot with a front caster, built around a Jetson 
 | **Wheels** | 68 mm rubber wheels and a front caster | | Wheel separation 0.212 m |
 | **IMU** | MPU6050 | I2C to the ESP32-S3 (SDA GPIO 1, SCL GPIO 21) | See [IMU_WIRING.md](IMU_WIRING.md) |
 | **Lidar** | Slamtec RPLidar A1 (A1M8-R6) | USB through a CP2102 adapter (`10c4:ea60`) | 360°, about 6.5 scans per second, 360 points per scan |
-| **Camera** | AI-Thinker ESP32-CAM (OV2640) | Wi-Fi only, MJPEG at `/stream` | Firmware from [myESP32CAM-BLACKBOX](https://github.com/jakhon37/myESP32CAM-BLACKBOX). Powered over USB without a data connection, so it can't be mistaken for the lidar's serial port |
+| **Camera** | 8 MP Sony IMX219 camera module with a wide-angle lens | CSI ribbon to the Xavier NX's CAM0 connector | Published as `/camera/image_raw` at 15 fps, 820×616 over the full field of view (see [Camera](#camera)). Replaced a Wi-Fi ESP32-CAM ([myESP32CAM-BLACKBOX](https://github.com/jakhon37/myESP32CAM-BLACKBOX)) in November 2026 |
 | **Power** | Not documented yet | | The Xavier NX dev kit takes 9 to 20 V. The original design (below) used 5 V rails for a Jetson Nano |
 
 ## How It Connects
@@ -29,7 +29,7 @@ A two-wheel differential-drive robot with a front caster, built around a Jetson 
 ```mermaid
 flowchart TB
     op["Laptop or phone<br/>Web UI, SSH, VNC"]
-    cam["ESP32-CAM<br/>OV2640"]
+    cam["IMX219 camera<br/>wide-angle lens"]
     jetson["Jetson Xavier NX<br/>ROS 2 Humble in Docker"]
     lidar["RPLidar A1"]
     esp["ESP32-S3<br/>motor and IMU firmware"]
@@ -38,7 +38,7 @@ flowchart TB
     motorL["Left motor<br/>JGA25-370 + encoder"]
     motorR["Right motor<br/>JGA25-370 + encoder"]
     op -.->|"Wi-Fi"| jetson
-    cam -.->|"Wi-Fi MJPEG"| jetson
+    cam -->|"CSI ribbon, CAM0"| jetson
     lidar -->|"USB, CP2102"| jetson
     jetson <-->|"USB serial: m, e, i lines"| esp
     imu -->|"I2C"| esp
@@ -60,6 +60,15 @@ From the `MOTOR-ESP32S3` firmware the board runs since 2026-11-10, and checked o
 | Left encoder A, B | 18, 14 | Right encoder A, B | 4, 5 |
 | IMU SDA | 1 | IMU SCL | 21 |
 | Driver STBY | tied high | RGB status LED | 48 |
+
+## Camera
+
+Argus, NVIDIA's camera stack, runs on the Jetson host and isn't in the ROS container. So the camera is read in two steps:
+
+1. **On the host,** [`tools/csi_camera_server.py`](../../tools/csi_camera_server.py) reads the camera with `nvarguscamerasrc` in its 1640×1232 mode, which keeps the full field of view. It scales the frames to 820×616 at 15 fps and encodes JPEG on the Jetson's hardware encoder. It serves them as an MJPEG stream on `127.0.0.1:8091`, each frame tagged with its capture time.
+2. **In the container,** `jetson_bot_camera`'s `mjpeg_camera_node` publishes each JPEG on `/camera/image_raw/compressed`. While anything subscribes, it also publishes decoded `bgr8` frames on `/camera/image_raw`, which the Web UI shows. Both use the frame `camera_optical_link`.
+
+`./robot.sh robot` starts the server when the Jetson has `/dev/video0`, and `./robot.sh stop` stops it. If the camera is mounted turned, set `CAMERA_FLIP`, for example `CAMERA_FLIP=2 ./robot.sh robot` for upside down. `./robot.sh help` lists the values. The node takes any MJPEG URL through the launch argument `camera_url`, so it could read an ESP32-CAM's stream too.
 
 ## Physical Parameters
 
@@ -84,7 +93,7 @@ The frames follow REP 120. `base_footprint` sits on the floor, and `base_link` s
   <img src="../../assets/wiring/cirkit_wiring_original.png" alt="Cirkit Designer wiring diagram of the first version: Jetson Nano, ESP32-S3, TB6612FNG, encoder motors, MPU6050, RPLidar, Pi camera, two battery packs with converters" width="70%">
 </p>
 
-Drawn in Cirkit Designer for the first version of the robot, which had a Jetson Nano. The Raspberry Pi camera module in the drawing isn't wired. The robot now has the Xavier NX and the ESP32-CAM shown above, so use this diagram for the ESP32-S3 side only, and check pins against the table above.
+Drawn in Cirkit Designer for the first version of the robot, which had a Jetson Nano. The Raspberry Pi camera module in the drawing isn't wired. The robot now has the Xavier NX and the CSI camera listed above, so use this diagram for the ESP32-S3 side only, and check pins against the table above.
 
 ## Reference Sheets
 

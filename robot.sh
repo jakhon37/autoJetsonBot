@@ -22,6 +22,10 @@ VNC_PORT=5900
 VNC_RESOLUTION=${VNC_RESOLUTION:-"1920x1080x24"}
 XVFB_DISPLAY=":99"
 XVFB_AUTH="/tmp/xvfb99.auth"
+# CSI camera, read on the Jetson host by tools/csi_camera_server.py (see start_camera_server)
+CAMERA_PORT="${CAMERA_PORT:-8091}"
+CAMERA_PID_FILE="/tmp/autojetsonbot_camera_server.pid"
+CAMERA_LOG="/tmp/autojetsonbot_camera_server.log"
 
 log_info()    { echo -e "${BLUE}[INFO]${NC} $1"; }
 log_success() { echo -e "${GREEN}[SUCCESS]${NC} $1"; }
@@ -59,6 +63,9 @@ UTILITY COMMANDS:
 ENVIRONMENT:
     ROS_DISTRO  humble (default) or foxy
     Example:    ROS_DISTRO=foxy ./robot.sh image && ROS_DISTRO=foxy ./robot.sh sim
+    CAMERA_FLIP    0 (default) none, 1 rotate 90 deg left, 2 rotate 180 deg, 3 rotate 90 deg right
+    CAMERA_WIDTH, CAMERA_HEIGHT, CAMERA_FPS   820, 616 and 15 by default (full field of view)
+    Example:    CAMERA_FLIP=2 ./robot.sh robot
 
 EXAMPLES:
     ./robot.sh image           # docker build -f Dockerfile.humble -t auto_ros:humble
@@ -152,7 +159,10 @@ _launch() {
     local EXTRA_ARGS="$*"
     log_info "Launching Robot System with: ${EXTRA_ARGS:-"YAML Defaults"}"
     check_container
-    
+    if [[ " ${EXTRA_ARGS} " != *" sim:=true "* ]]; then
+        start_camera_server
+    fi
+
     # Infrastructure
     start_virtual_display
     start_vnc_server
@@ -216,9 +226,61 @@ start_openbox() {
 
 # ── Utility Commands ──────────────────────────────────────────────────────────
 
+# The CSI camera is read on the Jetson host: Argus, NVIDIA's camera stack, isn't in the container.
+# The ROS node jetson_bot_camera/mjpeg_camera_node reads this server's stream on 127.0.0.1.
+camera_server_running() {
+    local pid
+    pid=$(cat "$CAMERA_PID_FILE" 2>/dev/null) || return 1
+    [ -n "$pid" ] && grep -q csi_camera_server "/proc/$pid/cmdline" 2>/dev/null
+}
+
+start_camera_server() {
+    if [ ! -e /etc/nv_tegra_release ]; then
+        return 0  # not a Jetson, so no Argus camera
+    fi
+    if [ ! -e /dev/video0 ]; then
+        log_warn "No /dev/video0, so no camera stream. A CSI camera is only detected at boot: reseat its ribbon with the power off, then boot."
+        return 0
+    fi
+    if camera_server_running; then
+        log_info "Camera server already running (pid $(cat "$CAMERA_PID_FILE"))."
+        return 0
+    fi
+    log_info "Starting the CSI camera server on 127.0.0.1:${CAMERA_PORT} (log: ${CAMERA_LOG})..."
+    rm -f "$CAMERA_PID_FILE"
+    # Started from a subshell, so it isn't this shell's child: a shell can wait on its children
+    # when it exits, which would hold up this script (and an SSH session running it).
+    # The server writes its own pid file.
+    ( setsid nohup python3 "$(pwd)/tools/csi_camera_server.py" --port "$CAMERA_PORT" \
+        --width "${CAMERA_WIDTH:-820}" --height "${CAMERA_HEIGHT:-616}" \
+        --fps "${CAMERA_FPS:-15}" --flip "${CAMERA_FLIP:-0}" --pid-file "$CAMERA_PID_FILE" \
+        > "$CAMERA_LOG" 2>&1 < /dev/null & )
+    for _ in $(seq 1 25); do
+        camera_server_running && return 0
+        sleep 0.2
+    done
+    log_warn "The camera server didn't start; see ${CAMERA_LOG}"
+}
+
+stop_camera_server() {
+    if camera_server_running; then
+        local pid
+        pid=$(cat "$CAMERA_PID_FILE")
+        kill "$pid" 2>/dev/null || true
+        # Wait until it has released the camera, or the next start can't open it.
+        for _ in $(seq 1 40); do
+            [ -e "/proc/$pid" ] || break
+            sleep 0.2
+        done
+        log_info "Camera server stopped."
+    fi
+    rm -f "$CAMERA_PID_FILE"
+}
+
 stop_robot() {
     log_info "Stopping all processes (Aggressive Cleanup)..."
-    
+    stop_camera_server
+
     if ! docker ps --format '{{.Names}}' | grep -q "^$CONTAINER_NAME$"; then
         log_warn "Container $CONTAINER_NAME is not running."
         return 0

@@ -131,28 +131,33 @@ controller_server:
       plugin: "nav2_controller::SimpleProgressChecker"
       required_movement_radius: 0.5
       movement_time_allowance: 10.0
+    # The robot stops within 0.10 m of a goal: 0.25 m, TurtleBot3's value, is more than this
+    # robot's radius. DWB's RotateToGoal critic reads FollowPath's copy, so keep the two equal.
     general_goal_checker:
       plugin: "nav2_controller::SimpleGoalChecker"
-      xy_goal_tolerance: 0.25
+      xy_goal_tolerance: 0.10
       yaw_goal_tolerance: 0.25
       stateful: True
     FollowPath:
       plugin: "dwb_core::DWBLocalPlanner"
       debug_trajectory_details: True
+      # Speeds this robot was checked at on the floor (0.15 m/s and 0.5 rad/s, 2026-11-23), and
+      # accelerations it reaches with room to spare. Keep them equal to velocity_smoother's, which
+      # ramps the commands, and behavior_server's.
       min_vel_x: 0.0
       min_vel_y: 0.0
-      max_vel_x: 0.26
+      max_vel_x: 0.15
       max_vel_y: 0.0
-      max_vel_theta: 1.0
+      max_vel_theta: 0.5
       min_speed_xy: 0.0
-      max_speed_xy: 0.26
+      max_speed_xy: 0.15
       min_speed_theta: 0.0
-      acc_lim_x: 2.5
+      acc_lim_x: 0.5
       acc_lim_y: 0.0
-      acc_lim_theta: 3.2
-      decel_lim_x: -2.5
+      acc_lim_theta: 1.5
+      decel_lim_x: -0.5
       decel_lim_y: 0.0
-      decel_lim_theta: -3.2
+      decel_lim_theta: -1.5
       vx_samples: 20
       vy_samples: 5
       vtheta_samples: 20
@@ -160,7 +165,7 @@ controller_server:
       linear_granularity: 0.05
       angular_granularity: 0.025
       transform_tolerance: 0.2
-      xy_goal_tolerance: 0.25
+      xy_goal_tolerance: 0.10
       yaw_goal_tolerance: 0.25
       trans_stopped_velocity: 0.25
       short_circuit_trajectory_evaluation: True
@@ -190,12 +195,14 @@ local_costmap:
       width: 3
       height: 3
       resolution: 0.05
-      robot_radius: 0.15
+      # The chassis' front corners are 0.181 m from base_footprint, the axle's centre, which the
+      # robot turns about, so a circle of 0.19 m holds the whole robot at every heading.
+      robot_radius: 0.19
       plugins: ["static_layer", "obstacle_layer", "inflation_layer"]
       inflation_layer:
         plugin: "nav2_costmap_2d::InflationLayer"
         cost_scaling_factor: 3.5
-        inflation_radius: 0.25
+        inflation_radius: 0.30
       obstacle_layer:
         plugin: "nav2_costmap_2d::ObstacleLayer"
         enabled: True
@@ -223,7 +230,7 @@ global_costmap:
       global_frame: map
       robot_base_frame: base_footprint
       use_sim_time: false
-      robot_radius: 0.15
+      robot_radius: 0.19  # as local_costmap's
       resolution: 0.05
       track_unknown_space: true
       plugins: ["static_layer", "obstacle_layer", "inflation_layer"]
@@ -247,7 +254,7 @@ global_costmap:
       inflation_layer:
         plugin: "nav2_costmap_2d::InflationLayer"
         cost_scaling_factor: 3.5
-        inflation_radius: 0.25
+        inflation_radius: 0.30
       always_send_full_costmap: True
 
 map_server:
@@ -305,9 +312,9 @@ behavior_server:
     transform_tolerance: 0.1
     use_sim_time: false
     simulate_ahead_time: 2.0
-    max_rotational_vel: 1.0
+    max_rotational_vel: 0.5  # as FollowPath's
     min_rotational_vel: 0.4
-    rotational_acc_lim: 3.2
+    rotational_acc_lim: 1.5
 
 robot_state_publisher:
   ros__parameters:
@@ -330,10 +337,10 @@ velocity_smoother:
     smoothing_frequency: 20.0
     scale_velocities: False
     feedback: "OPEN_LOOP"
-    max_velocity: [0.26, 0.0, 1.0]
-    min_velocity: [-0.26, 0.0, -1.0]
-    max_accel: [2.5, 0.0, 3.2]
-    max_decel: [-2.5, 0.0, -3.2]
+    max_velocity: [0.15, 0.0, 0.5]  # as FollowPath's
+    min_velocity: [-0.15, 0.0, -0.5]
+    max_accel: [0.5, 0.0, 1.5]
+    max_decel: [-0.5, 0.0, -1.5]
     odom_topic: "/odom_filtered"
     odom_duration: 0.1
     deadband_velocity: [0.0, 0.0, 0.0]

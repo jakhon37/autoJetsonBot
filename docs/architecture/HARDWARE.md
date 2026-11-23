@@ -65,10 +65,12 @@ From the `MOTOR-ESP32S3` firmware the board runs since 2026-11-10, and checked o
 
 Argus, NVIDIA's camera stack, runs on the Jetson host and isn't in the ROS container. So the camera is read in two steps:
 
-1. **On the host,** [`tools/csi_camera_server.py`](../../tools/csi_camera_server.py) reads the camera with `nvarguscamerasrc` in its 1640×1232 mode, which keeps the full field of view. It scales the frames to 820×616 at 15 fps and encodes JPEG on the Jetson's hardware encoder. It serves them as an MJPEG stream on `127.0.0.1:8091`, each frame tagged with its capture time.
+1. **On the host,** [`tools/csi_camera_server.py`](../../tools/csi_camera_server.py) reads the camera with `nvarguscamerasrc` in its 1640×1232 mode, which keeps the full field of view. The Jetson's video hardware scales the frames to 820×616 at 15 fps. The script corrects their colour (below), encodes JPEG and serves them as an MJPEG stream on `127.0.0.1:8091`, each frame tagged with its capture time. It uses about 70% of one of the Jetson's six cores, most of it for the JPEG encoding.
 2. **In the container,** `jetson_bot_camera`'s `mjpeg_camera_node` publishes each JPEG on `/camera/image_raw/compressed`. While anything subscribes, it also publishes decoded `bgr8` frames on `/camera/image_raw`, which the Web UI shows. Both use the frame `camera_optical_link`.
 
 `./robot.sh robot` starts the server when the Jetson has `/dev/video0`, and `./robot.sh stop` stops it. If the camera is mounted turned, set `CAMERA_FLIP`, for example `CAMERA_FLIP=2 ./robot.sh robot` for upside down. `./robot.sh help` lists the values. The node takes any MJPEG URL through the launch argument `camera_url`, so it could read an ESP32-CAM's stream too.
+
+**Colour.** With the Jetson's default tuning, this camera and lens give everything a magenta cast, which turns pink toward the edges. On white paper over the lens, red came out up to 16% above green overall and nearly 50% above it at the edges. [`tools/camera_shading.py`](../../tools/camera_shading.py) measures this on white paper and corrects red and blue against green in every frame, so white comes out neutral grey all over. Green and brightness are left alone, so uneven light on the paper doesn't matter, and the dark corners don't get noisier. The measurement is in [`tools/camera_color_shading.json`](../../tools/camera_color_shading.json), which the server loads at start. To measure again, tape white paper over the whole lens under the room's usual light, then run `./robot.sh camera-color`. It refuses a picture that isn't plain or that is clipped to white.
 
 ## Physical Parameters
 

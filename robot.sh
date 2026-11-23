@@ -467,46 +467,37 @@ show_esp32_status() {
         return
     fi
 
-    python3 - <<'PY'
-import os
+    python3 - "$(dirname "$(readlink -f "$0")")/src/jetson_bot_diffdrive" <<'PY'
+import os, sys
 GREEN, YELLOW, RED, NC = "\033[0;32m", "\033[1;33m", "\033[0;31m", "\033[0m"
-by_id_root = "/dev/serial/by-id"
+sys.path.insert(0, sys.argv[1])  # the motor board's port, by the rules launch and the bridge use
+try:
+    from jetson_bot_diffdrive.serial_ports import (
+        com_socket_warning, esp32_socket, find_esp32_port, read_usb_id, serial_by_id)
+except ImportError as exc:
+    print(f"USB:       {YELLOW}WARN{NC}  can't check the ports: {exc}")
+    raise SystemExit
 print("USB list:")
-if os.path.isdir(by_id_root):
-    for name in sorted(os.listdir(by_id_root)):
-        path = os.path.realpath(os.path.join(by_id_root, name))
-        tag = "ESP32?" if any(s in name.lower() for s in ("1a86", "qinheng", "wch", "esp", "acm")) and "cp210" not in name.lower() else \
-              "lidar?" if "cp210" in name.lower() or "silicon" in name.lower() else "other"
-        print(f"           {tag:7} {path}  ({name})")
-else:
+by_id = serial_by_id()
+for name, path in by_id.items():
+    socket = esp32_socket(name, read_usb_id(os.path.basename(path))) if "ttyACM" in path else ""
+    low = name.lower()
+    tag = {"native": "ESP32", "com": "ESP32 COM"}.get(socket) or \
+          ("lidar?" if "cp210" in low or "silicon" in low else "other")
+    print(f"           {tag:9} {path}  ({name})")
+if not by_id:
     print("           (no /dev/serial/by-id)")
-skip = ("cp210", "silicon_labs", "rplidar")
-prefer = ("1a86", "qinheng", "usb_single_serial", "wch", "esp32", "arduino")
-esp = None
-esp_id = None
-if os.path.isdir(by_id_root):
-    for name in sorted(os.listdir(by_id_root)):
-        low = name.lower()
-        path = os.path.realpath(os.path.join(by_id_root, name))
-        if any(s in low for s in skip) or not os.path.exists(path):
-            continue
-        if any(s in low for s in prefer) or "ttyACM" in path:
-            esp, esp_id = path, name
-            if any(s in low for s in prefer):
-                break
-if not esp:
-    for p in ("/dev/ttyACM0", "/dev/ttyACM1", "/dev/ttyACM2"):
-        if os.path.exists(p):
-            esp, esp_id = p, p
-            break
-if esp:
+esp, esp_id, socket = find_esp32_port()
+if socket == "com":
+    print(f"USB:       {YELLOW}WARN{NC}  {com_socket_warning(esp, esp_id)}")
+elif esp:
     print(f"USB:       {GREEN}OK{NC}  {esp}" + (f"  ({esp_id})" if esp_id != esp else ""))
 else:
     print(f"USB:       {RED}FAIL{NC}  ESP32 not on USB (check cable / power)")
 PY
 
     docker exec -i "$CONTAINER_NAME" python3 - <<'PY' || true
-import glob, os
+import glob, os, sys
 GREEN, YELLOW, RED, NC = "\033[0;32m", "\033[1;33m", "\033[0;31m", "\033[0m"
 acm = [p for p in ("/dev/ttyACM0", "/dev/ttyACM1", "/dev/ttyACM2") if os.path.exists(p)]
 holders = []
@@ -527,13 +518,12 @@ for fd in glob.glob("/proc/[0-9]*/fd/*"):
         holders.append(item)
 if holders:
     live = None
-    by_id = "/dev/serial/by-id"
-    if os.path.isdir(by_id):
-        for name in os.listdir(by_id):
-            low = name.lower()
-            if any(s in low for s in ("1a86", "qinheng", "wch", "usb_single_serial")):
-                live = os.path.realpath(os.path.join(by_id, name))
-                break
+    try:  # the motor board's port, by the rules launch and the bridge use
+        sys.path.insert(0, "/autonomous_ROS/src/jetson_bot_diffdrive")
+        from jetson_bot_diffdrive.serial_ports import find_esp32_port
+        live = find_esp32_port()[0]
+    except ImportError:
+        pass
     stale = live and all(live not in h and os.path.basename(live) not in h for h in holders)
     if stale:
         print(f"Lock:      {RED}STALE{NC}  bridge on old port, ESP32 is {live}")

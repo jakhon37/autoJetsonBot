@@ -16,6 +16,7 @@ import tf2_ros
 from jetson_bot_diffdrive.odometry import (
     POSE_COVARIANCE_DIAGONAL, TWIST_COVARIANCE_DIAGONAL, WheelOdometry, covariance,
     encoder_dt, parse_encoder_line)
+from jetson_bot_diffdrive.serial_ports import com_socket_warning, find_esp32_port
 
 class DiffDriveBridge(Node):
     def __init__(self):
@@ -112,25 +113,12 @@ class DiffDriveBridge(Node):
             self._close_serial()
 
     def _discover_port(self):
-        by_id = '/dev/serial/by-id'
-        skip = ('cp210', 'silicon_labs', 'rplidar')
-        prefer = ('espressif', 'esp32', 'jtag_serial', '1a86', 'qinheng',
-                  'usb_single_serial', 'wch', 'arduino')
-        try:
-            names = sorted(os.listdir(by_id)) if os.path.isdir(by_id) else []
-        except Exception:
-            names = []
-        for name in names:
-            low = name.lower()
-            if any(s in low for s in skip):
-                continue
-            path = os.path.realpath(os.path.join(by_id, name))
-            if any(s in low for s in prefer) and os.path.exists(path):
-                return path
-        for p in ('/dev/ttyACM0', '/dev/ttyACM1', '/dev/ttyACM2'):
-            if os.path.exists(p):
-                return p
-        return None
+        # The same rules as launch and ./robot.sh status, from serial_ports.py. This runs on
+        # every 50 Hz tick while the port is missing, so the warning is throttled.
+        port, name, socket = find_esp32_port()
+        if socket == 'com':
+            self.get_logger().warn(com_socket_warning(port, name), throttle_duration_sec=10.0)
+        return port
 
     def cmd_vel_callback(self, msg):
         if not self.ser: return

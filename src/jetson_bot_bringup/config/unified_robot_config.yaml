@@ -9,7 +9,10 @@ global:
     headless: false            # true: Run Gazebo in background (fast test) | false: Show Gazebo window
     use_sim_time: true          # true for sim (default for ./robot.sh sim); hw nodes override to false
 
-    map_name: "lab_map_v2"        # Base name for saved/loaded maps
+    # Base name for saved/loaded maps. lab_map_v3 was mapped on the robot on 2026-11-24, after the
+    # lidar frame was corrected; lab_map_v2 (2026-11-09) has the lidar frame 90 deg off.
+    # In mapping mode, ./robot.sh stop, nav and map2nav save over this map: use ./robot.sh stop f.
+    map_name: "lab_map_v3"
     # map_name: "demo_map"        # Base name for saved/loaded maps
     map_dir: "/autonomous_ROS/maps" # Persistent maps dir (hardware + sim friendly). Created if missing.
     gazebo_world: "lab_small_light.world"  # World file to load in simulation

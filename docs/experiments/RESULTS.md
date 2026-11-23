@@ -23,6 +23,7 @@ What was tested, on what, and what it showed. Simulation work ran in Docker on a
 | 15 | [The camera's colour](#15-the-cameras-colour) | Robot | 2026-11-23 | White paper neutral grey to within about 3% across the frame, from a magenta cast that turned pink at the edges |
 | 16 | [Hardware recheck after rewiring](#16-hardware-recheck-after-rewiring) | Robot | 2026-11-23 | The left encoder holds under power. Reversed encoder power, a dead 5V pin and reversed motor plugs found and fixed, and the lifted wheels hold 0.100 m/s |
 | 17 | [Floor calibration after the rewiring](#17-floor-calibration-after-the-rewiring) | Robot | 2026-11-23 | Floor feed-forward set again, the motor plugs found swapped left for right rather than reversed, and the remounted lidar measured at 0°, after which SLAM matched the wheels |
+| 18 | [Mapping run and the first Nav2 goal](#18-mapping-run-and-the-first-nav2-goal) | Robot, simulation | 2026-11-24 | The room mapped as `lab_map_v3`, and the first Nav2 goal on the robot reached: 1.0 m asked, 6.5 cm short by tape, inside the 10 cm tolerance. The EKF's distance read 8.5% short of the wheels under Nav2's load |
 
 ---
 
@@ -454,8 +455,62 @@ The lidar had been remounted, and its 0° now points straight ahead. Four straig
 
 ---
 
+## 18. Mapping Run and the First Nav2 Goal
+
+**Goal:** Map the room the robot works in, now that the lidar's frame is right, check the map, and send the robot its first Nav2 goal, measuring where it stops.
+
+**Setup:** Firmware `e05cc20` and the lidar at yaw 0, as experiment 17 left them. Before the drive, the Nav2 settings below. The robot was on the floor of the room, with someone at it for every drive. `./robot.sh robot` started mapping, and they drove it around the room from the Web UI. A script logged SLAM's map pose, `/odom`, `/odom_filtered`, the gyro and the commands five times a second and drew the map every 10 s, sending nothing. The map was saved as `maps/lab_map_v3`. Then `./robot.sh nav` on that map, AMCL's start pose set to the map pose of a taped spot on the floor, and one goal 1.0 m straight ahead, the only direction with a clear metre: in every other direction checked, a wall came within 0.25 m of the robot's centre in 0.8 m or less. Afterwards three tape-measure distances between the wheels' start marks and the wheels gave where the robot really stopped.
+
+| Nav2 setting | Was | Now | Why |
+| :--- | :--- | :--- | :--- |
+| `robot_radius`, both costmaps | 0.15 m | 0.19 m | The chassis' front corners are 0.181 m from `base_footprint`, the axle's centre, which the robot turns about |
+| `inflation_radius` | 0.25 m | 0.30 m | Keeps about 10 cm of falling cost outside the robot, as before |
+| Top speed, DWB, velocity smoother and spin | 0.26 m/s, 1.0 rad/s | 0.15 m/s, 0.5 rad/s | The speeds checked on the floor in experiment 17 |
+| Acceleration and deceleration | 2.5 m/s², 3.2 rad/s² | 0.5 m/s², 1.5 rad/s² | TurtleBot3's values before. These ramp to full speed in 0.3 s |
+| Goal tolerance, goal checker and DWB | 0.25 m | 0.10 m | 0.25 m was more than the robot's radius |
+
+In Gazebo on a PC, with these settings, a goal 1.0 m ahead and one 0.8 m away needing a 106° turn both succeeded with no recoveries, stopping 9.3 and 9.4 cm from the goal.
+
+<p align="center">
+  <img src="../../assets/results/map_real_lab_map_v3_2026-11-24.png" alt="The room's occupancy grid with the mapping drive, the Nav2 path, the goal and where the robot stopped" width="60%">
+  <br>
+  <em><code>lab_map_v3</code> with its 0.5 m grid: the mapping drive (light blue) from where SLAM started (grey ring), the Nav2 path (green) from the taped start, the goal (red cross), and where the tape put the robot after the goal (red). Circles are the 0.19 m footprint</em>
+</p>
+
+| Mapping run | Result |
+| :--- | :--- |
+| Driven | 8.55 m on the wheels in 46 s of commands, inside about 1.5 × 1.3 m, the heading ending two full turns and 13° to the right of the start |
+| Fastest command | 0.50 m/s and 1.0 rad/s, the Web UI's defaults, where 0.15 m/s and 0.5 rad/s had been asked for |
+| Map | 3.45 × 5.90 m in 5 cm cells: 330 occupied, 1,792 free and 6,020 unknown |
+| Walls | The eight longest straight runs, 0.50 to 1.20 m long, lie 1.6 to 3.8 cm (RMS) off a straight line. The main walls meet within 2.2° of square |
+| At the end of the drive | SLAM, the wheels and the EKF within 1.8 cm and 2.5° of each other, 30 cm from where SLAM started. SLAM's last correction to odometry was 2.0 cm and 1.2° |
+| Scan there against the saved map | 90% of points within 5 cm of a wall, 100% within 10 cm. The best fit was 2 cm and 1° from SLAM's pose |
+| Path length | Wheels 8.55 m, EKF 8.37 m (−2.1%), SLAM 8.65 m |
+| Saving through slam_toolbox's `save_map` | Failed once (result 255), then worked twice |
+
+| Nav2 goal, 1.0 m straight ahead | Forward | Left | Turned | From the goal |
+| :--- | ---: | ---: | ---: | ---: |
+| Tape: three distances from the wheels' start marks | 93.5 cm | +1.6 cm | −13.7° | 6.7 cm |
+| Lidar scan fitted to the map | 94.8 cm | +1.3 cm | −13.3° | 5.4 cm |
+| AMCL, Nav2's own estimate | 90.9 cm | +2.2 cm | −12.2° | 9.4 cm |
+| Wheels (`/odom`) | 95.4 cm | +0.6 cm | −13.4° | 4.7 cm |
+| EKF (`/odom_filtered`) | 87.2 cm | +0.9 cm | −12.9° | 12.8 cm |
+| Gyro | | | −12.7° | |
+
+**Result:** The first Nav2 goal on the robot succeeded in 8.9 s with no recoveries, at up to 0.15 m/s. By the tape it stopped 6.5 cm short of the goal and 1.6 cm to the left, its heading 13.7° right of the goal's. Each of those is inside Nav2's tolerances of 10 cm and 14°, and Nav2 stops as soon as the robot is inside them, so a stop most of a tolerance short is what it was asked for. One centimetre off in any one tape distance moves the forward figure by 0.5 cm, but the sideways one by up to 4 cm and the heading by 3°. The planner bowed the path up to 8 cm left of the straight line and turned back right near the end, and the robot was still turning when it came within 10 cm. AMCL placed the stop 2.6 cm behind the tape, and the lidar scan fitted to the map 1.3 cm ahead of it.
+
+The map is consistent: its walls are single lines, and the robot's scan at the end of the loop fitted the map within 2 cm and 1°. The robot had been driven at up to 0.5 m/s and 1 rad/s, faster than asked, because the Web UI's teleop sends its Max Linear Velocity (1.0 m/s) and Max Angular Velocity (2.0 rad/s) times the speed sliders (0.50). The start of the mapping drive hadn't been taped, so the spot where the drive ended was taped instead, and its pose in the map became AMCL's start pose for the goal. Put back on that spot for the goal, the robot's scan fitted the map within 2 to 3 cm and 1° of that pose.
+
+The EKF's distance fell behind the wheels from the first second of the goal and ended 8.5% short. Over the mapping drive it was 2.1% short. The EKF takes only the wheels' speeds, and the bridge works out each speed as counts over the time since its last tick that had counts, at least 1/50 s per line. A tick that runs late gives its line a longer time, so a lower speed, and the 1/50 s floor stops any line from getting the matching higher one, so the speeds can only read low, and more so the busier the Jetson. The wheels' own position counts every tick and isn't affected. With Nav2 running, the Jetson's load average was about 8 on 6 cores, the camera chain alone taking about 1.7 cores, and the EKF missed its 30 Hz cycle 111 times. AMCL corrected most of the shortfall, every 25 cm of travel.
+
+Saving and loading the map showed two faults. slam_toolbox's `save_map` service runs nav2's `map_saver_cli`, which waits only 2 s for `/map`, and on the busy Jetson a new node took about 3 s to find the other nodes. So the first save failed. The Web UI's Save Map uses the same service and reports success whatever it returns. With `save_map_timeout` at 15 s the saver worked. Then Nav2 loaded the map's 6,020 unknown cells as free: `map_saver_cli` writes `free_thresh: 0.25`, and an unknown pixel (205) reads as 0.196, under it. `lab_map_v3.yaml` now uses 0.196, as Nav2's own sample maps do. The goal ran before that change, but its path crossed only cells the robot had seen. After the map was saved, the battery ran flat, and the goal ran with the charger plugged in. The Jetson restarted twice that night, and the motor board started normally both times.
+
+---
+
 ## What's Next
 
-1. **Hardware mapping run:** A full mapping run and a Nav2 goal on the real robot. The wheels, the gyro, the lidar's angle and SLAM agreed on the floor (experiment 17). Keep the robot on its wheels while SLAM runs, or restart SLAM after carrying or turning it by hand.
-2. **Calibration:** After the robot has been on for hours, check in the `d` line that the gyro's learned offsets have followed its drift. Counts per wheel turn haven't been measured again since the rewiring.
-3. **Camera:** Lock the lens, check the colour correction under daylight, and calibrate the wide-angle lens (intrinsics and distortion) for camera-based docking, which is developed in a separate project.
+1. **Odometry under load:** Make the bridge's wheel speeds unbiased when its timer runs late, for example from timestamps the motor board sends, so the EKF's distance follows the wheels (experiment 18). Lightening the Jetson's load, the camera chain first, would help too.
+2. **Map saving:** Save maps with a wait long enough for the busy Jetson and with `free_thresh` 0.196, and have the Web UI report a failed save.
+3. **Longer goals:** Goals with turns and across more of the room, a tighter yaw tolerance, and the dashboard's goal button on the robot.
+4. **Calibration:** After the robot has been on for hours, check in the `d` line that the gyro's learned offsets have followed its drift. Counts per wheel turn haven't been measured again since the rewiring.
+5. **Camera:** Lock the lens, check the colour correction under daylight, and calibrate the wide-angle lens (intrinsics and distortion) for camera-based docking, which is developed in a separate project.

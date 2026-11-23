@@ -1,0 +1,8 @@
+image: lab_map_v3.pgm
+mode: trinary
+resolution: 0.05
+origin: [-0.68, -4.41, 0]
+negate: 0
+occupied_thresh: 0.65
+# Not map_saver's 0.25: unknown pixels (205) read as 0.196, so with 0.25 they load as free.
+free_thresh: 0.196

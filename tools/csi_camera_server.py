@@ -3,14 +3,16 @@
 
 Argus, NVIDIA's camera stack, runs on the Jetson host but isn't in the ROS container. So this
 script reads the camera here, corrects its colour shading (see camera_shading.py) and encodes
-JPEG. In the container, jetson_bot_camera's mjpeg_camera_node turns the stream into ROS images.
-robot.sh starts this script when the Jetson has /dev/video0, and stops it with the robot.
+JPEG on the Jetson's JPEG engine, or with OpenCV if that doesn't start or fails (see
+camera_jpeg.py). In the container, jetson_bot_camera's mjpeg_camera_node turns the stream into
+ROS images. robot.sh starts this script when the Jetson has /dev/video0, and stops it with the
+robot.
 
 Endpoints, on 127.0.0.1 unless --host says otherwise:
   /stream             multipart MJPEG; each part has an X-Timestamp header with the capture
                       time in seconds since the epoch
   /snapshot.jpg       the latest frame; ?raw=1 gives it without the colour correction
-  /health             one line of text
+  /health             one line of text, including which JPEG encoder is in use
   /calibrate          measure the colour shading on the next frames, with white paper over the
                       lens, save it to --color-map and use it (./robot.sh camera-color)
   /shading            how far the colour strays from the middle's, before and after correction
@@ -29,6 +31,7 @@ import time
 import urllib.parse
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
+import camera_jpeg
 import camera_shading
 import cv2
 import gi
@@ -56,12 +59,13 @@ CALIBRATION_FRAMES = 30
 class Camera:
     """Run the GStreamer pipeline, correct each frame and keep the latest as JPEG."""
 
-    def __init__(self, sensor_id, width, height, fps, flip, quality, color_map):
+    def __init__(self, sensor_id, width, height, fps, flip, quality, color_map, jpeg='auto'):
         out_w, out_h = (height, width) if flip in (1, 3) else (width, height)
         self.size = (out_w, out_h)
         self.flip = flip
         self.quality = quality
         self.color_map = color_map
+        self.encoder, self.jpeg_note = camera_jpeg.open_encoder(jpeg, self.size, quality, fps)
         # nvvidconv scales and turns the frames on the Jetson's video hardware and hands them
         # over as BGRx, so the colour correction can work on them.
         self.pipeline = Gst.parse_launch(
@@ -109,6 +113,7 @@ class Camera:
                     self._keep(sample)
         finally:
             self.pipeline.set_state(Gst.State.NULL)
+            self.encoder.close()
             stop.set()
             with self.cond:
                 self.cond.notify_all()
@@ -118,8 +123,14 @@ class Camera:
         ok, info = buf.map(Gst.MapFlags.READ)
         if not ok:
             return
+        w, h = self.size
         try:
-            data = np.frombuffer(info.data, np.uint8).copy()
+            # info.data is already a copy of the buffer. Copying it once more, as the server
+            # once did, cost 11% of a core and doubled the slowest frames' delay.
+            data = np.frombuffer(info.data, np.uint8)
+            stride = data.size // h  # rows can be padded
+            raw = cv2.cvtColor(data.reshape(h, stride)[:, :w * 4].reshape(h, w, 4),
+                               cv2.COLOR_BGRA2BGR)
         finally:
             buf.unmap(info)
         now = time.time()
@@ -131,23 +142,34 @@ class Camera:
             age = (clock.get_time() - self.pipeline.get_base_time() - buf.pts) / Gst.SECOND
             if 0.0 <= age < 1.0:
                 stamp = now - age
-        w, h = self.size
-        stride = data.size // h  # rows can be padded
-        raw = cv2.cvtColor(data.reshape(h, stride)[:, :w * 4].reshape(h, w, 4), cv2.COLOR_BGRA2BGR)
         calibration = self.calibration
         if calibration is not None and calibration[1] < calibration[0]:
             calibration[2] += raw
             calibration[1] += 1
         correction = self.correction
         frame = correction.apply(raw) if correction is not None else raw
-        ok, jpeg = cv2.imencode('.jpg', frame, [cv2.IMWRITE_JPEG_QUALITY, self.quality])
-        if not ok:
+        jpeg = self._encode(frame)
+        if jpeg is None:
             return
         with self.cond:
-            self.jpeg, self.raw, self.stamp = jpeg.tobytes(), raw, stamp
+            self.jpeg, self.raw, self.stamp = jpeg, raw, stamp
             self.count += 1
             self.times.append(now)
             self.cond.notify_all()
+
+    def _encode(self, frame):
+        """Return the frame as JPEG bytes, or None. If the hardware fails, carry on in software."""
+        try:
+            return self.encoder.encode(frame)
+        except camera_jpeg.EncodeError as exc:
+            if self.encoder.kind == 'software':
+                return None
+            print(f'hardware JPEG failed ({exc}); encoding in software from now on',
+                  file=sys.stderr, flush=True)
+            self.encoder.close()
+            self.encoder = camera_jpeg.SoftwareJpeg(self.quality)
+            self.jpeg_note = f'software, since the hardware encoder failed: {exc}'
+            return self._encode(frame)
 
     def calibrate(self, frames=CALIBRATION_FRAMES):
         """Measure the colour shading on the next frames, save it and use it. Returns a report."""
@@ -185,7 +207,8 @@ class Camera:
         if not count:
             return 'waiting for the first frame'
         return (f'ok frames={count} fps={self.fps():.1f} age={time.time() - stamp:.2f}s '
-                f'size={self.size[0]}x{self.size[1]} color={self.correction_note}')
+                f'size={self.size[0]}x{self.size[1]} jpeg={self.encoder.kind} '
+                f'color={self.correction_note}')
 
 
 def make_handler(camera, stop):
@@ -275,6 +298,9 @@ def main():
     parser.add_argument('--flip', type=int, default=0, choices=sorted(FLIPS),
                         help='; '.join(f'{k}: {v}' for k, v in FLIPS.items()))
     parser.add_argument('--quality', type=int, default=80, help='JPEG quality, 1 to 100')
+    parser.add_argument('--jpeg', default='auto', choices=camera_jpeg.KINDS,
+                        help='JPEG encoder: hardware is the Jetson\'s JPEG engine (nvjpegenc), '
+                        'software is OpenCV; auto (default) takes the hardware if it starts')
     parser.add_argument('--color-map', help='colour shading file: used if it exists, '
                         'written by /calibrate')
     parser.add_argument('--pid-file', help='write this process id here while running')
@@ -298,8 +324,16 @@ def main():
 def serve(args):
     """Run the camera and the HTTP server until a signal, a camera error or a stall."""
     Gst.init(None)
-    camera = Camera(args.sensor_id, args.width, args.height, args.fps, args.flip, args.quality,
-                    args.color_map)
+    # One thread for OpenCV. Each step here takes a millisecond or two, and OpenCV's default
+    # pool, a thread per core, spent more CPU waiting for work than doing it: the server took
+    # 75% of a core with it and 53% without, at the same frame rate (2026-11-24).
+    cv2.setNumThreads(1)
+    try:
+        camera = Camera(args.sensor_id, args.width, args.height, args.fps, args.flip,
+                        args.quality, args.color_map, args.jpeg)
+    except camera_jpeg.EncodeError as exc:
+        print(f'no hardware JPEG encoder: {exc}', file=sys.stderr, flush=True)
+        sys.exit(1)
     stop = threading.Event()
     server = ThreadingHTTPServer((args.host, args.port), make_handler(camera, stop))
     server.daemon_threads = True
@@ -314,8 +348,8 @@ def serve(args):
     worker.start()
     w, h = camera.size
     print(f'camera server on http://{args.host}:{args.port}/: {w}x{h} at {args.fps} fps, '
-          f'flip {args.flip} ({FLIPS[args.flip]}), colour correction {camera.correction_note}',
-          flush=True)
+          f'flip {args.flip} ({FLIPS[args.flip]}), colour correction {camera.correction_note}, '
+          f'JPEG {camera.jpeg_note}', flush=True)
 
     started = time.time()
     last_count, last_change = 0, started

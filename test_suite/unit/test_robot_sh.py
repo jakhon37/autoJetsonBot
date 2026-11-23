@@ -63,6 +63,22 @@ class TestRobotShDispatcher(unittest.TestCase):
         with open(sleep_log) as f:
             self.assertEqual(f.read().split(), ["10", "10"])
 
+    def test_lidar_motor_is_stopped_after_stop_and_freed_for_a_launch(self):
+        """Test that stop holds the lidar's motor off, and that every launch frees its port"""
+        # The holder keeps the lidar's port open. If a launch left it running, the lidar driver
+        # would share the port with it.
+        with open(ROBOT_SH) as f:
+            text = f.read()
+        stop_robot = text.split("stop_robot() {", 1)[1].split("\n}\n", 1)[0]
+        self.assertIn('"lidar_motor_off"', stop_robot)
+        dispatcher = text.split('case "${1:-help}" in', 1)[1].split("\nesac", 1)[0]
+        stop_arm = dispatcher.split("\n    stop)", 1)[1].split(";;", 1)[0]
+        self.assertIn("stop_lidar_motor", stop_arm)
+        for launch in ("up", "sim", "robot", "nav", "map2nav"):
+            arm = dispatcher.split(f"\n    {launch})", 1)[1].split(";;", 1)[0]
+            self.assertIn("stop_robot", arm, launch)
+            self.assertNotIn("stop_lidar_motor", arm, launch)
+
 
 if __name__ == "__main__":
     unittest.main(verbosity=2)

@@ -45,8 +45,9 @@ CORE COMMANDS:
     robot       Force Hardware Mode (sim:=false viz:=false)
     nav         Force Navigation Mode (auto-saves map if was mapping)
     map2nav     Save current map (if mapping) + switch to Nav2 (recommended for hardware)
-    stop        Stop all robot processes and clean up ports
+    stop        Stop all robot processes and clean up ports, and stop the lidar's motor
     camera-color  Measure the camera's colour shading: cover the lens with white paper first
+    lidar-off   Stop the lidar's motor while the stack is down, for example after a boot
 
 UTILITY COMMANDS:
     image       Build the Docker image (Humble by default)
@@ -290,6 +291,25 @@ stop_camera_server() {
     rm -f "$CAMERA_PID_FILE"
 }
 
+# The RPLidar A1's motor runs whenever its USB adapter's DTR line is released, and the CP2102's
+# driver releases it whenever the port closes, so the lidar spun whenever the stack was down.
+# tools/lidar_motor_off.py holds the port open with DTR set, which stops the motor. It's on
+# stop_robot's list, so every launch kills it first and the lidar driver gets the port.
+stop_lidar_motor() {
+    if ! docker ps --format '{{.Names}}' | grep -q "^$CONTAINER_NAME$"; then
+        log_warn "Lidar motor: the container is down, so it can't be stopped. Run: ./robot.sh lidar-off"
+        return 0
+    fi
+    if docker exec "$CONTAINER_NAME" pgrep -f lidar_motor_off.py >/dev/null 2>&1; then
+        log_info "Lidar motor: already stopped."
+        return 0
+    fi
+    docker exec -d "$CONTAINER_NAME" bash -c \
+        "python3 /autonomous_ROS/tools/lidar_motor_off.py > /tmp/lidar_motor_off.log 2>&1"
+    sleep 1
+    docker exec "$CONTAINER_NAME" head -3 /tmp/lidar_motor_off.log 2>/dev/null || true
+}
+
 stop_robot() {
     log_info "Stopping all processes (Aggressive Cleanup)..."
     stop_camera_server
@@ -314,6 +334,7 @@ needles = (
     "imu_filter_madgwick",
     "rplidar_composition",
     "rplidar_node",
+    "lidar_motor_off",
     "async_slam_toolbox",
     "slam_toolbox",
     "rosbridge_websocket",
@@ -708,6 +729,7 @@ case "${1:-help}" in
     auto)            install_deps; build_workspace ;;
     status)          show_status ;;
     camera-color)    calibrate_camera_color ;;
+    lidar-off)       check_container; stop_lidar_motor ;;
     remote)          print_remote_access ;;
     logs)            docker exec "$CONTAINER_NAME" tail -f /tmp/sim.log ;;
     verify)          verify_fusion ;;
@@ -729,6 +751,7 @@ case "${1:-help}" in
             sleep 2
         fi
         stop_robot
+        stop_lidar_motor
         ;;
     *)               show_help ;;
 esac

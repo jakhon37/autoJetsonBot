@@ -1,4 +1,5 @@
-"""Tests for the motor board's port search. serial_ports.py imports no ROS, so they run anywhere.
+"""Tests for the motor board's and the lidar's port searches. serial_ports.py imports no ROS, so
+they run anywhere.
 
 Each test makes up a /dev and a /sys/class/tty, the way the Jetson host, the robot's container
 (which has no /dev/serial/by-id) or /dev/serial/by-id alone show the devices.
@@ -10,7 +11,8 @@ import tempfile
 PKG_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, PKG_DIR)
 
-from jetson_bot_diffdrive.serial_ports import com_socket_warning, find_esp32_port  # noqa: E402
+from jetson_bot_diffdrive.serial_ports import (  # noqa: E402
+    com_socket_warning, find_esp32_port, find_lidar_port)
 
 REPO_ROOT = os.path.dirname(os.path.dirname(PKG_DIR))
 
@@ -29,6 +31,18 @@ HOST, BY_ID_ONLY, CONTAINER = (True, True), (True, False), (False, True)
 
 def _find_esp32_port(devices, view):
     """Run find_esp32_port on a made-up /dev and /sys/class/tty holding the devices."""
+    (port, name, socket), dev = _search(devices, view, find_esp32_port)
+    return port and os.path.relpath(port, dev), name, socket
+
+
+def _find_lidar_port(devices, view):
+    """Run find_lidar_port on a made-up /dev and /sys/class/tty holding the devices."""
+    (port, name), dev = _search(devices, view, find_lidar_port)
+    return port and os.path.relpath(port, dev), name
+
+
+def _search(devices, view, search):
+    """Make up a /dev and /sys/class/tty holding the devices, and run a search on them."""
     by_id, sysfs = view
     with tempfile.TemporaryDirectory() as root:
         root = os.path.realpath(root)
@@ -52,8 +66,7 @@ def _find_esp32_port(devices, view):
                         f.write(value + '\n')
                 os.makedirs(os.path.join(sys_class_tty, tty))
                 os.symlink(device, os.path.join(sys_class_tty, tty, 'device'))
-        port, name, socket = find_esp32_port(dev, sys_class_tty)
-        return port and os.path.relpath(port, dev), name, socket
+        return search(dev, sys_class_tty), dev
 
 
 def test_esp32_native_usb_comes_before_its_com_socket():
@@ -96,6 +109,37 @@ def test_ttyusb_is_never_the_motor_board():
     assert _find_esp32_port([], HOST) == (None, None, '')
 
 
+def test_lidar_is_its_cp2102_not_the_first_ttyusb():
+    """Find the lidar's CP2102 by name or USB ID, also behind a CH340 on the first ttyUSB."""
+    # robot.sh holds this port's DTR line to stop the lidar's motor, and held on a CH340 like
+    # the ESP32-CAM's programmer, DTR keeps that board in reset.
+    ch340_first = ('ttyUSB0',) + CH340[1:]
+    lidar_second = ('ttyUSB1',) + LIDAR[1:]
+    for view in (HOST, BY_ID_ONLY, CONTAINER):
+        assert _find_lidar_port([ch340_first, lidar_second, NATIVE], view)[0] == 'ttyUSB1', view
+    assert _find_lidar_port([LIDAR], HOST)[1] == LIDAR[1]
+    container_name = _find_lidar_port([LIDAR], CONTAINER)[1]
+    assert container_name == '10c4:ea60 CP2102 USB to UART Bridge Controller'
+
+
+def test_no_lidar_means_none():
+    """Take nothing when no CP2102 is there, not a CH340, the motor board or an unknown ttyUSB."""
+    unknown = ('ttyUSB0', 'usb-Unknown_Serial-if00-port0', '', '', '')
+    for view in (HOST, BY_ID_ONLY, CONTAINER):
+        assert _find_lidar_port([CH340, NATIVE, COM], view) == (None, None), view
+    assert _find_lidar_port([unknown], (False, False)) == (None, None)
+    assert _find_lidar_port([], HOST) == (None, None)
+
+
+def test_launch_and_the_lidar_motor_stop_share_the_lidar_rule():
+    """Make launch and tools/lidar_motor_off.py take the lidar's port from serial_ports.py."""
+    launch = os.path.join('src', 'jetson_bot_bringup', 'launch', 'main.launch.py')
+    for path in (launch, os.path.join('tools', 'lidar_motor_off.py')):
+        with open(os.path.join(REPO_ROOT, path), 'r') as f:
+            text = f.read()
+        assert 'find_lidar_port' in text and "'silicon_labs'" not in text, path
+
+
 def test_com_socket_warning_says_what_to_do():
     """Name the port in the warning, and say where the cable goes."""
     message = com_socket_warning('/dev/ttyACM0', '1a86:55d3 USB Single Serial')
@@ -123,5 +167,8 @@ if __name__ == '__main__':
     test_esp32_port_is_named()
     test_unknown_ttyacm_is_still_taken()
     test_ttyusb_is_never_the_motor_board()
+    test_lidar_is_its_cp2102_not_the_first_ttyusb()
+    test_no_lidar_means_none()
+    test_launch_and_the_lidar_motor_stop_share_the_lidar_rule()
     test_com_socket_warning_says_what_to_do()
     test_launch_bridge_and_status_share_these_rules()

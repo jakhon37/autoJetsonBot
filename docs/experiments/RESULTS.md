@@ -22,6 +22,7 @@ What was tested, on what, and what it showed. Simulation work ran in Docker on a
 | 14 | [The CSI camera in ROS](#14-the-csi-camera-in-ros) | Robot | 2026-11-23 | 15 fps on `/camera/image_raw`, 14 ms after capture, shown in the Web UI |
 | 15 | [The camera's colour](#15-the-cameras-colour) | Robot | 2026-11-23 | White paper neutral grey to within about 3% across the frame, from a magenta cast that turned pink at the edges |
 | 16 | [Hardware recheck after rewiring](#16-hardware-recheck-after-rewiring) | Robot | 2026-11-23 | The left encoder holds under power. Reversed encoder power, a dead 5V pin and reversed motor plugs found and fixed, and the lifted wheels hold 0.100 m/s |
+| 17 | [Floor calibration after the rewiring](#17-floor-calibration-after-the-rewiring) | Robot | 2026-11-23 | Floor feed-forward set again, the motor plugs found swapped left for right rather than reversed, and the remounted lidar measured at 0°, after which SLAM matched the wheels |
 
 ---
 
@@ -410,11 +411,51 @@ With the heading reversed, SLAM drew the room rotated with doubled walls. Nav2 w
 
 **Result:** The left encoder's B wire now holds under power. Over 20 s at speed it changed 923 times to A's 939, within one of A in every second once up to speed, where on 2026-11-10 it changed 20 times to A's 122 in one drive. Three faults from the rewiring had to be found first, each hidden behind the one before. The last is the easiest to miss: with a motor plug reversed, the motor and its encoder flip together, so the speed loop sees a wheel doing just what it was asked, and only someone watching the wheel, or a push on the floor, shows it going backward. In the air the wheels ran fast for about a second before the trim caught up, because the feed-forward is set for the floor: the 20 s hold's first second gave 864 and 938 counts, against about 702 a second after. So the lifted `/cmd_vel` drives read 15% and 24% long, where the air tuning of 2026-11-10 gave 30.8 cm and 89.9°. That floor feed-forward was measured with each motor turning the other way electrically, so it needs checking on the floor, together with `/odom` against the gyro. After the Jetson was shut down, the motor board started in download mode once more, and esptool's watchdog reset woke it.
 
+Experiment 17 found that the plugs aren't reversed but swapped with each other, left for right. That fits everything above too, since nobody checked which wheel turned when one was driven.
+
+---
+
+## 17. Floor Calibration After the Rewiring
+
+**Goal:** Check the floor feed-forward again after the rewiring, compare `/odom` with the gyro on the floor, and measure the lidar's exact angle from a straight drive.
+
+**Setup:** The robot on the floor of the room it maps, with someone at it and the way checked clear before every drive. First `MOTOR-ESP32S3`'s `wheel_test.py hold --on-floor` at 0.03 m/s for 4 s and 0.15 m/s for 3 s with the stack stopped, logging each wheel's trim twice a second. Then `./robot.sh robot`, and 0.1 m/s for 3 s and 0.5 rad/s for 3 s through `/cmd_vel`, comparing `/odom`, `/odom_filtered`, the gyro and SLAM's map pose, as in experiments 11 and 12. The median of 10 scans before and after each drive gave the lidar's direction of travel: a search over every yaw for the one that best moves the second scan onto the first, refined by matching the two scans point by point (ICP). In a simulated room that found known yaws of −90°, −97° and −84° within 0.2°.
+
+| Floor trims at 0.03 / 0.15 m/s (PWM) | Left wheel | Right wheel |
+| :--- | ---: | ---: |
+| With the 2026-11-10 feed-forward | −38 / −59, still falling | −11 / −39, still falling |
+| Feed-forward set from those trims, deadband and slope | 55, 1,565 | 54, 1,660 |
+| With it | −4 / −2 | +5 / −2 |
+| Speed in the first half second at 0.15 m/s, before and after | 0.174 → 0.153 m/s | 0.167 → 0.150 m/s |
+
+| Through `/cmd_vel` | Wheels (`/odom`) | Gyro | EKF (`/odom_filtered`) | SLAM's map pose | Lidar scans |
+| :--- | ---: | ---: | ---: | ---: | ---: |
+| 30 cm straight, firmware `7f52d48`, lidar at −90° | 30.7 cm, +0.2° | −0.4° | 29.9 cm, −0.3° | 21.3 cm, +0.7° | moved toward −1° |
+| Left turn, 86° asked, `7f52d48` | +61.7° | −29.8° | −14.6° | −14.6° | −29.4° |
+| 30 cm straight, firmware `e05cc20`, lidar at −90° | 31.1 cm, +0.7° | +1.1° | 30.9 cm, +1.0° | 7.3 cm, +0.6° | moved toward +1° |
+| Left turn, 86° asked, `e05cc20` | +85.5° | +84.4° | +84.6° | +84.6° | +84.1° |
+| 30 cm straight, lidar at 0°, after turning the robot by hand | 30.8 cm, +1.4° | +1.5° | 30.6 cm, +1.4° | 13.6 cm, −13.0° | moved toward +1° |
+| 30 cm straight, lidar at 0°, SLAM restarted, robot untouched | 31.1 cm, +0.3° | +1.2° | 30.8 cm, +1.0° | 30.8 cm, +1.4° | moved toward +1° |
+
+| Lidar's yaw from each straight drive | Search over yaw | ICP point to point | ICP point to line |
+| :--- | ---: | ---: | ---: |
+| First | +1.0° | +0.8° | +1.0° |
+| Second | 0.0° | −0.3° | +0.3° |
+| Third | 0.0° | 0.0° | +0.2° |
+| Fourth | 0.0° | 0.0° | +0.2° |
+
+**Result:** The 2026-11-10 floor feed-forward was too strong after the rewiring: every trim was negative, down to −59 PWM, and still falling when the holds ended. Feed-forward set from those trims, as in step 10 of the firmware's first-drive checklist, ended both wheels within 5 PWM of it, never more than 7 off during the holds, and at 0.15 m/s the wheels no longer ran 11 to 16% fast in the first half second. Both encoders held on the floor: in every hold each B line changed 0.93 to 1.04 times as often as its A. GPIO 14, with the redone green wire, now reads the right wheel's encoder.
+
+The first turn went the wrong way. Asked to turn left, the robot turned right about 30° and into a wall, while `/odom` claimed +61.7° to the left. The gyro and the lidar agreed on the right turn. With the wheels lifted, the board's left channel turned the right wheel, forward. So the two motor plugs are swapped with each other, each carrying its motor and its encoder, not each turned round as experiment 16 concluded. On the pin map of 2026-11-10 both explain the same thing, both wheels running backward with no fault. Experiment 16's fix, `7f52d48`, reversed each motor and encoder, which made straight drives go forward and every turn go the wrong way, with the wheels' odometry claiming the turn asked for. `MOTOR-ESP32S3`'s new `swapped-motor-plugs` branch (`e05cc20`, on `main`) swaps the left and right pin sets instead and holds the new feed-forward. Flashed, each channel turned its own wheel forward, and a turn read +84.4° on the gyro and +85.5° on the wheels for 86° asked.
+
+On the floor the drives come close to what was asked: 31.1 cm for 30 cm, where lifted they read 34.5, and +84.4° on the gyro for 86°, where lifted the wheels read +107°. The wheels and the gyro agree within 1° on straight drives and turns, and `/odom` reads about 1 cm long, the coasting after the commands stop.
+
+The lidar had been remounted, and its 0° now points straight ahead. Four straight drives put the direction of travel within 1° of its 0°. The turn showed the scan isn't mirrored, and the lidar sitting 5.8 cm ahead of the turn's centre, against 6.4 cm in the URDF. So `laser_joint`, `main.launch.py`'s static transform and the dashboard now use yaw 0. With −90° SLAM read the straight drives as 21.3 and 7.3 cm. With 0° and the robot turned by hand while SLAM ran, which the wheels don't see, SLAM read 13.6 cm and −13°. The two scans fit the wheels' 30.8 cm and +1.4° (84% of points within 3 cm of each other) and not SLAM's pose (13%), so SLAM had lost its track. Restarted, with the robot left alone, SLAM read 30.8 cm and +1.4°, with the wheels, the EKF and the gyro. On one drive recorded scan by scan, every scan also matched `/odom` at its timestamp within 0.8 cm, so the scans' timestamps are right. The fit in `scan_diff.py`, which treats each beam's change as the move's part along that beam, was 9° to 30° off on these drives, because it ignores the angle of the wall each beam hits.
+
 ---
 
 ## What's Next
 
-1. **Floor check:** The left encoder's B wire now holds under power (experiment 16). Drive slowly on the floor to check that `/odom` agrees with the gyro, and check the floor feed-forward again, since both motors now run on their other polarity for forward.
-2. **Calibration:** Measure the lidar's exact angle from the scan's change on a straight drive. After the robot has been on for hours, check in the `d` line that the gyro's learned offsets have followed its drift.
-3. **Hardware mapping run:** A full mapping run and a Nav2 goal on the real robot.
-4. **Camera:** Lock the lens, check the colour correction under daylight, and calibrate the wide-angle lens (intrinsics and distortion) for camera-based docking, which is developed in a separate project.
+1. **Hardware mapping run:** A full mapping run and a Nav2 goal on the real robot. The wheels, the gyro, the lidar's angle and SLAM agreed on the floor (experiment 17). Keep the robot on its wheels while SLAM runs, or restart SLAM after carrying or turning it by hand.
+2. **Calibration:** After the robot has been on for hours, check in the `d` line that the gyro's learned offsets have followed its drift. Counts per wheel turn haven't been measured again since the rewiring.
+3. **Camera:** Lock the lens, check the colour correction under daylight, and calibrate the wide-angle lens (intrinsics and distortion) for camera-based docking, which is developed in a separate project.

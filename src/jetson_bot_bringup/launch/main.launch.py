@@ -12,8 +12,8 @@ from launch.conditions import IfCondition
 from launch_ros.actions import Node
 
 
-def _serial_by_id():
-    root = '/dev/serial/by-id'
+def _serial_by_id(dev='/dev'):
+    root = os.path.join(dev, 'serial', 'by-id')
     mapping = {}
     if os.path.isdir(root):
         for name in sorted(os.listdir(root)):
@@ -21,25 +21,64 @@ def _serial_by_id():
     return mapping
 
 
-def find_esp32_port():
-    """Prefer USB by-id (QinHeng/WCH/ESP). Skip the lidar CP2102 adapter."""
-    skip = ('cp210', 'silicon_labs', 'rplidar')
-    prefer = ('espressif', 'esp32', 'jtag_serial', '1a86', 'qinheng',
-              'usb_single_serial', 'wch', 'arduino', 'usbmodem')
-    by_id = _serial_by_id()
-    for name, path in by_id.items():
-        low = name.lower()
-        if any(s in low for s in skip):
+def _usb_id(tty, sys_class_tty='/sys/class/tty'):
+    """Return a tty's USB vendor:product and product name from sysfs, or '' if unknown."""
+    path = os.path.realpath(os.path.join(sys_class_tty, tty, 'device'))
+    for _ in range(3):  # the USB device is the interface's parent, one more level for ttyUSB
+        if os.path.isfile(os.path.join(path, 'idVendor')):
+            values = []
+            for attr in ('idVendor', 'idProduct', 'product'):
+                try:
+                    with open(os.path.join(path, attr), 'r', errors='replace') as f:
+                        values.append(f.read().strip())
+                except OSError:
+                    values.append('')
+            return '{}:{} {}'.format(*values).strip()
+        path = os.path.dirname(path)
+    return ''
+
+
+def _esp32_socket(by_id_name, usb_id):
+    """Say which of the motor board's USB sockets a serial device is: 'native', 'com' or ''."""
+    vendor = usb_id.split(':')[0]
+    name = by_id_name.lower()
+    if vendor == '303a' or 'espressif' in name or 'jtag_serial' in name:
+        return 'native'
+    if vendor == '1a86' or any(s in name for s in ('1a86', 'qinheng', 'wch', 'usb_single_serial')):
+        return 'com'
+    return ''
+
+
+def find_esp32_port(dev='/dev', sys_class_tty='/sys/class/tty'):
+    """Return the motor board's port, a name for it, and its socket: 'native', 'com' or ''.
+
+    Both of the ESP32-S3's USB sockets show up as /dev/ttyACM*, but the firmware talks only on
+    the native one, next to the RGB LED (Espressif's USB JTAG/serial unit, 303a:1001). The one
+    marked COM is a CH343 (1a86:55d3), where it sends nothing. So take the native socket first,
+    then the COM socket, which the audit warns about, then any other ttyACM. The container has no
+    /dev/serial/by-id, so the USB IDs come from sysfs as well.
+    """
+    by_id = {}
+    for name, path in _serial_by_id(dev).items():
+        by_id.setdefault(path, name)
+    try:
+        ports = {os.path.realpath(os.path.join(dev, n)) for n in os.listdir(dev)
+                 if n.startswith('ttyACM')}
+    except OSError:
+        ports = set()
+    ports.update(p for p in by_id if os.path.basename(p).startswith('ttyACM'))
+    rank = {'native': 0, 'com': 1, '': 2}
+    found = []
+    for path in sorted(ports):
+        if not os.path.exists(path):
             continue
-        if any(s in low for s in prefer) and os.path.exists(path):
-            return path, name
-    for name, path in by_id.items():
-        if 'ttyACM' in path and os.path.exists(path):
-            return path, name
-    for p in ('/dev/ttyACM0', '/dev/ttyACM1', '/dev/ttyACM2'):
-        if os.path.exists(p):
-            return p, p
-    return None, None
+        usb_id = _usb_id(os.path.basename(path), sys_class_tty)
+        socket = _esp32_socket(by_id.get(path, ''), usb_id)
+        found.append((rank[socket], path, by_id.get(path) or usb_id or path, socket))
+    if not found:
+        return None, None, ''
+    _, path, name, socket = min(found)
+    return path, name, socket
 
 
 def find_lidar_port():
@@ -315,8 +354,9 @@ def launch_setup(context, *args, **kwargs):
         # No explicit static publisher to avoid TF_REPEATED_DATA warnings.
         # EKF uses the TF tree (footprint -> base_link -> imu_link) for lever arm.
         
-        # 3. Python Serial Bridge (USB by-id — ttyACM numbers change after ESP32 reset)
-        motor_port, motor_id = find_esp32_port()
+        # 3. Python Serial Bridge. The port is found by USB ID, since ttyACM numbers change after
+        # an ESP32 reset and both of the board's sockets show up as ttyACM.
+        motor_port, motor_id, motor_socket = find_esp32_port()
         if motor_port:
             hardware_active = True
             entities.append(Node(
@@ -333,7 +373,14 @@ def launch_setup(context, *args, **kwargs):
                     'publish_tf': False # Disable for EKF compatibility
                 }]
             ))
-            print(f"✅ [HARDWARE] Motor Bridge: FOUND at {motor_port} ({motor_id})")
+            if motor_socket == 'com':
+                print(f"⚠️  [HARDWARE WARNING] Motor Bridge: the ESP32's cable is in its COM "
+                      f"socket ({motor_port}, {motor_id}). The firmware sends nothing there, "
+                      "so no wheel or IMU data will come. Move the cable to the native USB "
+                      "socket next to the RGB LED, then restart the container "
+                      "(./robot.sh stop f) and start again.")
+            else:
+                print(f"✅ [HARDWARE] Motor Bridge: FOUND at {motor_port} ({motor_id})")
         else:
             print("❌ [HARDWARE ERROR] Motor ESP32 serial port NOT FOUND. Connect its native USB socket (not COM).")
 

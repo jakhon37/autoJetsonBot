@@ -60,7 +60,7 @@ curl -s -o frame.jpg http://127.0.0.1:8091/snapshot.jpg
 ros2 topic hz /camera/image_raw/compressed            # in the container: about 15
 ```
 
-The Web UI's camera panel shows `/camera/image_raw` through `web_video_server` on port 8080.
+The Web UI's camera panel shows `/camera/image_raw/compressed` as it is, through `web_video_server`'s `ros_compressed` stream on port 8080. If no frame arrives within 4 s, the panel falls back to the raw topic re-encoded at 320×240.
 
 - **No `/dev/video0`:** The camera wasn't found at boot. Power off, reseat the ribbon at both ends with the latches closed, and boot. When the sensor doesn't answer, `journalctl -k -b | grep imx219` shows `error -121`.
 - **Blurry picture:** The lens focuses by turning. Out focuses nearer and in focuses farther. Set it on a still scene 2 to 3 m away, then lock it with its ring or a dab of glue, since vibration turns it.

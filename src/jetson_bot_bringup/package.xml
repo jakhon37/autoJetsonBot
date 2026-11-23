@@ -14,6 +14,7 @@
   <depend>jetson_bot_gui</depend>
   <depend>nav2_bringup</depend>
   <depend>slam_toolbox</depend>
+  <exec_depend>jetson_bot_diffdrive</exec_depend>
 
   <test_depend>ament_copyright</test_depend>
   <test_depend>ament_flake8</test_depend>

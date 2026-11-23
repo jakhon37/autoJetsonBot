@@ -133,7 +133,7 @@ All eighteen experiments, with method and numbers, are in [RESULTS.md](docs/expe
 | Mapping (`slam_toolbox`) | ✅ Working | ✅ Room mapped on 2026-11-24, walls within 2 to 4 cm of straight lines on 5 cm cells |
 | Localization and Nav2 goals | ✅ Working | ✅ First goal on 2026-11-24: 1.0 m ahead, stopped 6.5 cm short, inside the 10 cm tolerance, with no recoveries |
 | Wheel odometry | ✅ Working | ✅ 31.1 cm and +85.5° on `/odom` for 30 cm and 86° driven on the floor, within 1° of the gyro |
-| IMU and EKF fusion | ✅ Working | ⚠️ Heading follows the wheels and gyro and holds at rest, but with Nav2 running its distance read 8.5% short of the wheels |
+| IMU and EKF fusion | ✅ Working | ✅ Heading follows the wheels and gyro and holds at rest, and with Nav2 running its distance follows the wheels within 0.1% |
 | Motor control | ✅ Working | ✅ Closed-loop speed within 0.003 m/s on the floor |
 | Web dashboard | ✅ Working | ✅ Teleop, lidar and telemetry used on the robot under Foxy |
 | Camera | ✅ Simulated camera, 640×480 at 10 Hz | ✅ CSI camera on `/camera/image_raw` at 15 fps, shown in the dashboard |

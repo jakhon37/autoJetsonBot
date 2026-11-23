@@ -18,8 +18,16 @@ def covariance(diagonal):
     return cov
 
 
+# The ESP32's microsecond clock is 32 bits wide, so its stamps wrap every 71.6 minutes.
+STAMP_WRAP = 2 ** 32
+
+
 def parse_encoder_line(line):
-    """Return the counts of an 'e <left> <right>' line as (left, right), or None."""
+    """Return an 'e <left> <right> [<us>]' line as (left, right, us), or None.
+
+    us is the ESP32's clock, in microseconds, when it read the counts. It is None for
+    firmware that sends only the counts.
+    """
     low = line.lower()
     if not (low.startswith('e ') or low.startswith('e\t')):
         return None
@@ -27,20 +35,26 @@ def parse_encoder_line(line):
     if len(parts) < 3:
         return None
     try:
-        return int(float(parts[1])), int(float(parts[2]))
+        stamp = int(parts[3]) if len(parts) > 3 else None
+        return int(float(parts[1])), int(float(parts[2])), stamp
     except ValueError:
         return None
 
 
-def encoder_dt(elapsed, n_lines, min_dt):
-    """Return the seconds each of a tick's n_lines encoder lines covers.
+def encoder_dt(stamp, last_stamp, period):
+    """Return the seconds an encoder line covers, or None if it repeats the last one's counts.
 
-    Lines that arrive together are handled microseconds apart, so the time between
-    handling two of them isn't how far apart the ESP32 sent them. The tick's lines share
-    the time since the last tick that had any, and none counts as shorter than min_dt,
-    so a late tick followed by an early one can't make a speed spike either.
+    The bridge reads the serial port on a timer that runs late when the Jetson is busy,
+    and then several lines arrive together, so when a line is handled says little about
+    when the ESP32 read its counts. The ESP32 stamps each line with that time, and the
+    difference between two stamps is exact, however late, bunched or lost the lines are.
+    A line without a stamp counts as one period of the ESP32's telemetry: right on
+    average however the timer runs, but the line after a lost one then reads double.
     """
-    return max(elapsed / n_lines, min_dt)
+    if stamp is None or last_stamp is None:
+        return period
+    dt_us = (stamp - last_stamp) % STAMP_WRAP
+    return dt_us / 1e6 if dt_us else None
 
 
 class WheelOdometry:

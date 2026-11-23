@@ -29,8 +29,8 @@ class DiffDriveBridge(Node):
         self.declare_parameter('wheel_radius', 0.034)
         self.declare_parameter('encoder_cpr', 1497)
         self.declare_parameter('loop_rate', 50.0)
-        # Rate of the ESP32's 'e' lines. A slower firmware is fine, a faster one isn't:
-        # no line counts as covering less than one period.
+        # Rate of the ESP32's 'e' lines. Only lines without the ESP32's time use it: each
+        # counts as one period, so it must match the firmware's rate.
         self.declare_parameter('encoder_rate', 50.0)
         self.declare_parameter('publish_tf', True) # Added for EKF compatibility
         # Same names as diff_drive_controller's, which publishes /odom in simulation
@@ -48,9 +48,8 @@ class DiffDriveBridge(Node):
         
         # State
         self.odometry = WheelOdometry(self.wheel_sep, self.wheel_rad, self.encoder_cpr)
-        self.min_enc_dt = 1.0 / self.get_parameter('encoder_rate').value
-        self.enc_dt = self.min_enc_dt
-        self.last_time = self.get_clock().now()
+        self.line_period = 1.0 / self.get_parameter('encoder_rate').value
+        self.last_stamp = None  # the ESP32's time on the last 'e' line, in microseconds
 
         # Serial Connection
         self.ser = None
@@ -150,11 +149,17 @@ class DiffDriveBridge(Node):
             self.get_logger().info(f"ESP32 RX: {line}")
 
         low = line.lower()
-        counts = parse_encoder_line(line)
-        if counts:
-            l_count, r_count = counts
-            # FIX: Right encoder inversion to match inverted motor
-            self.calculate_odometry(l_count, -r_count)
+        encoder = parse_encoder_line(line)
+        if encoder:
+            l_count, r_count, stamp = encoder
+            # Speeds use the ESP32's time between lines, not when the bridge got to them.
+            # After a reconnect or a reboot the first line only sets the baseline, so its
+            # speed is zero whatever the stamp before it was.
+            dt = encoder_dt(stamp, self.last_stamp, self.line_period)
+            self.last_stamp = stamp
+            if dt is not None:
+                # FIX: Right encoder inversion to match inverted motor
+                self.calculate_odometry(l_count, -r_count, dt)
             self.last_enc = [l_count, r_count]
             self.last_enc_time = time.time()
             self.enc_ok += 1
@@ -202,14 +207,6 @@ class DiffDriveBridge(Node):
                 if line:
                     lines.append(line)
 
-            # Timing each 'e' line by when it's handled gives a near-zero dt to the second
-            # of two lines read together, and v and w spike. See encoder_dt.
-            n_enc = sum(1 for line in lines if parse_encoder_line(line))
-            if n_enc:
-                now = self.get_clock().now()
-                elapsed = (now - self.last_time).nanoseconds / 1e9
-                self.enc_dt = encoder_dt(elapsed, n_enc, self.min_enc_dt)
-                self.last_time = now
             for line in lines:
                 self._handle_line(line)
         except Exception as e:
@@ -243,10 +240,9 @@ class DiffDriveBridge(Node):
         except Exception:
             pass
 
-    def calculate_odometry(self, l_count, r_count):
+    def calculate_odometry(self, l_count, r_count, dt):
         now = self.get_clock().now()
-        v_x, v_th, wheel_angles, wheel_rates = self.odometry.update(
-            l_count, r_count, self.enc_dt)
+        v_x, v_th, wheel_angles, wheel_rates = self.odometry.update(l_count, r_count, dt)
 
         odom = Odometry()
         odom.header.stamp = now.to_msg()

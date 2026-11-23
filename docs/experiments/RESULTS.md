@@ -24,6 +24,7 @@ What was tested, on what, and what it showed. Simulation work ran in Docker on a
 | 16 | [Hardware recheck after rewiring](#16-hardware-recheck-after-rewiring) | Robot | 2026-11-23 | The left encoder holds under power. Reversed encoder power, a dead 5V pin and reversed motor plugs found and fixed, and the lifted wheels hold 0.100 m/s |
 | 17 | [Floor calibration after the rewiring](#17-floor-calibration-after-the-rewiring) | Robot | 2026-11-23 | Floor feed-forward set again, the motor plugs found swapped left for right rather than reversed, and the remounted lidar measured at 0°, after which SLAM matched the wheels |
 | 18 | [Mapping run and the first Nav2 goal](#18-mapping-run-and-the-first-nav2-goal) | Robot, simulation | 2026-11-24 | The room mapped as `lab_map_v3`, and the first Nav2 goal on the robot reached: 1.0 m asked, 6.5 cm short by tape, inside the 10 cm tolerance. The EKF's distance read 8.5% short of the wheels under Nav2's load |
+| 19 | [Wheel speeds timed by the motor board](#19-wheel-speeds-timed-by-the-motor-board) | Robot | 2026-11-24 | On the same 1 m Nav2 goal, the EKF's distance within 0.1% of the wheels at a load average of 11 to 15, where it had read 8.5% short |
 
 ---
 
@@ -507,10 +508,44 @@ Saving and loading the map showed two faults. slam_toolbox's `save_map` service 
 
 ---
 
+## 19. Wheel Speeds Timed by the Motor Board
+
+**Goal:** Make the wheel speeds on `/odom` right on average however late the bridge's timer runs, so that the EKF's distance follows the wheels when the Jetson is busy (experiment 18).
+
+**Setup:** The motor firmware's control task reads the encoder counters every 10 ms, and its main loop sends an `e` line every 20 ms with the counts of the last read. Firmware `9833afd` (`MOTOR-ESP32S3`'s `stamp-encoder-lines`, `main` plus this change) records the microseconds at which each read happened and sends them with the counts: `e <left> <right> <us>`. The bridge divides each line's change in counts by the change in that time, which wraps every 71.6 minutes, and gives a line without it one 50 Hz period. A unit test feeds the bridge's odometry a minute of lines past a timer that runs a third of its ticks up to 15 ms late and stalls before 3% of them for 20 to 120 ms. On the robot, the firmware was flashed, then `./robot.sh nav` ran on `lab_map_v3` with the bridge change, AMCL's start pose was set on experiment 18's taped spot, and Nav2 got the same goal, 1.0 m straight ahead. A script logged every `/odom` and `/odom_filtered` message and sent nothing.
+
+| Simulated minute, 40 random timers | Mean speed | Distance the EKF adds up |
+| :--- | :--- | :--- |
+| Old rule: a tick's time shared by its lines, at least 1/50 s each | 6.3 to 7.1% low | 3.2 to 5.4% short |
+| The board's time | Within 0.03% | Within 0.06% |
+| One 50 Hz period per line, for lines without the time | Within 0.02% | −0.8 to +1.4% |
+
+| 1 m Nav2 goal | Experiment 18 | This run |
+| :--- | :--- | :--- |
+| Firmware, and how the bridge timed the lines | `e05cc20`, by its own ticks | `9833afd`, by the board's time |
+| Load average | About 8 | 11 to 15 |
+| Goal | Succeeded in 8.9 s, no recoveries | Succeeded in 8.8 s, no recoveries |
+| Wheels (`/odom`), forward | 95.4 cm | 91.5 cm |
+| EKF (`/odom_filtered`), forward | 87.2 cm (−8.5%) | 91.5 cm (+0.02%) |
+| Turn, wheels and EKF | −13.4°, −12.9° | −11.8°, −11.9° |
+
+| The bridge during the goal, and 5 s either side | Result |
+| :--- | :--- |
+| Lines | 1,031, against 1,021 at 50 Hz: none lost |
+| Timer ticks | 987. 43 read two lines or more, 192 came over 25 ms after the one before, 15 over 40 ms, the longest 114 ms after |
+| Speed while cruising | 0.142 m/s, with a standard deviation of 0.007 m/s, about one count per line |
+| At rest | 0 on all 3,048 lines |
+| The old rule on this run's timing | The EKF would have added up 86.1 cm (−6.0%) |
+
+**Result:** The EKF's distance matched the wheels within 0.03% on the goal that had left it 8.5% short, with the Jetson busier than then. Rebuilt from the same run's timing, the old rule would have left it 6.0% short. In simulation the board's time also keeps every line's speed right when lines arrive together, late, after a stall or after a lost line. On the board checked, the stamps came exactly 20,000 µs apart, so no line carried an older read. If a line sent in the same millisecond as a read carries the read before, the stamp still times it right, while one 50 Hz period per line would read it at half or one and a half times the speed. That averages out, but in simulation it moved the EKF's distance by about 1% a minute, so lines without the time, from older firmware, are a fallback.
+
+The robot weaved slightly left and right on the way, as in experiment 18: the wheels' turn rate swung by about 0.1 rad/s every 2 s or so, and the EKF's followed it. The robot really turned that way, as it did before this change. A dashboard tab left open in Firefox on the PC reconnected to rosbridge about 60 times a second during the run, and rosbridge took 59% of a core. That added to the load.
+
+---
+
 ## What's Next
 
-1. **Odometry under load:** Make the bridge's wheel speeds unbiased when its timer runs late, for example from timestamps the motor board sends, so the EKF's distance follows the wheels (experiment 18). Lightening the Jetson's load, the camera chain first, would help too.
-2. **Map saving:** Save maps with a wait long enough for the busy Jetson and with `free_thresh` 0.196, and have the Web UI report a failed save.
-3. **Longer goals:** Goals with turns and across more of the room, a tighter yaw tolerance, and the dashboard's goal button on the robot.
-4. **Calibration:** After the robot has been on for hours, check in the `d` line that the gyro's learned offsets have followed its drift. Counts per wheel turn haven't been measured again since the rewiring.
-5. **Camera:** Lock the lens, check the colour correction under daylight, and calibrate the wide-angle lens (intrinsics and distortion) for camera-based docking, which is developed in a separate project.
+1. **Map saving:** Save maps with a wait long enough for the busy Jetson and with `free_thresh` 0.196, and have the Web UI report a failed save.
+2. **Longer goals:** Goals with turns and across more of the room, a tighter yaw tolerance, and the dashboard's goal button on the robot.
+3. **Calibration:** After the robot has been on for hours, check in the `d` line that the gyro's learned offsets have followed its drift. Counts per wheel turn haven't been measured again since the rewiring.
+4. **Camera:** Lock the lens, check the colour correction under daylight, and calibrate the wide-angle lens (intrinsics and distortion) for camera-based docking, which is developed in a separate project.

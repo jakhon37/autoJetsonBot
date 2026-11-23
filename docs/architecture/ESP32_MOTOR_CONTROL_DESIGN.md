@@ -5,7 +5,7 @@
 **Target:** ESP32-S3 (PlatformIO / Arduino Core)  
 **Status:** Unrealized design, see the note below
 
-> **What's on the robot (2026-11-23):** The board runs [MOTOR-ESP32S3](https://github.com/jakhon37/MOTOR-ESP32S3)'s `swapped-motor-plugs` branch: `main`, with the left and right pin sets swapped to match the robot's swapped motor plugs, and feed-forward set on the floor. `main` holds `quadrature-speed-control` plus gyro offsets learned at rest: feed-forward plus a closed-loop trim per wheel, on encoders decoded on all 4 edges, with a 500 ms command timeout. That's closer to this design than the open-loop build it replaced. It sends `e <left> <right>` and `i ax ay az gx gy gz` at 50 Hz each, and `READY` at boot, over the S3's native USB. The bridge negates the right wheel's velocity before sending and its count after receiving. With the wheels lifted it holds 0.02 to 0.25 m/s within 1 to 2%. On the floor, with feed-forward set there, it holds requests within 0.003 m/s, and it subtracts the gyro's offsets before sending `i` lines, re-learning them whenever the robot stands still. The real pins are in [HARDWARE.md](HARDWARE.md#esp32-s3-pin-map).
+> **What's on the robot (2026-11-24):** The board runs [MOTOR-ESP32S3](https://github.com/jakhon37/MOTOR-ESP32S3)'s `stamp-encoder-lines` branch: `main`, which has the left and right pin sets swapped to match the robot's swapped motor plugs and feed-forward set on the floor, plus the time the counts were read in each encoder line. `main` holds `quadrature-speed-control` plus gyro offsets learned at rest: feed-forward plus a closed-loop trim per wheel, on encoders decoded on all 4 edges, with a 500 ms command timeout. That's closer to this design than the open-loop build it replaced. It sends `e <left> <right> <us>` and `i ax ay az gx gy gz` at 50 Hz each, and `READY` at boot, over the S3's native USB. The bridge negates the right wheel's velocity before sending and its count after receiving. With the wheels lifted it holds 0.02 to 0.25 m/s within 1 to 2%. On the floor, with feed-forward set there, it holds requests within 0.003 m/s, and it subtracts the gyro's offsets before sending `i` lines, re-learning them whenever the robot stands still. The real pins are in [HARDWARE.md](HARDWARE.md#esp32-s3-pin-map).
 
 ---
 
@@ -41,9 +41,9 @@ Deterministic and lightweight ASCII protocol optimized for the `jetson_bot_diffd
 *   **Timeout:** If no `m` command is received for **500ms**, motors are immediately braked (E-Stop).
 
 ### 3.2 Uplink (ESP32 → Jetson)
-*   **Format:** `e <left_ticks> <right_ticks>\n`
-*   **Units:** Cumulative signed integers (int32_t).
-*   **Frequency:** 20Hz (Synchronized to control loop).
+*   **Format:** `e <left_ticks> <right_ticks> <micros>\r\n`
+*   **Units:** Cumulative signed integers (int32_t), and the board's clock in microseconds (uint32_t, wraps every 71.6 minutes) when the control task read them.
+*   **Frequency:** 50Hz, from counts the control task reads every 10 ms.
 
 ---
 

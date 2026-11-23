@@ -20,7 +20,7 @@ A two-wheel differential-drive robot with a front caster, built around a Jetson 
 | **Motors** | 2 × JGA25-370 geared DC motors (label reads 170 RPM), 34:1 gearbox | Through the driver | Each has an AB Hall encoder with 11 pulses per motor turn, so 1,497 counts per wheel turn on all 4 edges |
 | **Wheels** | 68 mm rubber wheels and a front caster | | Wheel separation 0.212 m |
 | **IMU** | MPU6050 | I2C to the ESP32-S3 (SDA GPIO 1, SCL GPIO 21) | See [IMU_WIRING.md](IMU_WIRING.md) |
-| **Lidar** | Slamtec RPLidar A1 (A1M8-R6) | USB through a CP2102 adapter (`10c4:ea60`) | 360°, about 6.5 scans per second, 360 points per scan |
+| **Lidar** | Slamtec RPLidar A1 (A1M8-R6) | USB through a CP2102 adapter (`10c4:ea60`) | 360°, about 6.5 scans per second, 360 points per scan. Its motor runs whenever nothing holds the port, so `./robot.sh stop` and `./robot.sh lidar-off` hold it stopped |
 | **Camera** | 8 MP Sony IMX219 camera module with a wide-angle lens | CSI ribbon to the Xavier NX's CAM0 connector | Published as `/camera/image_raw` at 15 fps, 820×616 over the full field of view (see [Camera](#camera)). Replaced a Wi-Fi ESP32-CAM ([myESP32CAM-BLACKBOX](https://github.com/jakhon37/myESP32CAM-BLACKBOX)) in November 2026 |
 | **Power** | Not documented yet | | The Xavier NX dev kit takes 9 to 20 V. The original design (below) used 5 V rails for a Jetson Nano |
 

@@ -11,16 +11,15 @@ from launch.substitutions import LaunchConfiguration, PythonExpression
 from launch.conditions import IfCondition
 from launch_ros.actions import Node
 
-# Shared with the bridge and ./robot.sh status, so all three take the same motor board port
-from jetson_bot_diffdrive.serial_ports import com_socket_warning, find_esp32_port, serial_by_id
+# Shared with the bridge and ./robot.sh, so all of them take the same motor board and lidar ports
+from jetson_bot_diffdrive.serial_ports import com_socket_warning, find_esp32_port
+from jetson_bot_diffdrive.serial_ports import find_lidar_port as find_cp2102_lidar
 
 
 def find_lidar_port():
-    by_id = serial_by_id()
-    for name, path in by_id.items():
-        low = name.lower()
-        if ('cp210' in low or 'silicon_labs' in low) and os.path.exists(path):
-            return path, name
+    port, name = find_cp2102_lidar()  # its CP2102 by name or USB ID, also in the container
+    if port:
+        return port, name
     for p in ('/dev/ttyUSB0', '/dev/ttyUSB1'):
         if os.path.exists(p):
             return p, p

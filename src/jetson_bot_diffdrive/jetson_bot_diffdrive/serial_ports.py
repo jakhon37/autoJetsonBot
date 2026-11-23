@@ -1,12 +1,15 @@
-"""Find the motor board's serial port. Imports no ROS, so launch, the bridge and robot.sh share it.
+"""Find the motor board's and the lidar's serial ports, for launch, the bridge and robot.sh.
 
-Both of the ESP32-S3's USB sockets show up as /dev/ttyACM*, but the firmware talks only on the
-native one, next to the RGB LED (Espressif's USB JTAG/serial unit, 303a:1001). The one marked COM
-is a CH343 (1a86:55d3), where it sends nothing. From 2026-11-11 to 11-23 the cable sat in the COM
-socket and the bridge connected to it without a word, so the 2026-11-17 run got no wheel or IMU
-data. The robot's container has no /dev/serial/by-id, so the USB IDs come from sysfs as well.
+It imports no ROS, so all three can share it. Both of the ESP32-S3's USB sockets show up as
+/dev/ttyACM*, but the firmware talks only on the native one, next to the RGB LED (Espressif's USB
+JTAG/serial unit, 303a:1001). The one marked COM is a CH343 (1a86:55d3), where it sends nothing.
+From 2026-11-11 to 11-23 the cable sat in the COM socket and the bridge connected to it without a
+word, so the 2026-11-17 run got no wheel or IMU data. The robot's container has no
+/dev/serial/by-id, so the USB IDs come from sysfs as well.
 """
 import os
+
+LIDAR_USB_ID = '10c4:ea60'  # the RPLidar A1's USB adapter, a Silicon Labs CP2102
 
 
 def serial_by_id(dev='/dev'):
@@ -74,6 +77,28 @@ def find_esp32_port(dev='/dev', sys_class_tty='/sys/class/tty'):
         return None, None, ''
     _, path, name, socket = min(found)
     return path, name, socket
+
+
+def find_lidar_port(dev='/dev', sys_class_tty='/sys/class/tty'):
+    """Return the lidar's port and a name for it, or (None, None).
+
+    Only the RPLidar's CP2102 adapter, by its /dev/serial/by-id name or by its USB ID in sysfs,
+    never just the first ttyUSB: robot.sh holds this port's DTR line to stop the lidar's motor,
+    and held on a CH340 like the ESP32-CAM's programmer, DTR keeps that board in reset.
+    """
+    for name, path in serial_by_id(dev).items():
+        low = name.lower()
+        if ('cp210' in low or 'silicon_labs' in low) and os.path.exists(path):
+            return path, name
+    try:
+        ttys = sorted(n for n in os.listdir(dev) if n.startswith('ttyUSB'))
+    except OSError:
+        ttys = []
+    for tty in ttys:
+        usb_id = read_usb_id(tty, sys_class_tty)
+        if usb_id.startswith(LIDAR_USB_ID):
+            return os.path.join(dev, tty), usb_id
+    return None, None
 
 
 def com_socket_warning(port, name):

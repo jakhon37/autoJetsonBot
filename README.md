@@ -120,20 +120,20 @@ The full node graph, TF tree, serial protocol and launch modes are in [SYSTEM_AR
 </p>
 
 - **Simulation:** Mapping and autonomous goals work with EKF-fused odometry, rechecked under Humble in November 2026 (map above).
-- **Robot:** Under Humble on the Xavier NX, the lidar runs at 6.46 Hz and `slam_toolbox` builds maps. Encoders and IMU stream at 50 Hz and the full TF chain is up.
+- **Robot:** Under Humble on the Xavier NX, the lidar runs at 6.46 Hz and `slam_toolbox` builds maps. Encoders and IMU stream at 50 Hz and the full TF chain is up. On 2026-11-24 the robot mapped its room and reached its first Nav2 goal, stopping 6.5 cm short of a goal 1.0 m ahead, inside Nav2's 10 cm tolerance.
 - **Motors:** A rebuilt closed-loop motor firmware holds requested wheel speeds from 0.02 to 0.25 m/s within 1 to 2%, with the wheels lifted. The encoders count 1,497 per wheel turn, and the motors stop 0.75 s after commands stop. Driven through ROS, `/odom` matches the commands within 3%. On the floor, with feed-forward set there, both wheels hold requests within 0.003 m/s.
 - **Camera:** The CSI camera reaches ROS at 15 fps, 820×616 over its full field of view, about 20 ms after capture. The container has no Argus, so the Jetson host reads the camera, corrects its colour from a measurement on white paper and serves JPEG, and a node in the container publishes the stream. White paper comes out neutral grey to within about 3% across the frame, where the camera alone gave it a magenta cast that turned pink at the edges.
 
-All seventeen experiments, with method and numbers, are in [RESULTS.md](docs/experiments/RESULTS.md).
+All eighteen experiments, with method and numbers, are in [RESULTS.md](docs/experiments/RESULTS.md).
 
 ## Project Status
 
 | Capability | In simulation | On the robot |
 | :--- | :--- | :--- |
-| Mapping (`slam_toolbox`) | ✅ Working | ✅ Maps built from the real lidar |
-| Localization and Nav2 goals | ✅ Working | ⏳ Not run yet. Odometry, gyro and the lidar's angle checked on the floor |
+| Mapping (`slam_toolbox`) | ✅ Working | ✅ Room mapped on 2026-11-24, walls within 2 to 4 cm of straight lines on 5 cm cells |
+| Localization and Nav2 goals | ✅ Working | ✅ First goal on 2026-11-24: 1.0 m ahead, stopped 6.5 cm short, inside the 10 cm tolerance, with no recoveries |
 | Wheel odometry | ✅ Working | ✅ 31.1 cm and +85.5° on `/odom` for 30 cm and 86° driven on the floor, within 1° of the gyro |
-| IMU and EKF fusion | ✅ Working | ✅ Heading follows the wheels and gyro on floor drives and turns, and holds at rest |
+| IMU and EKF fusion | ✅ Working | ⚠️ Heading follows the wheels and gyro and holds at rest, but with Nav2 running its distance read 8.5% short of the wheels |
 | Motor control | ✅ Working | ✅ Closed-loop speed within 0.003 m/s on the floor |
 | Web dashboard | ✅ Working | ✅ Teleop, lidar and telemetry used on the robot under Foxy |
 | Camera | ✅ Simulated camera, 640×480 at 10 Hz | ✅ CSI camera on `/camera/image_raw` at 15 fps, shown in the dashboard |

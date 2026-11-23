@@ -1,8 +1,9 @@
 // autoJetsonBot — Lidar & Canvas Renderer
 
-// The lidar's 0 degree points to the robot's right, so scan angles are turned by this to draw them
-// in the robot's frame. Same as laser_joint's yaw in lidar.xacro (test_configs checks it).
-const LIDAR_YAW = -1.5708;
+// Scan angles are turned by this to draw them in the robot's frame. The lidar's 0 degree points
+// straight ahead since it was remounted on 2026-11-23 (it pointed right before, at -1.5708).
+// Same as laser_joint's yaw in lidar.xacro (test_configs checks it).
+const LIDAR_YAW = 0;
 
 export class LidarRenderer {
   constructor(app) {

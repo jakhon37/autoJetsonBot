@@ -15,7 +15,7 @@ A two-wheel differential-drive robot with a front caster, built around a Jetson 
 | Part | Model | Connection | Notes |
 | :--- | :--- | :--- | :--- |
 | **Computer** | NVIDIA Jetson Xavier NX Developer Kit, 8 GB | Wi-Fi to the network | 6-core Carmel CPU, Volta GPU, 256 GB NVMe. L4T R35.6, Ubuntu 20.04, CUDA 11.4, Docker 28. Runs ROS 2 Humble in the `auto_ros:humble` container, in 20 W 6-core mode |
-| **Real-time controller** | ESP32-S3 dev board, a copy of Espressif's DevKitC with a CH343 on its COM socket | Native USB to the Jetson (`303a:1001`, `/dev/ttyACM0`) | Runs [MOTOR-ESP32S3](https://github.com/jakhon37/MOTOR-ESP32S3)'s `reversed-motor-wiring` branch since 2026-11-23: `gyro-offset-learning` (`quadrature-speed-control` plus gyro offsets learned at rest), with both motors and encoders reversed to match the motor plugs (see the pin map). Closed-loop wheel speed on quadrature encoders, encoder and IMU lines at 50 Hz, and motors stopped if no command arrives for 500 ms. Its 5V pin gets no power from USB |
+| **Real-time controller** | ESP32-S3 dev board, a copy of Espressif's DevKitC with a CH343 on its COM socket | Native USB to the Jetson (`303a:1001`, `/dev/ttyACM0`) | Runs [MOTOR-ESP32S3](https://github.com/jakhon37/MOTOR-ESP32S3)'s `swapped-motor-plugs` branch since 2026-11-23: `main` (`quadrature-speed-control` plus gyro offsets learned at rest), with the left and right pin sets swapped to match the swapped motor plugs (see the pin map), and feed-forward set on the floor that day. Closed-loop wheel speed on quadrature encoders, encoder and IMU lines at 50 Hz, and motors stopped if no command arrives for 500 ms. Its 5V pin gets no power from USB |
 | **Motor driver** | TB6612FNG dual H-bridge | PWM and direction pins from the ESP32-S3 | Logic supply (VCC, with STBY tied to it) from the ESP32-S3's 3.3 V since 2026-11-23, since the board's 5V pin is dead on USB. The motors run from VM |
 | **Motors** | 2 × JGA25-370 geared DC motors (label reads 170 RPM), 34:1 gearbox | Through the driver | Each has an AB Hall encoder with 11 pulses per motor turn, so 1,497 counts per wheel turn on all 4 edges |
 | **Wheels** | 68 mm rubber wheels and a front caster | | Wheel separation 0.212 m |
@@ -51,17 +51,17 @@ flowchart TB
 
 ## ESP32-S3 Pin Map
 
-The physical wiring, from the `MOTOR-ESP32S3` firmware and checked on the robot: each wheel turned when driven alone, and both encoder channels counted, by hand on 2026-11-10 and under power on 2026-11-23.
+The physical wiring since 2026-11-23, from the `MOTOR-ESP32S3` firmware and checked on the robot: with the wheels lifted, each channel turned its own wheel forward when driven alone, and on the floor a left turn went left. Both encoder channels counted, by hand on 2026-11-10 and under power on 2026-11-23.
 
 | Signal | GPIO | Signal | GPIO |
 | :--- | :---: | :--- | :---: |
-| Left motor PWM (PWMA) | 11 | Right motor PWM (PWMB) | 6 |
-| Left direction (AIN1, AIN2) | 3, 10 | Right direction (BIN1, BIN2) | 8, 7 |
-| Left encoder A, B | 18, 14 | Right encoder A, B | 4, 5 |
+| Left motor PWM (PWMB) | 6 | Right motor PWM (PWMA) | 11 |
+| Left direction (BIN1, BIN2) | 8, 7 | Right direction (AIN1, AIN2) | 3, 10 |
+| Left encoder A, B | 4, 5 | Right encoder A, B | 18, 14 |
 | IMU SDA | 1 | IMU SCL | 21 |
 | Driver STBY | tied to the driver's VCC (3.3 V) | RGB status LED | 48 |
 
-Both motor plugs are reversed since the rewiring on 2026-11-23, which swaps each motor's leads and its encoder's A and B against the wiring of 2026-11-10. The firmware makes up for it: `config.h` swaps IN1 and IN2 on both motors, so GPIO 10 and 7 go high for a positive request, and flips both encoder signs. If the plugs are ever turned round, revert that commit (`7f52d48`) and flash again.
+Since the rewiring on 2026-11-23 the two motor plugs are swapped left for right against the wiring of 2026-11-10, each carrying its motor and its encoder: the driver's A side and encoder pins 18 and 14, the left wheel's until then, now go to the right wheel. The firmware's `config.h` swaps the two pin sets to match. If the plugs are ever put back, flash `main`'s pin map again, and check which wheel turns when one channel is driven, not only that it turns forward.
 
 ## Camera
 
@@ -84,7 +84,7 @@ The dimensions were measured on 2026-06-07. These are the values the code uses.
 | Wheel separation | 0.212 m, centre to centre | Same three places |
 | Chassis | 19.4 × 17.8 × 9.7 cm box, centred 6.1 cm ahead of the axle | `robot_core.xacro` |
 | Ground clearance | 0.056 m, floor to chassis floor | `robot_core.xacro` |
-| Lidar | 0.064 m ahead of the axle, 0.161 m above the chassis floor (0.217 m above the ground) | `lidar.xacro` |
+| Lidar | 0.064 m ahead of the axle, 0.161 m above the chassis floor (0.217 m above the ground). Its 0° points straight ahead since it was remounted on 2026-11-23 (yaw 0, measured within 1°), and pointed to the robot's right before | `lidar.xacro`, with the same yaw in `main.launch.py` and the dashboard's `lidar.js` |
 | IMU frame | 0.1 m above the chassis floor on the axle line, upside down (roll π). Not measured | `imu.xacro` |
 | Mass | 1.4 kg recorded in the June audit. The URDF's links add up to 1.7 kg | URDF inertials |
 | Encoder counts per wheel turn | 1,497, from a 10-turn hand test on 2026-11-10, see [RESULTS.md](../experiments/RESULTS.md#9-first-drive-with-the-new-motor-firmware) | Bridge parameter `encoder_cpr` in `main.launch.py`, and `ENCODER_CPR` in the motor firmware |

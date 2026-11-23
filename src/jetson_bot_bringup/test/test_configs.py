@@ -112,12 +112,13 @@ def test_urdf_has_no_colon_and_space():
                 assert ': ' not in line, f'{name}:{number}'
 
 
-def test_lidar_zero_points_to_the_robots_right():
+def test_lidar_zero_points_ahead():
     """Verify that the URDF and the dashboard turn the scan by the lidar's mounting."""
-    # On the robot on 2026-11-10 an object straight ahead showed at +101 degrees in the scan, and
-    # objects to the front-left at +115 and +145. The exact angle is still to be measured.
+    # The lidar was remounted on 2026-11-23. Two 30 cm straight drives on the floor then put the
+    # direction of travel at 0 to +1 degrees in the scan, fitted from the scans before and after.
+    # Before that its 0 degree pointed to the robot's right, and this yaw was -90.
     _, _, rpy = _urdf_fixed_joint('laser_frame')
-    assert -105 < math.degrees(rpy[2]) < -75
+    assert abs(math.degrees(rpy[2])) < 2
     with open(LIDAR_JS, 'r') as f:
         dashboard = re.search(r'const LIDAR_YAW = (-?[0-9.]+);', f.read())
     assert dashboard is not None, 'lidar.js does not turn the scan'

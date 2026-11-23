@@ -124,15 +124,15 @@ The full node graph, TF tree, serial protocol and launch modes are in [SYSTEM_AR
 - **Motors:** A rebuilt closed-loop motor firmware holds requested wheel speeds from 0.02 to 0.25 m/s within 1 to 2%, with the wheels lifted. The encoders count 1,497 per wheel turn, and the motors stop 0.75 s after commands stop. Driven through ROS, `/odom` matches the commands within 3%. On the floor, with feed-forward set there, both wheels hold requests within 0.003 m/s.
 - **Camera:** The CSI camera reaches ROS at 15 fps, 820×616 over its full field of view, about 20 ms after capture. The container has no Argus, so the Jetson host reads the camera, corrects its colour from a measurement on white paper and serves JPEG, and a node in the container publishes the stream. White paper comes out neutral grey to within about 3% across the frame, where the camera alone gave it a magenta cast that turned pink at the edges.
 
-All fifteen experiments, with method and numbers, are in [RESULTS.md](docs/experiments/RESULTS.md).
+All seventeen experiments, with method and numbers, are in [RESULTS.md](docs/experiments/RESULTS.md).
 
 ## Project Status
 
 | Capability | In simulation | On the robot |
 | :--- | :--- | :--- |
 | Mapping (`slam_toolbox`) | ✅ Working | ✅ Maps built from the real lidar |
-| Localization and Nav2 goals | ✅ Working | ⏳ Not run yet, waiting for calibrated odometry |
-| Wheel odometry | ✅ Working | ✅ 30.9 and 31.3 cm on `/odom` for 30 cm driven on the floor |
+| Localization and Nav2 goals | ✅ Working | ⏳ Not run yet. Odometry, gyro and the lidar's angle checked on the floor |
+| Wheel odometry | ✅ Working | ✅ 31.1 cm and +85.5° on `/odom` for 30 cm and 86° driven on the floor, within 1° of the gyro |
 | IMU and EKF fusion | ✅ Working | ✅ Heading follows the wheels and gyro on floor drives and turns, and holds at rest |
 | Motor control | ✅ Working | ✅ Closed-loop speed within 0.003 m/s on the floor |
 | Web dashboard | ✅ Working | ✅ Teleop, lidar and telemetry used on the robot under Foxy |

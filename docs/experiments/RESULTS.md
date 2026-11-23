@@ -19,6 +19,7 @@ What was tested, on what, and what it showed. Simulation work ran in Docker on a
 | 11 | [Floor tuning, gyro offsets and the EKF](#11-floor-tuning-gyro-offsets-and-the-ekf-on-the-floor) | Robot, simulation | 2026-11-10 | Feed-forward set for the floor, gyro offsets in firmware, and EKF settings that turned straight drives into turns, fixed |
 | 12 | [The EKF on the robot and the lidar's frame](#12-the-ekf-on-the-robot-the-lidars-frame-and-the-left-encoder) | Robot, simulation | 2026-11-10 | The EKF matched the wheels and the gyro, and the lidar's frame, 90° off, corrected |
 | 13 | [Gyro offsets learned at rest](#13-gyro-offsets-learned-at-rest) | Robot | 2026-11-10 | The firmware re-learns the gyro's offsets whenever the robot stands still, and the EKF's heading held within 0.11°/min at rest |
+| 14 | [The CSI camera in ROS](#14-the-csi-camera-in-ros) | Robot | 2026-11-23 | 15 fps on `/camera/image_raw`, 14 ms after capture, shown in the Web UI |
 
 ---
 
@@ -338,9 +339,27 @@ With the heading reversed, SLAM drew the room rotated with doubled walls. Nav2 w
 
 ---
 
+## 14. The CSI Camera in ROS
+
+**Goal:** Publish the robot's new camera as ROS images that the Web UI can show. The camera is an IMX219 module with a wide-angle lens, on the Xavier NX's CAM0 connector.
+
+**Setup:** The ROS container has no Argus, NVIDIA's camera stack, so the work is split. On the Jetson host, `tools/csi_camera_server.py` reads the camera in its 1640×1232 mode, scales the frames to 820×616 at 15 fps and encodes JPEG on the hardware encoder. It serves them as MJPEG on `127.0.0.1:8091`, each with its capture time. In the container, `jetson_bot_camera`'s `mjpeg_camera_node` publishes the stream. `./robot.sh robot` started both. A subscriber in the container read the topics for 10 s, and the PC read the Web UI's stream from `web_video_server`.
+
+| Check | Result |
+| :--- | :--- |
+| Camera server | 15.0 fps, 50 to 75 KB frames, first frame 1.0 s after start |
+| `/camera/image_raw/compressed` | 15.0 messages a second, stamped a median 14 ms (at most 17 ms) before arrival |
+| `/camera/image_raw`, 820×616 `bgr8` | 15.0 messages a second, a median 54 ms (at most 68 ms) after capture |
+| Web UI stream, 320×240 | 14.8 fps |
+| `./robot.sh stop f`, then `./robot.sh robot` | Camera released and restarted, `lab_map_v2` left unchanged |
+
+**Result:** The camera reaches ROS at its full 15 fps. The node's first version managed 1.7 frames a second, with frames up to 5 s old. Assigning `bytes` to a `uint8[]` message field makes rclpy check every element in Python, which took about half a second for one 820×616 image. The node now passes an `array('B')`. It also publishes from a second thread that takes only the newest frame, so a slow subscriber drops frames instead of building a backlog. When the camera was fitted, its lens had been turned out of focus: nothing was sharp at any distance, and ceiling lights showed as discs about 200 pixels wide. It was refocused by hand and is now sharp from about 0.5 m to the far wall.
+
+---
+
 ## What's Next
 
 1. **Left encoder wire:** Fix the B wire properly, then check that both pins toggle about equally and that `/odom` agrees with the gyro on a floor drive.
 2. **Calibration:** Measure the lidar's exact angle from the scan's change on a straight drive. After the robot has been on for hours, check in the `d` line that the gyro's learned offsets have followed its drift.
 3. **Hardware mapping run:** A full mapping run and a Nav2 goal on the real robot.
-4. **Camera in ROS:** A node that reads the ESP32-CAM stream, for camera-based docking, which is developed in a separate project.
+4. **Camera:** Lock the lens, correct the pink toward the picture's edges, and calibrate the wide-angle lens (intrinsics and distortion) for camera-based docking, which is developed in a separate project.

@@ -105,6 +105,24 @@ class TestTarget(unittest.TestCase):
         points, ids = board.detect(img)
         self.assertEqual(sorted(ids.tolist()), list(range(28)))
 
+    def test_other_charuco_boards(self):
+        """--board names another ChArUco board, such as the 7 x 5 one shown on the iPad."""
+        board = ci.make_board("charuco:7x5:DICT_6X6_50:0.5", 20.0)
+        self.assertEqual(board.squares, (7, 5))
+        self.assertEqual(board.marker_mm, 10.0)
+        self.assertEqual(board.cols, 6)
+        self.assertIn("DICT_6X6_50", board.describe())
+        img = board.board.draw((980, 700), marginSize=40, borderBits=1)
+        points, ids = board.detect(img)
+        self.assertEqual(sorted(ids.tolist()), list(range(24)))
+        # the corners' ids run along rows of six, as line_bend() takes them
+        rows = ids // board.cols
+        for r in range(4):
+            self.assertLess(np.ptp(points[rows == r][:, 1]), 2.0)
+        for spec in ("charuco:7x5", "charuco:7x5:DICT_6X6_50", "board:7x5"):
+            with self.assertRaises(ValueError):
+                ci.make_board(spec, 20.0)
+
     def test_pdf(self):
         """A one-page PDF whose cross-reference table points at its objects."""
         board = ci.Board()
@@ -180,6 +198,11 @@ class TestLensModels(unittest.TestCase):
         self.assertEqual(data["distortion_coefficients"]["data"], [0.04, -0.02, 0.006, -0.001])
         self.assertEqual(len(data["projection_matrix"]["data"]), 12)
         self.assertTrue(text.startswith("# a note\n# second line\n"))
+        # the rational model's rectified picture keeps square pixels
+        D8 = np.array([-0.2, 0.04, 0.0005, -0.0003, -0.002, 0.0, 0.0, 0.0])
+        P = yaml.safe_load(ci.camera_info_yaml("rational_polynomial", self.K, D8, SIZE))[
+            "projection_matrix"]["data"]
+        self.assertEqual(P[0], P[5])
         with tempfile.TemporaryDirectory() as tmp:
             path = os.path.join(tmp, "cam.yaml")
             with open(path, "w") as f:
@@ -278,6 +301,34 @@ class TestFocus(unittest.TestCase):
         self.assertEqual(grid.sum(), 12)
         self.assertEqual(grid[0, 0], 12)
         self.assertEqual(board.cols, 7)
+
+    def test_preview(self):
+        """
+        The preview tints the parts of the picture short of corners and leaves covered ones
+        clear, and serves the marked-up frames as MJPEG.
+        """
+        import urllib.request
+        frame = np.full((SIZE[1], SIZE[0], 3), 128, np.uint8)
+        corners = np.array([[30.0 + 10 * (i % 4), 30.0 + 10 * (i // 4)]
+                            for i in range(ci.FILLED)])
+        kept = [(corners, np.arange(ci.FILLED))]
+        out = ci.mark_up(frame, kept, corners, "hold still", 20)
+        self.assertEqual(out.shape, frame.shape)
+        clear = out[100, 100]  # the covered top-left cell, away from its lines and dots
+        self.assertTrue(np.all(np.abs(clear.astype(int) - 128) <= 1), clear)
+        empty = out[500, 700].astype(int)  # a bottom-right cell with no corners
+        self.assertGreater(empty[2], empty[0] + 40)  # red, in BGR
+        preview = ci.Preview(0)  # port 0: any free port
+        try:
+            port = preview.server.server_address[1]
+            preview.show(out)
+            with urllib.request.urlopen(f"http://127.0.0.1:{port}/", timeout=5) as resp:
+                self.assertIn("multipart/x-mixed-replace", resp.headers["Content-Type"])
+                head = resp.read(200)
+            self.assertTrue(head.startswith(b"--frame\r\nContent-Type: image/jpeg"))
+            self.assertIn(b"\r\n\r\n\xff\xd8", head)
+        finally:
+            preview.close()
 
 
 if __name__ == "__main__":

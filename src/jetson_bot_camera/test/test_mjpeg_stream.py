@@ -5,7 +5,7 @@ import sys
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from jetson_bot_camera.mjpeg_stream import (  # noqa: E402
-    capture_time, MAX_BUFFER, MjpegParser, parse_headers)
+    capture_time, jpeg_size, MAX_BUFFER, MjpegParser, parse_headers)
 
 # Small stand-ins for JPEGs: start and end markers around bytes that include CRLFs, which a
 # parser must not mistake for the end of a part's headers.
@@ -87,3 +87,30 @@ def test_capture_time():
     assert capture_time({'x-timestamp': '100.25'}, now=200.0) is None
     assert capture_time({'x-timestamp': 'soon'}, now=100.0) is None
     assert capture_time({}, now=100.0) is None
+
+
+def _jpeg_head(width, height, sof=0xC0, app0=True):
+    """Return a JPEG's segments up to its frame header, as an encoder writes them."""
+    head = b'\xff\xd8'
+    if app0:  # OpenCV writes JFIF's APP0; nvjpegenc starts with the quantization table
+        head += b'\xff\xe0\x00\x10JFIF\x00\x01\x01\x00\x00\x01\x00\x01\x00\x00'
+    head += b'\xff\xdb\x00\x43\x00' + bytes(64)
+    head += b'\xff\xc4\x00\x05\x00\x00\x00'  # a Huffman table, whose marker is C4
+    return (head + bytes([0xFF, sof, 0x00, 0x11, 0x08]) + height.to_bytes(2, 'big')
+            + width.to_bytes(2, 'big') + b'\x03\x01\x22\x00\x02\x11\x01\x03\x11\x01')
+
+
+def test_jpeg_size():
+    """The frame size comes from the frame header, whatever comes before it."""
+    assert jpeg_size(_jpeg_head(820, 616)) == (820, 616)
+    assert jpeg_size(_jpeg_head(820, 616, app0=False)) == (820, 616)
+    assert jpeg_size(_jpeg_head(616, 820, sof=0xC2)) == (616, 820)  # progressive
+    padded = _jpeg_head(640, 480).replace(b'\xff\xdb', b'\xff\xff\xdb', 1)  # a fill byte
+    assert jpeg_size(padded) == (640, 480)
+
+
+def test_jpeg_size_of_junk():
+    """Anything that isn't a whole JPEG header gives None."""
+    assert jpeg_size(_jpeg_head(820, 616)[:-12]) is None
+    assert jpeg_size(b'not a jpeg at all') is None
+    assert jpeg_size(b'') is None

@@ -74,19 +74,19 @@ The Web UI's camera panel shows `/camera/image_raw/compressed` as it is, through
 
 ### Calibrating the Lens
 
-[`tools/camera_intrinsics.py`](../../tools/camera_intrinsics.py) runs in the container, whose OpenCV has the ArUco module, and reads frames from the camera server, so start the robot, or the server alone, first. The board is [`assets/calibration/charuco_8x5_32mm_A4.pdf`](../../assets/calibration/charuco_8x5_32mm_A4.pdf), printed at 100% and taped flat, or [`charuco_8x5_screen_1920x1080.png`](../../assets/calibration/charuco_8x5_screen_1920x1080.png) full screen on a laptop or tablet. It is found even when part of it is out of the picture. A plain checkerboard works too, with `--board chessboard:8x6` for 8 × 6 inner corners, but only when wholly in view.
+[`tools/camera_intrinsics.py`](../../tools/camera_intrinsics.py) runs in the container, whose OpenCV has the ArUco module, and reads frames from the camera server, so start the robot, or the server alone, first. The board is [`assets/calibration/charuco_8x5_32mm_A4.pdf`](../../assets/calibration/charuco_8x5_32mm_A4.pdf), printed at 100% and taped flat, or [`charuco_8x5_screen_1920x1080.png`](../../assets/calibration/charuco_8x5_screen_1920x1080.png) full screen on a laptop or tablet. It is found even when part of it is out of the picture. Another ChArUco board works too, given its squares, its markers' dictionary and their width as a share of a square's, such as `--board charuco:7x5:DICT_6X6_50:0.5`, the one a tablet showed on 2026-11-24. So does a plain checkerboard, with `--board chessboard:8x6` for 8 × 6 inner corners, but only when wholly in view.
 
 ```bash
 docker exec -it auto_ros_humble bash
 cd /autonomous_ROS/tools
 python3 camera_intrinsics.py focus                        # sharpness, before and after touching the lens
-python3 camera_intrinsics.py capture /tmp/calib_views     # keeps still views that differ, up to 30
+python3 camera_intrinsics.py capture /tmp/calib_views --preview-port 8093  # keeps still views that differ, up to 30
 python3 camera_intrinsics.py calibrate /tmp/calib_views \
     --out /tmp/imx219_wide_820x616.yaml --report /tmp/calib_report.json
 python3 camera_intrinsics.py tilt /tmp/calib_views --camera-info /tmp/imx219_wide_820x616.yaml
 ```
 
-- **Views:** Hold the board still for about two seconds per view, 30 to 60 cm away, and move it through every part of the picture, the corners most of all, with some views turned 30 to 45° away from facing the camera. `capture` prints how many corners each part of the picture has. The views of 2026-11-24 reached only the middle, which left the edges extrapolated.
+- **Views:** Hold the board still for about two seconds per view and move it through every part of the picture, the corners most of all, with some views turned 30 to 45° away from facing the camera. Near the edges a board 30 cm or more away is too small to be found, so hold it close and let it run off the picture. The bottom corners look at the floor just in front of the robot, so the board has to lie there. `capture` prints how many corners each part of the picture has. With `--preview-port` it also serves the frames it looks at, red where no view has corners yet and yellow where they are few, for whoever holds the board: on the PC run `ssh -N -L 127.0.0.1:18093:127.0.0.1:8093 jetson` and open `http://localhost:18093/`. The first views, on 2026-11-24, reached only the middle. The second reached all of the picture but its corners.
 - **Lens model:** `calibrate` fits OpenCV's rational model and its fisheye model, tests each on views left out of its fit, and writes the better one as a ROS `camera_info` YAML. Copy it to `src/jetson_bot_camera/config/imx219_wide_820x616.yaml`, where the camera node reads it.
 - **Tilt:** `tilt` gives the camera's pitch and roll from views of a board standing upright on the floor, a tablet on its stand say, with its rows level, so capture some that way. At least one must be turned well away from facing the camera. A board lying flat in front of the robot doesn't work: the camera is only 10.6 cm up and sees it almost edge on. The position comes from a ruler. Both go into `camera_joint` in `camera.xacro`.
 

@@ -122,9 +122,9 @@ The full node graph, TF tree, serial protocol and launch modes are in [SYSTEM_AR
 - **Simulation:** Mapping and autonomous goals work with EKF-fused odometry, rechecked under Humble in November 2026 (map above).
 - **Robot:** Under Humble on the Xavier NX, the lidar runs at 6.46 Hz and `slam_toolbox` builds maps. Encoders and IMU stream at 50 Hz and the full TF chain is up. On 2026-11-24 the robot mapped its room and reached its first Nav2 goal, stopping 6.5 cm short of a goal 1.0 m ahead, inside Nav2's 10 cm tolerance.
 - **Motors:** A rebuilt closed-loop motor firmware holds requested wheel speeds from 0.02 to 0.25 m/s within 1 to 2%, with the wheels lifted. The encoders count 1,497 per wheel turn, and the motors stop 0.75 s after commands stop. Driven through ROS, `/odom` matches the commands within 3%. On the floor, with feed-forward set there, both wheels hold requests within 0.003 m/s.
-- **Camera:** The CSI camera reaches ROS at 15 fps, 820×616 over its full field of view, about 20 ms after capture. The container has no Argus, so the Jetson host reads the camera, corrects its colour from a measurement on white paper and serves JPEG, and a node in the container publishes the stream. White paper comes out neutral grey to within about 3% across the frame, where the camera alone gave it a magenta cast that turned pink at the edges.
+- **Camera:** The CSI camera reaches ROS at 15 fps, 820×616 over its full field of view, about 21 ms after capture with the whole stack running. The container has no Argus, so the Jetson host reads the camera, corrects its colour from a measurement on white paper and has the Jetson's JPEG engine encode it, which takes a third of a core where encoding in software took three quarters. A node in the container publishes the stream. White paper comes out neutral grey to within about 3% across the frame, where the camera alone gave it a magenta cast that turned pink at the edges. The lens is locked and has a provisional calibration, published as `camera_info` with every frame, and the camera's measured position and tilt are in the URDF, ready for camera-based docking.
 
-All eighteen experiments, with method and numbers, are in [RESULTS.md](docs/experiments/RESULTS.md).
+All twenty-one experiments, with method and numbers, are in [RESULTS.md](docs/experiments/RESULTS.md).
 
 ## Project Status
 
@@ -136,7 +136,7 @@ All eighteen experiments, with method and numbers, are in [RESULTS.md](docs/expe
 | IMU and EKF fusion | ✅ Working | ✅ Heading follows the wheels and gyro and holds at rest, and with Nav2 running its distance follows the wheels within 0.1% |
 | Motor control | ✅ Working | ✅ Closed-loop speed within 0.003 m/s on the floor |
 | Web dashboard | ✅ Working | ✅ Teleop, lidar and telemetry used on the robot under Foxy |
-| Camera | ✅ Simulated camera, 640×480 at 10 Hz | ✅ CSI camera on `/camera/image_raw` at 15 fps, shown in the dashboard |
+| Camera | ✅ Simulated camera, 640×480 at 10 Hz | ✅ CSI camera on `/camera/image_raw` at 15 fps, shown in the dashboard, with a provisional lens calibration on `/camera/camera_info` |
 
 The live status board, with every open problem, is [PROJECT_ANALYSIS.md](docs/PROJECT_ANALYSIS.md).
 

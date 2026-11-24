@@ -56,14 +56,36 @@ That also stops the camera server, which runs on the host. `docker stop auto_ros
 `./robot.sh robot` starts the camera server on the Jetson host and the camera node in the container. [HARDWARE.md](../architecture/HARDWARE.md#camera) explains the split. The launch log's hardware audit prints the server's health, and the server's own log is `/tmp/autojetsonbot_camera_server.log` on the Jetson. To check by hand:
 
 ```bash
-curl -s http://127.0.0.1:8091/health                  # on the Jetson: ok frames=... fps=15.0 ...
+curl -s http://127.0.0.1:8091/health                  # on the Jetson: ok frames=... fps=15.0 ... jpeg=hardware ...
 curl -s -o frame.jpg http://127.0.0.1:8091/snapshot.jpg
 ros2 topic hz /camera/image_raw/compressed            # in the container: about 15
+ros2 topic echo /camera/camera_info --once            # the lens calibration, rational_polynomial
 ```
 
 The Web UI's camera panel shows `/camera/image_raw/compressed` as it is, through `web_video_server`'s `ros_compressed` stream on port 8080. If no frame arrives within 4 s, the panel falls back to the raw topic re-encoded at 320×240.
 
 - **No `/dev/video0`:** The camera wasn't found at boot. Power off, reseat the ribbon at both ends with the latches closed, and boot. When the sensor doesn't answer, `journalctl -k -b | grep imx219` shows `error -121`.
-- **Blurry picture:** The lens focuses by turning. Out focuses nearer and in focuses farther. Set it on a still scene 2 to 3 m away, then lock it with its ring or a dab of glue, since vibration turns it.
+- **Blurry picture:** The lens focuses by turning. Out focuses nearer and in focuses farther. Set it on a still scene 2 to 3 m away, then lock it with its ring or a dab of glue, since vibration turns it. It was locked on 2026-11-24. Turning it changes the calibration, so calibrate again after.
+- **No `/camera/camera_info`:** The launch log says why, after `No camera_info:`. The calibration is for 820×616 frames, so other sizes get none. A new file in `src/jetson_bot_camera/config` needs `./robot.sh build` once before the node finds it.
 - **Picture turned:** Set `CAMERA_FLIP`, listed in `./robot.sh help`.
+- **`jpeg=software` in `/health`:** The Jetson's JPEG engine didn't start or stopped answering, and the server's log says why. The picture is the same, at about a third of a core more. To compare the two by hand, stop the robot and run `python3 tools/csi_camera_server.py --jpeg software`, or `--jpeg hardware`, which refuses to start without the engine.
 - **Colour off, or pink toward the edges:** Tape plain white paper over the whole lens, under the room's usual light and not mixed with daylight from one side. Then run `./robot.sh camera-color`. It measures 30 frames, saves `tools/camera_color_shading.json` and uses it at once. `curl -s http://127.0.0.1:8091/shading` then shows how even the paper is. Measure again after changing the lens or its focus.
+
+### Calibrating the Lens
+
+[`tools/camera_intrinsics.py`](../../tools/camera_intrinsics.py) runs in the container, whose OpenCV has the ArUco module, and reads frames from the camera server, so start the robot, or the server alone, first. The board is [`assets/calibration/charuco_8x5_32mm_A4.pdf`](../../assets/calibration/charuco_8x5_32mm_A4.pdf), printed at 100% and taped flat, or [`charuco_8x5_screen_1920x1080.png`](../../assets/calibration/charuco_8x5_screen_1920x1080.png) full screen on a laptop or tablet. It is found even when part of it is out of the picture. A plain checkerboard works too, with `--board chessboard:8x6` for 8 × 6 inner corners, but only when wholly in view.
+
+```bash
+docker exec -it auto_ros_humble bash
+cd /autonomous_ROS/tools
+python3 camera_intrinsics.py focus                        # sharpness, before and after touching the lens
+python3 camera_intrinsics.py capture /tmp/calib_views     # keeps still views that differ, up to 30
+python3 camera_intrinsics.py calibrate /tmp/calib_views \
+    --out /tmp/imx219_wide_820x616.yaml --report /tmp/calib_report.json
+python3 camera_intrinsics.py tilt /tmp/calib_views --camera-info /tmp/imx219_wide_820x616.yaml
+```
+
+- **Views:** Hold the board still for about two seconds per view, 30 to 60 cm away, and move it through every part of the picture, the corners most of all, with some views turned 30 to 45° away from facing the camera. `capture` prints how many corners each part of the picture has. The views of 2026-11-24 reached only the middle, which left the edges extrapolated.
+- **Lens model:** `calibrate` fits OpenCV's rational model and its fisheye model, tests each on views left out of its fit, and writes the better one as a ROS `camera_info` YAML. Copy it to `src/jetson_bot_camera/config/imx219_wide_820x616.yaml`, where the camera node reads it.
+- **Tilt:** `tilt` gives the camera's pitch and roll from views of a board standing upright on the floor, a tablet on its stand say, with its rows level, so capture some that way. At least one must be turned well away from facing the camera. A board lying flat in front of the robot doesn't work: the camera is only 10.6 cm up and sees it almost edge on. The position comes from a ruler. Both go into `camera_joint` in `camera.xacro`.
+

@@ -25,6 +25,8 @@ What was tested, on what, and what it showed. Simulation work ran in Docker on a
 | 17 | [Floor calibration after the rewiring](#17-floor-calibration-after-the-rewiring) | Robot | 2026-11-23 | Floor feed-forward set again, the motor plugs found swapped left for right rather than reversed, and the remounted lidar measured at 0°, after which SLAM matched the wheels |
 | 18 | [Mapping run and the first Nav2 goal](#18-mapping-run-and-the-first-nav2-goal) | Robot, simulation | 2026-11-24 | The room mapped as `lab_map_v3`, and the first Nav2 goal on the robot reached: 1.0 m asked, 6.5 cm short by tape, inside the 10 cm tolerance. The EKF's distance read 8.5% short of the wheels under Nav2's load |
 | 19 | [Wheel speeds timed by the motor board](#19-wheel-speeds-timed-by-the-motor-board) | Robot | 2026-11-24 | On the same 1 m Nav2 goal, the EKF's distance within 0.1% of the wheels at a load average of 11 to 15, where it had read 8.5% short |
+| 20 | [The camera's JPEG on the Jetson's encoder](#20-the-cameras-jpeg-on-the-jetsons-encoder) | Robot | 2026-11-24 | The camera server from three quarters of a core to a third, and frames reach ROS a median 21 ms after capture instead of 36, with the same picture |
+| 21 | [The camera's lens, calibration and mounting](#21-the-cameras-lens-calibration-and-mounting) | Robot | 2026-11-24 | Lens locked without losing focus, a provisional calibration published as `camera_info` (rational model, fx 448, 95° across), and the camera's real position and tilt in the URDF |
 
 ---
 
@@ -543,9 +545,103 @@ The robot weaved slightly left and right on the way, as in experiment 18: the wh
 
 ---
 
+## 20. The Camera's JPEG on the Jetson's Encoder
+
+**Goal:** Take the camera server's JPEG encoding off the CPU, where it has run since the colour correction (experiment 15) and taken about 70% of a core, and win back about half a core. The picture, the timestamps and every endpoint should stay as they were, with a software fallback.
+
+**Setup:** The server corrects each frame's colour on the CPU, so the frames can't stay in the video hardware's memory on the way to the encoder. They now go to `nvjpegenc`, the Jetson's JPEG engine, through a second pipeline, `appsrc ! nvjpegenc ! appsink`, as full-range YCbCr 4:2:0 that the server makes with OpenCV (`tools/camera_jpeg.py`). If `nvjpegenc` doesn't start, or fails later, the server encodes with OpenCV, and `/health` says which. The server also runs OpenCV on one thread now, and no longer copies each frame once more after taking it from GStreamer. On the robot at night, around 05:00, each version of the server ran for 60 s with one client reading `/stream` on the Jetson, three times over. Then the whole stack ran in navigation mode for 60 s, first with master's camera files and then with these, while a subscriber in the container read `/camera/image_raw/compressed`. The camera looked at a dark room and a laptop screen. At that light the sensor's noise made frames of about 256 KB, where daylight frames were 50 to 75 KB (experiment 14), which makes JPEG encoding dearer.
+
+| Camera server alone, 60 s, three runs each | CPU, % of one core | Capture to the client, median and p95 |
+| :--- | ---: | ---: |
+| Master: software JPEG, OpenCV's default threads | 75.4, 74.0, 74.3 | 23.4 and 48.4 ms |
+| Master on one OpenCV thread | 53.5, 53.0, 53.2 | 22.6 and 48.1 ms |
+| Master on one thread, without the extra copy of each frame (one run) | 41.7 | 21.9 and 24.1 ms |
+| This change, software JPEG (the fallback) | 41.8, 41.5, 41.9 | 21.8 and 24.0 ms |
+| This change, JPEG on the Jetson's engine | 32.5, 32.8, 32.4 | 17.1 and 19.4 ms |
+| `nvargus-daemon`, Argus's own process, in every run | 21 to 23 | |
+
+| Each frame's work on one thread, median of 449 frames | Time | Share of a core at 15 fps |
+| :--- | ---: | ---: |
+| Taking the frame from GStreamer, BGRx to BGR, colour correction | 0.55, 0.36 and 0.45 ms | 2.0% |
+| OpenCV's JPEG encoding, quality 80 | 8.95 ms | 13.4% |
+| Full-range YCbCr for the engine: YCrCb at full size, chroma halved after | 6.00 ms | 9.0% |
+| The same, luma from grey and YCrCb from a half-size frame (used) | 1.87 ms | 2.8% |
+| Pushing the frame to `nvjpegenc` and pulling its JPEG | 0.72 ms | 1.1% |
+
+| Whole stack in navigation mode, 66 s each | Master | This change |
+| :--- | ---: | ---: |
+| Camera server | 77.7% of a core | 33.8% |
+| `nvargus-daemon`, camera node, `web_video_server` | 23.2%, 4.8%, 1.4% | 23.6%, 4.8%, 1.4% |
+| `/camera/image_raw/compressed` | 14.98 fps, 255 KB | 15.03 fps, 257 KB |
+| Capture to the subscriber, median and p95 | 36.3 and 66.9 ms | 21.1 and 23.9 ms |
+
+| Picture, on one corrected frame from the camera | Size | Against the frame before encoding |
+| :--- | ---: | ---: |
+| OpenCV, quality 80 | 237 KB | 29.16 dB, mean colour within 0.6 grey levels |
+| Jetson's engine, quality 80, from this change's YCbCr | 239 KB | 29.16 dB, mean colour within 0.7 grey levels |
+| On a stored photo with a black-to-white ramp: OpenCV, then the engine through `nvvidconv`'s conversion | 44 KB, then 42 KB | 42.2 dB, then 26.9 dB, with black decoded at 16 and white at 235 |
+
+**Result:** The camera server takes a third of a core where it took three quarters: 0.42 of a core won back with the server alone, and 0.44 with the whole stack running. Frames reach ROS a median 21 ms after capture instead of 36, and 95% within 24 ms instead of 67. The picture is the same: at the same quality setting the engine's JPEG is within 1% of OpenCV's size and decodes as close to the frame. Three changes share the gain. OpenCV's default pool, a thread per core, spent more CPU waiting for work than doing it, since each step on these frames takes about a millisecond: one thread saved 21 points. The extra copy of each 2 MB frame cost 11.5 points and doubled the slowest frames' delay, more than a copy should take, for reasons not looked into. The engine saved the last 9. Of the third of a core left, more than half is in Argus's capture threads, and `nvargus-daemon` takes about a quarter of a core besides. The first try sent BGRx frames through `nvvidconv` to the engine, which looked the same size but decoded washed out: `nvvidconv` converts to video range whatever colorimetry its caps ask for, and JPEG decoders read full range. In both stack runs rosbridge took about 80% of a core: in the second, a dashboard tab connected 2,871 times in the 106 s the stack ran. It was an open tab still running the dashboard's code from before its reconnect fix, made the same night.
+
+---
+
+## 21. The Camera's Lens, Calibration and Mounting
+
+**Goal:** Get the camera ready for camera-based docking: lock its lens, measure its intrinsics and distortion and publish them as `camera_info`, and put its real position and tilt in the URDF, which still held the ESP32-CAM's.
+
+**Setup:** All on the robot on the afternoon of 2026-11-24, with only the camera server running except for the last check.
+
+- **Lens lock:** `tools/camera_intrinsics.py focus` averages 15 frames, which takes out the sensor's noise, and measures sharpness over a 3×3 grid as the Laplacian's energy over the gradient's, at edges, which doesn't change with brightness. It ran twice on a still scene, then again after the user locked the lens.
+- **Calibration:** There was no printer, so the ChArUco board was offered as an image for a screen. The user showed a plain checkerboard on an iPad instead, 9 × 7 squares with 8 × 6 inner corners. The tool kept still views that differed from each other, from uncorrected snapshots, and the iPad was moved, since a short cable held the robot. The user stopped after six views, 288 corners. Both lens models were fitted and each tested on views left out of its fit, five times over.
+- **Mounting:** The user measured the camera on the front face with a ruler. For the tilt, the iPad lay flat on the floor in front of the robot, at 30 to 40 cm and then at about 15 cm. When that failed, the tilt came from the calibration views instead: the iPad had stood on the floor in every one, so its rows of squares were level, and with the iPad turned to different angles they give the up direction (`camera_intrinsics.py tilt`).
+- **Check:** The whole stack ran in navigation mode for a minute with this change, in daylight, while a subscriber read the camera's topics, and `tf2_echo` read the camera's frames.
+
+| Lens lock, sharpness of 15 averaged frames | Result |
+| :--- | :--- |
+| Before, two runs 13 s apart | 4.54 and 4.58 overall, each part of the picture within 0.8%, the middle within 0.05% |
+| After, the 7 parts the iPad didn't cover, brightness matched | 0.7 to 6.2% lower. The picture was 11% darker, as the iPad's bright screen had changed the exposure, and had moved 2.4 px sideways |
+| An added blur on the picture from before | 0.3 px changed the measure by 0%, 0.5 px by 8 to 12%, 0.7 px by 18 to 24% |
+
+| Calibration, 6 views | Rational model (used) | Fisheye model |
+| :--- | :--- | :--- |
+| fx, fy | 447.8, 452.3 px | 459.2, 454.3 px |
+| Optical centre | 408.5, 314.1 px | 417.2, 290.3 px |
+| Error on all views, and on views left out of the fit | 0.347 and 0.384 px | 0.353 and 0.444 px |
+| Rows and columns of corners, undistorted, off straight (median) | 0.092 px | 0.099 px |
+| Field of view across, down, corner to corner | 95.4°, 79.6°, 105.0° | 98.1°, 78.6°, 107.6° |
+| One standard deviation | fx 5.4, fy 4.8, centre 7.4 across and 9.1 down, in px | |
+| Where the corners reached | The middle: none beyond 62% of the half diagonal, 90% within 44% | |
+| The two models' rays | 1.1° to 1.7° apart from the middle to the edges | |
+
+| Camera mounting | URDF before | Now | From |
+| :--- | :--- | :--- | :--- |
+| Ahead of the axle | 0.1455 m | 0.158 m | The front face: the chassis is 19.4 cm long and centred 6.1 cm ahead of the axle |
+| Left of the centre line | 0 | 0.0375 m | 5 cm from the robot's left side and 12.5 cm from its right |
+| Above the chassis floor | 0.05 m | 0.0485 m | 5 cm from the face's top and bottom, on a 9.7 cm face |
+| Pitch | 0 | 7.0° down | Level rows in the 6 views, each within 0 to 1.8° of level and one 3.8°. The one view turned 59° away fixes it: without it, it is undetermined. Without any other, 6.8 to 7.0° |
+| Roll | 0 | 2.3°, left side up | The same, 1.3 to 3.3° with any one view left out |
+| Yaw | 0 | 0 | Not measured |
+
+| Whole stack, 60 s, daylight | Result |
+| :--- | :--- |
+| `/camera/image_raw/compressed` | 15.01 fps, 87 KB frames, a median 18.1 ms after capture, 95% within 20.1 ms |
+| `/camera/camera_info` | 901 messages, all 901 with an image's stamp, 820×616 `rational_polynomial`, from one publisher, `mjpeg_camera` |
+| CPU | Camera server 32.1% of a core, `nvargus-daemon` 22.9%, camera node 4.3% |
+| `chassis` to `camera_link` | 0.158, 0.037, 0.049 m, roll 2.30°, pitch 7.00° |
+| `base_footprint` to `camera_optical_link` | 0.163, 0.037, 0.104 m |
+
+| Bearing of a point on the middle row, from the calibration | 13.0° | 25.8° | 38.8° | 46.9° |
+| :--- | ---: | ---: | ---: | ---: |
+| A pinhole model with the calibrated focal length | 12.8° | 24.2° | 34.0° | 41.9° |
+| The docking project's placeholder, a 62.2° pinhole field of view | 8.4° | 16.4° | 23.8° | 30.5° |
+
+**Result:** The lens is locked and kept its focus: with the brightness matched, the parts of the picture the iPad didn't cover lost at most 6% of their sharpness, less than an added blur of 0.5 px takes, and the camera had also moved. The calibration fits its views to a third of a pixel and is published as `camera_info` with every frame. It is provisional. Six views that reached only the middle of the picture leave its focal length known to 1% and its optical centre to 7 to 9 px. The rational model fits large, offsetting terms that only the middle constrains, and the two models' rays differ by 1 to 2°. In the middle, where docking wants its marker, it holds. Near the edges it is extrapolated, and pictures undistorted with either model bend near their borders. The camera sits 3.75 cm left of the centre line and 1.25 cm ahead of where the URDF had it, looking 7° down. The floor check failed. The camera is 10.6 cm above the floor, so the iPad lying flat ahead was seen almost edge on: its screen lost contrast and caught a bottle's reflection, the whole board was never found, and blocks of it gave tilts from 14 to 53° with fits 2 to 52 px off. The level rows of the standing iPad gave the tilt instead. A room picture agrees with it: looking 7° down, the floor 2 m away should show about 30 px above the picture's middle, and it shows in rows 280 to 300, where with no tilt it would be about 24 px below. For docking, bearings need the calibration: the old 62.2° placeholder reads a marker 13° off the axis as 8.4°. The colour correction wasn't checked in daylight.
+
+---
+
 ## What's Next
 
 1. **Map saving:** Save maps with a wait long enough for the busy Jetson and with `free_thresh` 0.196, and have the Web UI report a failed save.
 2. **Longer goals:** Goals with turns and across more of the room, a tighter yaw tolerance, and the dashboard's goal button on the robot.
 3. **Calibration:** After the robot has been on for hours, check in the `d` line that the gyro's learned offsets have followed its drift. Counts per wheel turn haven't been measured again since the rewiring.
-4. **Camera:** Lock the lens, check the colour correction under daylight, and calibrate the wide-angle lens (intrinsics and distortion) for camera-based docking, which is developed in a separate project.
+4. **Camera:** Calibrate the lens again with views that reach the corners of the picture, check the colour correction in daylight, and measure the camera's yaw. Camera-based docking is developed in a separate project.

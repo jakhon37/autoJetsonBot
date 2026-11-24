@@ -1,25 +1,26 @@
-# Provisional lens calibration of the robot's IMX219 camera, rational_polynomial model, for
-# 820x616 frames from tools/csi_camera_server.py with flip 0 (CAMERA_FLIP in robot.sh).
-# Fitted by tools/camera_intrinsics.py on 2026-11-24, after the lens was locked, from 6 views
-# of a checkerboard with 8 x 6 inner corners shown on an iPad: 0.347 px on those views and
-# 0.384 px on views left out of the fit (experiment 21 in docs/experiments/RESULTS.md).
-# The views reached only the middle of the picture, out to 62% of the half diagonal. One
-# standard deviation: focal length 5 px, principal point 7 px across and 9 px down. The
-# outer part of the picture is extrapolated: the fisheye model, fitted to the same views,
-# puts rays 1 to 2 degrees apart from this one. Calibrate again with views reaching the
-# corners before relying on bearings near the edges.
+# Lens calibration of the robot's IMX219 camera, rational_polynomial model, for 820x616 frames
+# from tools/csi_camera_server.py with flip 0 (CAMERA_FLIP in robot.sh).
+# Fitted by tools/camera_intrinsics.py on 2026-11-24 from 16 views of a ChArUco board, 7 x 5
+# squares with 6x6 markers (DICT_6X6_50), shown on an iPad: 0.480 px on those views and
+# 0.503 px on views left out of the fit (experiment 22 in docs/experiments/RESULTS.md).
+# The views reached 73% of the half diagonal: all of the picture but its four corners, where
+# the model is extrapolated and bearings may be several degrees off. One standard deviation:
+# focal length 5 to 6 px, optical centre 2 px across and 4 px down.
+# It replaces a provisional fit from 6 views in the middle, whose optical centre was 41 px
+# lower. That fit misses these views by 2.4 px; this one matches its views to 0.38 px.
+# The projection matrix keeps square pixels.
 image_width: 820
 image_height: 616
 camera_name: imx219_wide
 camera_matrix:
   rows: 3
   cols: 3
-  data: [447.79863, 0, 408.46155, 0, 452.32649, 314.05177, 0, 0, 1]
+  data: [460.02714, 0, 418.18967, 0, 457.07947, 273.02236, 0, 0, 1]
 distortion_model: rational_polynomial
 distortion_coefficients:
   rows: 1
   cols: 8
-  data: [-0.67903619, -0.92452949, -0.011358686, 0.0053632064, 0.95664719, -0.2806166, -1.4787597, 1.1996282]
+  data: [-1.2547803, 7.6671918, -0.00032738741, 0.00035874928, 0.98389318, -0.92596787, 7.3033998, 3.478044]
 rectification_matrix:
   rows: 3
   cols: 3
@@ -27,4 +28,4 @@ rectification_matrix:
 projection_matrix:
   rows: 3
   cols: 4
-  data: [397.97769, 0, 416.43966, 0, 0, 398.53223, 299.41609, 0, 0, 0, 1, 0]
+  data: [374.80765, 0, 426.50908, 0, 0, 374.80765, 257.67105, 0, 0, 0, 1, 0]

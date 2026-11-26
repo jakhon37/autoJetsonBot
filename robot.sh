@@ -43,9 +43,11 @@ CORE COMMANDS:
     up          Start system using config file defaults (YAML)
     sim         Force Simulation Mode (sim:=true viz:=true)
     robot       Force Hardware Mode (sim:=false viz:=false)
-    nav         Force Navigation Mode (auto-saves map if was mapping)
+    nav         Force Navigation Mode (saves the map first if mapping, and stays mapping if that fails)
     map2nav     Save current map (if mapping) + switch to Nav2 (recommended for hardware)
-    stop        Stop all robot processes and clean up ports, and stop the lidar's motor
+    save-map    Save SLAM's map now, as the config's map_name, or as NAME: ./robot.sh save-map NAME
+    stop        Stop all robot processes, clean up ports and stop the lidar's motor (saves the map first if mapping)
+    stop f      Restart the container first: stops without saving the map
     camera-color  Measure the camera's colour shading: cover the lens with white paper first
     lidar-off   Stop the lidar's motor while the stack is down, for example after a boot
 
@@ -76,6 +78,7 @@ EXAMPLES:
     ./robot.sh up
     ./robot.sh nav
     ./robot.sh map2nav          # save map + switch to nav (real hardware friendly)
+    ./robot.sh save-map lab_map_v4   # save the map as maps/lab_map_v4, and keep mapping
     ./robot.sh sim x:=0.5 y:=0 z:=0.06 yaw:=0.0   # spawn pose (passed to launch)
 EOH
 }
@@ -310,6 +313,8 @@ stop_lidar_motor() {
     docker exec "$CONTAINER_NAME" head -3 /tmp/lidar_motor_off.log 2>/dev/null || true
 }
 
+# Stops the stack, saving SLAM's map first when mapping, over the map the config names.
+# "saved" skips that save, for nav and map2nav, which have just saved.
 stop_robot() {
     log_info "Stopping all processes (Aggressive Cleanup)..."
     stop_camera_server
@@ -319,7 +324,13 @@ stop_robot() {
         return 0
     fi
 
-    attempt_save_map || true
+    if [[ "${1:-}" != "saved" ]]; then
+        local save_rc=0
+        save_slam_map || save_rc=$?
+        if [[ $save_rc -eq 1 ]]; then
+            log_warn "Stopping anyway, so SLAM's unsaved map is lost."
+        fi
+    fi
 
     # pkill -f PATTERN kills this stop script too (the pattern is in bash -c),
     # so leftover nodes survive and the next launch double-binds the serial port.
@@ -373,55 +384,65 @@ PY
     sleep 2
 }
 
-# Attempt to save map via slam_toolbox if we are in mapping mode and slam is running.
-# This provides lightweight auto-save before mode switches / stops.
-attempt_save_map() {
+# Print the running launch's map_name and map_dir, one per line: from the config.json it writes,
+# or from the unified YAML if that file is missing.
+read_map_settings() {
+    docker exec -i "$CONTAINER_NAME" python3 - <<'PY'
+import json
+import yaml
+try:
+    with open('/autonomous_ROS/src/jetson_bot_gui/web/config.json') as f:
+        web = json.load(f)
+except (OSError, ValueError):
+    web = {}
+with open('/autonomous_ROS/src/jetson_bot_bringup/config/unified_robot_config.yaml') as f:
+    params = yaml.safe_load(f)['global']['ros__parameters']
+print(web.get('map_name') or params['map_name'])
+print(web.get('map_dir') or params.get('map_dir', '/autonomous_ROS/maps'))
+PY
+}
+
+# Save SLAM's map as <map_dir>/<name>, by default the map_name the launch uses, through the map
+# saver mapping mode runs (tools/save_map.py), and check that it was written.
+# Returns 0 when saved, 1 when the save failed, 2 when there was nothing to save because the
+# container or slam_toolbox isn't running.
+save_slam_map() {
+    local name="${1:-}" settings map_name map_dir full_path
     if ! docker ps --format '{{.Names}}' | grep -q "^$CONTAINER_NAME$"; then
+        return 2
+    fi
+    # The process, not `ros2 node list`, which can miss nodes while discovery is still running.
+    if ! docker exec "$CONTAINER_NAME" pgrep -f 'lib/slam_toolbox/' >/dev/null 2>&1; then
+        return 2
+    fi
+    if ! settings=$(read_map_settings); then
+        log_error "Map not saved: map_name and map_dir couldn't be read from config.json or unified_robot_config.yaml."
+        return 1
+    fi
+    map_name=$(sed -n 1p <<< "$settings")
+    map_dir=$(sed -n 2p <<< "$settings")
+    name="${name:-$map_name}"
+    full_path="${map_dir}/${name%.yaml}"
+
+    log_info "Saving SLAM's map as ${full_path} ..."
+    if docker exec "$CONTAINER_NAME" bash -c 'source "$1" && python3 /autonomous_ROS/tools/save_map.py "$2"' \
+            _ "$ROS_SETUP" "$full_path"; then
+        log_success "Map saved: ${full_path}.yaml and .pgm"
         return 0
     fi
+    log_error "Map NOT saved: ${full_path}"
+    return 1
+}
 
-    # Detect current mode from the exported config (written by launch)
-    local cur_mode
-    cur_mode=$(docker exec "$CONTAINER_NAME" python3 -c "
-import json,os
-p='/autonomous_ROS/src/jetson_bot_gui/web/config.json'
-print(json.load(open(p)).get('mode','') if os.path.exists(p) else '')
-" 2>/dev/null || echo "")
-
-    if [[ "$cur_mode" != "mapping" ]]; then
-        return 0
+# nav and map2nav save SLAM's map first. If that save fails, they exit with the stack still
+# mapping, so the map isn't lost.
+save_before_nav() {
+    local save_rc=0
+    save_slam_map || save_rc=$?
+    if [[ $save_rc -eq 1 ]]; then
+        log_error "Still mapping, so SLAM's map isn't lost. Save it again with ./robot.sh save-map, or drop it with ./robot.sh stop f and then switch."
+        exit 1
     fi
-
-    # Quick check if slam_toolbox is present
-    if ! docker exec "$CONTAINER_NAME" bash -c "source ${ROS_SETUP} && ros2 node list 2>/dev/null | grep -q slam_toolbox" 2>/dev/null; then
-        return 0
-    fi
-
-    local map_name map_dir full_path
-    map_name=$(docker exec "$CONTAINER_NAME" python3 -c "
-import json,os
-p='/autonomous_ROS/src/jetson_bot_gui/web/config.json'
-print(json.load(open(p)).get('map_name','lab_map_v2') if os.path.exists(p) else 'lab_map_v2')
-" 2>/dev/null || echo "lab_map_v2")
-
-    map_dir=$(docker exec "$CONTAINER_NAME" python3 -c "
-import json,os
-p='/autonomous_ROS/src/jetson_bot_gui/web/config.json'
-print(json.load(open(p)).get('map_dir','/autonomous_ROS/maps') if os.path.exists(p) else '/autonomous_ROS/maps')
-" 2>/dev/null || echo "/autonomous_ROS/maps")
-
-    full_path="${map_dir}/${map_name}"
-
-    log_info "Auto-saving current map before switch/stop: ${full_path}"
-
-    docker exec "$CONTAINER_NAME" bash -c "
-        source ${ROS_SETUP} 2>/dev/null || true
-        source /autonomous_ROS/install/setup.bash 2>/dev/null || true
-        ros2 service call /slam_toolbox/save_map slam_toolbox/srv/SaveMap \"{name: {data: '${full_path}'}}\" 2>/dev/null || \
-        ros2 service call /slam_toolbox/save_map slam_toolbox/srv/SaveMap \"{name: '${full_path}'}\" 2>/dev/null || true
-    " || true
-
-    sleep 1
 }
 
 _cleanup_ports() {
@@ -722,8 +743,17 @@ case "${1:-help}" in
     up)              shift; stop_robot; _launch "$@" ;;
     sim)             shift; stop_robot; _launch "sim:=true viz:=true $@" ;;
     robot)           shift; stop_robot; _launch "sim:=false viz:=false $@" ;;
-    nav)             shift; attempt_save_map || true; stop_robot; _launch "mode:=navigation $@" ;;
-    map2nav)         shift; attempt_save_map || true; stop_robot; _launch "mode:=navigation $@" ;;
+    nav)             shift; save_before_nav; stop_robot saved; _launch "mode:=navigation $@" ;;
+    map2nav)         shift; save_before_nav; stop_robot saved; _launch "mode:=navigation $@" ;;
+    save-map)
+        shift
+        save_rc=0
+        save_slam_map "${1:-}" || save_rc=$?
+        if [[ $save_rc -eq 2 ]]; then
+            log_error "Nothing to save: slam_toolbox isn't running in ${CONTAINER_NAME}. Start mapping first."
+        fi
+        exit $save_rc
+        ;;
     image)           build_image ;;
     build)           build_workspace ;;
     auto)            install_deps; build_workspace ;;

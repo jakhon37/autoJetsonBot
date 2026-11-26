@@ -27,6 +27,8 @@ What was tested, on what, and what it showed. Simulation work ran in Docker on a
 | 19 | [Wheel speeds timed by the motor board](#19-wheel-speeds-timed-by-the-motor-board) | Robot | 2026-11-24 | On the same 1 m Nav2 goal, the EKF's distance within 0.1% of the wheels at a load average of 11 to 15, where it had read 8.5% short |
 | 20 | [The camera's JPEG on the Jetson's encoder](#20-the-cameras-jpeg-on-the-jetsons-encoder) | Robot | 2026-11-24 | The camera server from three quarters of a core to a third, and frames reach ROS a median 21 ms after capture instead of 36, with the same picture |
 | 21 | [The camera's lens, calibration and mounting](#21-the-cameras-lens-calibration-and-mounting) | Robot | 2026-11-24 | Lens locked without losing focus, a provisional calibration published as `camera_info` (rational model, fx 448, 95° across), and the camera's real position and tilt in the URDF |
+| 22 | [The camera's lens again, with wider views](#22-the-cameras-lens-again-with-wider-views) | Robot | 2026-11-24 | A second calibration from 16 views that reach all of the picture but its four corners (rational model, fx 460, fy 457, centre 418, 273), and the camera's tilt corrected with it from 7.0° to 2.1° down |
+| 23 | [Map saving and teleop speeds](#23-map-saving-and-teleop-speeds) | Robot, simulation | 2026-11-24 | Saves from the dashboard and `robot.sh` checked and reported, in Gazebo and on the robot, saved maps reload with unknown cells unknown, and teleop starts at 0.15 m/s and 0.5 rad/s |
 
 ---
 
@@ -697,9 +699,51 @@ The robot weaved slightly left and right on the way, as in experiment 18: the wh
 
 ---
 
+## 23. Map Saving and Teleop Speeds
+
+**Goal:** Check the fixes for the map-saving faults and the teleop speeds found in experiment 18, in Gazebo and then on the robot.
+
+**Setup:** ROS 2 Humble in Docker on the amd64 PC, as in experiment 8, in a container of its own on the change's checkout, with `ROS_LOCALHOST_ONLY=1` and a ROS domain of its own. Mapping mode now starts Nav2's map saver beside slam_toolbox, with a 15 s wait for `/map` and `free_thresh` 0.196, and the dashboard and `robot.sh` save through it. `./robot.sh sim` started mapping with Gazebo headless, a script drove the simulated robot for 18 s, and SLAM's map grew to 120 × 120 cells. Saves ran from `./robot.sh` and from the dashboard in a browser on the PC. Then `./robot.sh map2nav`, and Nav2's map server loaded the saved map.
+
+| Check | Result |
+| :--- | :--- |
+| Map saver | Active 0.3 s after it started, beside slam_toolbox, in two of three launches. In the third its answer to its lifecycle manager's configure request was lost ("failed to send response"), so it was never activated, but it saved all the same |
+| `./robot.sh save-map sim_cli_test` | Saved in 3.0 s, 0.06 s of it in the saver, and printed 316 occupied, 10,046 free and 4,038 unknown cells, the same as SLAM's `/map` |
+| Dashboard Save Map | "Map saved" in 0.1 to 0.2 s |
+| Saving into a folder that doesn't exist | The dashboard said "Map NOT saved" after 0.1 s. `save-map` and `nav` exited 1, and `nav` left SLAM running |
+| `./robot.sh map2nav` | Saved once, not again while stopping, then started Nav2 |
+| The saved map in Nav2's map server | 10,845 free, 333 occupied and 3,222 unknown cells, as in its image |
+| The same image with `free_thresh` 0.25 | 14,067 free and none unknown, every unknown cell loaded as free |
+| Committed `lab_map_v2`, now 0.196 | 2,168 free and 10,222 unknown cells, as in its image |
+| `config.json` missing | `robot.sh` saved as `lab_map_v3`, from `unified_robot_config.yaml`. The dashboard refused to save without a map name |
+| Save Map in navigation mode | "Map NOT saved: Service /map_saver/save_map does not exist", and `save-map` said there was nothing to save |
+| Teleop defaults | 0.15 m/s forward and 0.5 rad/s turning on `/cmd_vel`, also in a browser that had stored 1.0 and 2.0 |
+
+**Found: a slow save held back the dashboard's teleop.** rosbridge handles each connection's messages in turn. While a save on the dashboard's connection waited 15 s for a map that never came, 2 s of forward commands pressed at its start reached `/cmd_vel` 14 s late, all within 11 ms, when the save answered. The stop button would have waited the same way. The dashboard now saves over a connection of its own. With slam_toolbox stopped, so that nothing published `/map`, Save Map then said "Map NOT saved" after 15.1 s, and forward commands pressed during the save reached `/cmd_vel` on time.
+
+**Found: the saver's lifecycle manager took it down during a slow save.** The saver answers nothing else while it waits for `/map`, its bond heartbeats included. 4 s into that save its lifecycle manager logged "CRITICAL FAILURE: SERVER map_saver IS DOWN", and brought it back about a second after the save ended, so for that second there was nothing to save through. That manager only starts the saver, so its bond is now off. With it off, the same slow save left the saver and its service up. A lost answer, as in the third launch, could also strike a save, so `tools/save_map.py` counts a save without an answer as saved when both files were written after it asked.
+
+**On the robot:** The change, rebased on experiment 19's, ran on the Jetson with `map_name` in `unified_robot_config.yaml` set to a test name, so that no save could touch `lab_map_v3`. `./robot.sh robot` started mapping with the robot standing still, and the motors got no commands. Saves ran from `./robot.sh` and from the dashboard, opened on the PC through an SSH tunnel. Then `./robot.sh map2nav` saved the map and Nav2's map server loaded it.
+
+| On the robot | Result |
+| :--- | :--- |
+| Map saver | Active 0.4 s after its lifecycle manager began configuring it, beside slam_toolbox |
+| `./robot.sh save-map`, under the configured name | Saved in 7.3 s, and printed 52 occupied, 378 free and 8,183 unknown cells, the same as SLAM's `/map` |
+| `./robot.sh save-map` with a name | Saved in 7.3 s, the same cells |
+| Saving into a folder that doesn't exist | `save-map` exited 1 with "Map NOT saved" after 7.0 s. The saver had failed in 55 ms |
+| Dashboard Save Map | "Map saved" in 1.3 s, 67 ms of it in the saver |
+| `./robot.sh map2nav` | Saved once, with the same cells, then started Nav2, in 15.1 s |
+| The saved map in Nav2's map server | 52 occupied, 378 free and 8,183 unknown cells, as saved |
+| `save-map` in navigation mode | Exited 2: nothing to save |
+| Teleop defaults on the robot's page | 0.3 m/s and 1.0 rad/s with the sliders at 0.50, also in a browser that had stored 1.0 and 2.0 |
+| `lab_map_v3` | Unchanged |
+
+**Result:** Saves from the dashboard and from `robot.sh` work, in Gazebo and on the robot. They say so only when the files were written, and report a failed save as failed. A saved map loads in Nav2 with its unknown cells unknown. The saver now runs for the whole mapping session, so a save no longer waits for a new node to find the others, which took about 3 s on the Jetson. There the saver wrote the dashboard's save in 67 ms. `save-map` took 7.3 s on the robot, against 3.0 s in Gazebo, nearly all of it outside the saver: `robot.sh`'s commands in the container and the helper's ROS start-up.
+
+---
+
 ## What's Next
 
-1. **Map saving:** Save maps with a wait long enough for the busy Jetson and with `free_thresh` 0.196, and have the Web UI report a failed save.
-2. **Longer goals:** Goals with turns and across more of the room, a tighter yaw tolerance, and the dashboard's goal button on the robot.
-3. **Calibration:** After the robot has been on for hours, check in the `d` line that the gyro's learned offsets have followed its drift. Counts per wheel turn haven't been measured again since the rewiring.
-4. **Camera:** Add views in the picture's four corners and fit again. For the top corners, hold the iPad close and let its board run off the corner. For the bottom ones, lay it flat on the floor just in front of the robot. Add two views of the iPad on its stand turned 45° each way, for the pitch. Check the colour correction in daylight, and measure the camera's yaw. Camera-based docking is developed in a separate project.
+1. **Longer goals:** Goals with turns and across more of the room, a tighter yaw tolerance, and the dashboard's goal button on the robot.
+2. **Calibration:** After the robot has been on for hours, check in the `d` line that the gyro's learned offsets have followed its drift. Counts per wheel turn haven't been measured again since the rewiring.
+3. **Camera:** Add views in the picture's four corners and fit again. For the top corners, hold the iPad close and let its board run off the corner. For the bottom ones, lay it flat on the floor just in front of the robot. Add two views of the iPad on its stand turned 45° each way, for the pitch. Check the colour correction in daylight, and measure the camera's yaw. Camera-based docking is developed in a separate project.

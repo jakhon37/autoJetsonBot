@@ -28,14 +28,12 @@ export class ControlsManager {
       document.getElementById('angularValue').textContent = this.app.angularScale.toFixed(2);
     });
 
-    // Settings inputs live update
-    document.getElementById('maxLinearVel').addEventListener('change', (e) => {
-      this.app.config.maxLinearVel = parseFloat(e.target.value) || 1.0;
-      this.app._saveSettings();
+    // Settings inputs live update. The speed limits last until the page is reloaded.
+    document.getElementById('maxLinearVel').addEventListener('change', () => {
+      this.app.config.maxLinearVel = this.app.numberInput('maxLinearVel');
     });
-    document.getElementById('maxAngularVel').addEventListener('change', (e) => {
-      this.app.config.maxAngularVel = parseFloat(e.target.value) || 2.0;
-      this.app._saveSettings();
+    document.getElementById('maxAngularVel').addEventListener('change', () => {
+      this.app.config.maxAngularVel = this.app.numberInput('maxAngularVel');
     });
     document.getElementById('publishRate').addEventListener('change', (e) => {
       const hz = parseFloat(e.target.value) || 10;
@@ -176,34 +174,71 @@ export class ControlsManager {
     this.app.log('Odometry reset → /initialpose', 'info');
   }
 
-  saveMap() {
+  async saveMap() {
     if (!this.app.isConnected) {
       this.app.log('Not connected', 'warning');
       return;
     }
-    const mapName  = this.app.config.map_name || 'lab_map_v2';
-    const mapDir   = this.app.config.map_dir  || '/autonomous_ROS/maps';
+    if (this._savingMap) return;  // the M key, or a second click
+    this._savingMap = true;
+    const btn = document.getElementById('saveMap');
+    if (btn) btn.disabled = true;
+    try {
+      await this._saveMap();
+    } finally {
+      this._savingMap = false;
+      if (btn) btn.disabled = false;
+    }
+  }
+
+  async _saveMap() {
+    // Read the launch's config again: the page may be older than the launch now running.
+    await this.app.fetchConfig();
+    const { map_name: mapName, map_dir: mapDir, mode } = this.app.config;
+    if (!mapName || !mapDir) {
+      this.app.log('❌ Map NOT saved: no map name, because config.json did not load', 'error');
+      return;
+    }
     const fullPath = `${mapDir}/${mapName}`;
-    this.app.log(`Saving map → ${fullPath}`, 'info');
-    this.app.log('Reminder: Save before running ./robot.sh nav or map2nav to switch modes cleanly.', 'info');
-    
-    const svc = new ROSLIB.Service({
-      ros: this.app.ros,
-      name: '/slam_toolbox/save_map',
-      serviceType: 'slam_toolbox/srv/SaveMap'
+    this.app.log(`Saving map → ${fullPath}…`, 'info');
+    const started = performance.now();
+
+    // Nav2's map saver, which mapping mode keeps running (main.launch.py). It answers
+    // result: false when the save fails. The thresholds are left out, so it uses its own:
+    // free_thresh 0.196 keeps unknown cells unknown when the map is loaded.
+    const request = new ROSLIB.ServiceRequest({
+      map_topic: 'map', map_url: fullPath, image_format: 'pgm', map_mode: 'trinary'
     });
-    
-    svc.callService(
-      new ROSLIB.ServiceRequest({ name: { data: fullPath } }),
-      ()  => this.app.log(`✅ Map saved: ${fullPath}`, 'info'),
-      (e) => {
-        this.app.log(`❌ Map save failed: ${e} — retrying with flat string`, 'error');
-        svc.callService(
-          new ROSLIB.ServiceRequest({ name: fullPath }),
-          () => this.app.log(`✅ Map saved (fallback): ${fullPath}`, 'info'),
-          (e2) => this.app.log(`❌ Map save failed again: ${e2}`, 'error')
-        );
-      }
-    );
+    // On a connection of its own: rosbridge handles each connection's messages in turn, so on
+    // the teleop connection a save waiting for /map held drive and stop commands until it ended.
+    const url = this.app.config.rosbridgeUrl;
+    const ros = new ROSLIB.Ros({ url });
+    const answer = await new Promise((resolve) => {
+      // roslib calls no callback if the connection drops, so stop waiting after 60 s.
+      const timer = setTimeout(() => resolve({}), 60000);
+      const finish = (result) => { clearTimeout(timer); resolve(result); };
+      ros.on('error', () => finish({ err: `no connection to ${url}` }));
+      ros.on('close', () => finish({ err: 'the connection closed before an answer' }));
+      ros.on('connection', () => {
+        const svc = new ROSLIB.Service({
+          ros, name: '/map_saver/save_map', serviceType: 'nav2_msgs/srv/SaveMap'
+        });
+        svc.callService(request, (res) => finish({ res }), (err) => finish({ err: String(err) }));
+      });
+    });
+    try { ros.close(); } catch (_) {}
+    const secs = ((performance.now() - started) / 1000).toFixed(1);
+    if (answer.res && answer.res.result === true) {
+      this.app.log(`✅ Map saved: ${fullPath}.yaml and .pgm (${secs} s)`, 'info');
+    } else if (answer.res) {
+      this.app.log(`❌ Map NOT saved: the map saver failed after ${secs} s ` +
+                   '(./robot.sh logs says why)', 'error');
+    } else if (answer.err !== undefined) {
+      const hint = mode && mode !== 'mapping' ? ` (it runs in mapping mode, and this is ${mode})` : '';
+      this.app.log(`❌ Map NOT saved: ${answer.err}${hint}`, 'error');
+    } else {
+      this.app.log(`❌ No answer about the save in ${secs} s: check the map's files before using it`,
+                   'error');
+    }
   }
 }

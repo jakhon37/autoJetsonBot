@@ -13,6 +13,7 @@
 # limitations under the License.
 
 import ast
+import glob
 import math
 import os
 import re
@@ -24,6 +25,9 @@ PKG_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 CONFIG_DIR = os.path.join(PKG_DIR, 'config')
 URDF_DIR = os.path.join(os.path.dirname(PKG_DIR), 'jetson_bot_description', 'urdf')
 LIDAR_JS = os.path.join(os.path.dirname(PKG_DIR), 'jetson_bot_gui', 'web', 'js', 'lidar.js')
+MAPS_DIR = os.path.join(os.path.dirname(os.path.dirname(PKG_DIR)), 'maps')
+MAP_YAMLS = sorted(glob.glob(os.path.join(MAPS_DIR, '*.yaml'))
+                   + glob.glob(os.path.join(PKG_DIR, 'worlds', '*.yaml')))
 
 
 def _params(file_name, node):
@@ -140,6 +144,21 @@ def test_ekf_fuses_only_wheel_speeds_and_the_gyro_rate():
     assert _fused(ekf['imu0_config']) == {vyaw}
 
 
+def test_maps_load_unknown_cells_as_unknown():
+    """Verify that every committed map loads unknown pixels as unknown and free ones as free."""
+    # Nav2's map_server reads a pixel p as occupancy 1 - p/255, free below free_thresh. Maps
+    # are saved with 205 for unknown (0.196) and 254 for free, and map_saver's default
+    # free_thresh of 0.25 made Nav2 load lab_map_v3's 6,020 unknown cells as free (2026-11-24).
+    map_name = _params('unified_robot_config.yaml', 'global')['map_name']
+    assert os.path.join(MAPS_DIR, f'{map_name}.yaml') in MAP_YAMLS
+    for path in MAP_YAMLS:
+        with open(path, 'r') as f:
+            meta = yaml.safe_load(f)
+        assert meta['mode'] == 'trinary' and meta['negate'] == 0, path
+        assert 1 - 254 / 255 < meta['free_thresh'] < 1 - 205 / 255, path
+        assert 1 - 205 / 255 < meta['occupied_thresh'] < 1, path
+
+
 if __name__ == '__main__':
     test_ekf_is_the_only_odom_tf_publisher_in_sim()
     test_sim_odom_covariance_is_not_zero()
@@ -147,4 +166,5 @@ if __name__ == '__main__':
     test_ekf_fuses_only_wheel_speeds_and_the_gyro_rate()
     test_launch_static_transforms_repeat_the_urdf()
     test_urdf_has_no_colon_and_space()
-    test_lidar_zero_points_to_the_robots_right()
+    test_lidar_zero_points_ahead()
+    test_maps_load_unknown_cells_as_unknown()

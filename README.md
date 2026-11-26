@@ -127,7 +127,7 @@ The full node graph, TF tree, serial protocol and launch modes are in [SYSTEM_AR
 - **Motors:** A rebuilt closed-loop motor firmware holds requested wheel speeds from 0.02 to 0.25 m/s within 1 to 2%, with the wheels lifted. The encoders count 1,497 per wheel turn, and the motors stop 0.75 s after commands stop. Driven through ROS, `/odom` matches the commands within 3%. On the floor, with feed-forward set there, both wheels hold requests within 0.003 m/s.
 - **Camera:** The CSI camera reaches ROS at 15 fps, 820×616 over its full field of view, about 21 ms after capture with the whole stack running. The container has no Argus, so the Jetson host reads the camera, corrects its colour from a measurement on white paper and has the Jetson's JPEG engine encode it, which takes a third of a core where encoding in software took three quarters. A node in the container publishes the stream. White paper comes out neutral grey to within about 3% across the frame, where the camera alone gave it a magenta cast that turned pink at the edges. The lens is locked and calibrated from views across the picture, published as `camera_info` with every frame, and the camera's measured position and tilt are in the URDF, ready for camera-based docking.
 
-All twenty-one experiments, with method and numbers, are in [RESULTS.md](docs/experiments/RESULTS.md).
+All twenty-three experiments, with method and numbers, are in [RESULTS.md](docs/experiments/RESULTS.md).
 
 ## Project Status
 

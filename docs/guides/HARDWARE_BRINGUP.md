@@ -44,7 +44,7 @@ If a topic shows 0 Hz while its node is active, it's almost always a name or int
 
 ## 4. Stop
 
-`./robot.sh stop` saves the map if the robot was in mapping mode, and so do `up`, `sim`, `robot`, `nav` and `map2nav`, which can overwrite a map in `maps/`. To end a test without saving, restart the container first, which stops SLAM before anything can save:
+`./robot.sh stop` saves the map if the robot was in mapping mode, and so do `up`, `sim`, `robot`, `nav` and `map2nav`, which can overwrite a map in `maps/`. Each says whether the save worked. `nav` and `map2nav` stay in mapping mode if it didn't, while the others stop anyway. To keep a map under its own name, save it first with `./robot.sh save-map NAME`. To end a test without saving, restart the container first, which stops SLAM before anything can save:
 
 ```bash
 ./robot.sh stop f

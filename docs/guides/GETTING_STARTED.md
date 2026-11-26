@@ -40,8 +40,9 @@ On the robot, `./robot.sh remote` prints the Jetson's addresses and an SSH tunne
 | `./robot.sh up` | Start with the defaults in `unified_robot_config.yaml` |
 | `./robot.sh sim` | Simulation with RViz (`sim:=true viz:=true`), in the YAML's mode, mapping by default |
 | `./robot.sh robot` | Real hardware, no RViz or Gazebo (`sim:=false viz:=false`) |
-| `./robot.sh nav` | Navigation mode on the configured target, saving the map first if it was mapping |
+| `./robot.sh nav` | Navigation mode on the configured target, saving the map first if it was mapping. If that save fails, it stays mapping |
 | `./robot.sh map2nav` | Same as `nav`, the recommended way to switch on hardware |
+| `./robot.sh save-map` | Save the map now while mapping, as the YAML's `map_name`, or as `maps/NAME` with `./robot.sh save-map NAME` |
 | `./robot.sh status` | Web UI, VNC, launch process, node count, mode, bridge and ESP32 link |
 | `./robot.sh watch` | `status`, refreshed every 10 s until Ctrl+C |
 | `./robot.sh logs` | Follow the launch log |
@@ -68,7 +69,7 @@ Run `./robot.sh build` after changing anything under `src/`. The workspace is bu
 
 ## Maps
 
-Every command that restarts or stops the stack (`up`, `sim`, `robot`, `nav`, `map2nav` and `stop`) first saves the current map if the robot was mapping. Copy any map you want to keep before switching. Maps live in `maps/` as `.pgm` + `.yaml` pairs.
+Every command that restarts or stops the stack (`up`, `sim`, `robot`, `nav`, `map2nav` and `stop`) first saves the current map if the robot was mapping, over the map the YAML names. Copy any map you want to keep before switching, or save under a new name with `./robot.sh save-map NAME`. Each save says whether it worked. Maps live in `maps/` as `.pgm` + `.yaml` pairs.
 
 ## ROS 2 Foxy
 

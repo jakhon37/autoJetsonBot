@@ -15,13 +15,14 @@ flowchart LR
 1. Start mapping: `./robot.sh sim` in simulation, or `./robot.sh robot` on the robot.
 2. Drive slowly around the space with the Web UI's teleop pad at <http://localhost:8000>. Overlapping loops help `slam_toolbox` close the map.
 3. Watch the map grow in RViz (VNC at `localhost:5900`) or on the dashboard's map view.
-4. Save it from the command line:
+4. Save it with the dashboard's **Save Map** button (or the M key), which saves over the map named in the config, or from the command line:
 
 ```bash
-./robot.sh shell "ros2 run nav2_map_server map_saver_cli -f /autonomous_ROS/maps/current_map --free 0.196 --ros-args -p map_subscribe_transient_local:=true -p save_map_timeout:=15.0"
+./robot.sh save-map            # as map_name from the config
+./robot.sh save-map lab_map_v4 # as maps/lab_map_v4, leaving the config's map alone
 ```
 
-The dashboard's Save Map goes through slam_toolbox, which gives the saver only 2 s to receive the map and writes `free_thresh: 0.25`, so unknown space loads as free. The dashboard says the map was saved either way. On the robot, check that the files exist, and set `free_thresh` to 0.196 in the map's YAML.
+Both go through Nav2's map saver, which mapping mode keeps running, and say when a save fails. It waits up to 15 s for `/map`, and writes `free_thresh: 0.196`, so cells the robot never saw load as unknown rather than free. `./robot.sh save-map` also prints the map's size and its occupied, free and unknown cells.
 
 <p align="center">
   <img src="../../assets/sim/gazebo_rviz_scan.png" alt="Gazebo lab world and the RViz scan during mapping" width="90%">
@@ -32,7 +33,7 @@ The dashboard's Save Map goes through slam_toolbox, which gives the saver only 2
 ## 2. Navigate
 
 1. Set the map name in `src/jetson_bot_bringup/config/unified_robot_config.yaml`, then `./robot.sh build`.
-2. Switch modes with `./robot.sh map2nav`, which saves the map first if you were mapping, or start with `./robot.sh nav`. Both run on the robot with the committed config. In simulation, use `./robot.sh sim mode:=navigation`. It loads the map named in the YAML, which is `lab_map_v3` from the robot, so for the simulated room load `src/jetson_bot_bringup/worlds/lab_small_light.yaml` through the `/map_server/load_map` service.
+2. Switch modes with `./robot.sh map2nav`, which saves the map first if you were mapping, or start with `./robot.sh nav`. Both run on the robot with the committed config. If that save fails, both leave the robot mapping, so SLAM's map isn't lost: save again, or use `./robot.sh stop f` to stop without saving. `./robot.sh stop` saves first too, and stops even if the save fails. In simulation, use `./robot.sh sim mode:=navigation`. It loads the map named in the YAML, which is `lab_map_v3` from the robot, so for the simulated room load `src/jetson_bot_bringup/worlds/lab_small_light.yaml` through the `/map_server/load_map` service.
 3. AMCL assumes the robot starts at the map origin, which is where it stood when mapping began, so tape that spot before mapping. If the robot starts elsewhere, give it the starting pose with **2D Pose Estimate** in RViz, or publish it on `/initialpose`. Until AMCL has a pose, RViz reports that the `map` frame doesn't exist.
 4. Send a goal with **2D Goal Pose** in RViz. Nav2 plans globally, follows with the DWB local planner and runs recovery behaviours if it gets stuck. The dashboard's goal button publishes the same `/goal_pose` message as that tool, and its cancel button calls Nav2's cancel service. Both were checked against Nav2 in simulation on 2026-11-09.
 
@@ -45,6 +46,6 @@ The dashboard's Save Map goes through slam_toolbox, which gives the saver only 2
 ## Tips for the Real Robot
 
 - **Odometry:** Nav2 uses the EKF's `/odom_filtered`, and `slam_toolbox` takes odometry from the `odom → base_footprint` transform, which the EKF publishes on the robot. With Nav2 running on the busy Jetson, the EKF's distance read 8.5% short of the wheels until the bridge timed the wheel speeds by the motor board's clock. Since then it has matched them within 0.1%, see [RESULTS.md](../experiments/RESULTS.md#19-wheel-speeds-timed-by-the-motor-board).
-- **Speed:** Drive slowly while mapping. The lidar gives about 6.5 scans a second. The dashboard's teleop sends Max Linear Velocity and Max Angular Velocity times its sliders, 0.5 m/s and 1 rad/s by default, so set them to 0.3 and 1.0 for 0.15 m/s and 0.5 rad/s.
+- **Speed:** Drive slowly while mapping. The lidar gives about 6.5 scans a second. The dashboard's teleop sends Max Linear Velocity and Max Angular Velocity times its sliders: by default 0.3 m/s and 1.0 rad/s times 0.50, which is 0.15 m/s and 0.5 rad/s, the speeds the robot was checked at and Nav2's limits. Changed limits last until the page is reloaded.
 - **Costmap tuning:** Inflation `cost_scaling_factor` sets how fast cost falls away from walls. Low values make walls look thick, and both Nav2 configs use 3.5.
 - **Footprint:** Nav2 treats the robot as a 0.19 m circle about the axle's centre, which holds the chassis' front corners, 0.181 m away, as it turns in place. With 0.30 m inflation it keeps clear of walls, so it needs passages of about 0.4 m.

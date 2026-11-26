@@ -69,6 +69,7 @@ flowchart TB
 | `ekf_filter_node` | `robot_localization` | Always | 30 Hz. Fuses the wheels' position, speed and yaw rate with the IMU's yaw rate and acceleration, not Madgwick's yaw. Publishes `/odom_filtered` and `odom → base_footprint` |
 | `rplidar_node` | `rplidar_ros` | A CP210x lidar port is found | `laser_frame`, 115200 baud, Standard scan mode |
 | `slam_toolbox` | `slam_toolbox` | Mapping mode, 2 s after launch | Async mode, `mapper_params.yaml` |
+| `map_saver`, `lifecycle_manager_map_saver` | `nav2_map_server`, `nav2_lifecycle_manager` | With `slam_toolbox` | Saves `/map` for the Web UI's Save Map and `robot.sh`, with `map_saver`'s settings in the Nav2 params |
 | AMCL, map server, Nav2 servers | `nav2_bringup` | Navigation mode, 2 s after launch | `nav2_params_humble.yaml`, map from `maps/` |
 | `robot_state_publisher` | `robot_state_publisher` | Always | URDF from `robot.xacro` |
 | `rosbridge_websocket`, `web_server_node`, `telemetry_node` | `rosbridge_server`, `jetson_bot_gui` | Always | Ports 9090 and 8000. Telemetry runs at 1 Hz, and its battery value is simulated |

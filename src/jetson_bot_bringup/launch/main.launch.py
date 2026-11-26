@@ -416,7 +416,33 @@ def launch_setup(context, *args, **kwargs):
                         'use_sim_time': 'true' if final_use_sim else 'false',
                         slam_params_arg: os.path.join(pkg_slam, 'config', 'mapper_params.yaml')
                     }.items()
-                )
+                ),
+                # Nav2's map saver, running while mapping: the Web UI's Save Map and robot.sh
+                # call its /map_saver/save_map. slam_toolbox's own save_map starts a new
+                # map_saver_cli for each save, which gets 2 s to find /map and writes
+                # free_thresh 0.25; on the busy Jetson the first took about 3 s and failed.
+                # Its settings are in the Nav2 file's map_saver section.
+                Node(
+                    package='nav2_map_server',
+                    executable='map_saver_server',
+                    name='map_saver',
+                    output='screen',
+                    parameters=[os.path.join(pkg_navigation, 'config', nav2_params_name),
+                                {'use_sim_time': final_use_sim}]
+                ),
+                # It only starts the saver. A save waiting for /map holds the saver for up to
+                # its 15 s, with no bond heartbeats, and with a bond this manager took it down
+                # 4 s in and brought it back after the save (Gazebo, 2026-11-24).
+                Node(
+                    package='nav2_lifecycle_manager',
+                    executable='lifecycle_manager',
+                    name='lifecycle_manager_map_saver',
+                    output='screen',
+                    parameters=[{'use_sim_time': final_use_sim,
+                                 'autostart': True,
+                                 'bond_timeout': 0.0,
+                                 'node_names': ['map_saver']}]
+                ),
             ]))
         else:
             entities.append(TimerAction(period=120.0 if final_use_sim else 2.0, actions=[

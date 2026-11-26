@@ -14,6 +14,7 @@
 
 import math
 import os
+import re
 import xml.etree.ElementTree as ET
 
 import yaml
@@ -21,6 +22,7 @@ import yaml
 PKG_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 CONFIG_DIR = os.path.join(PKG_DIR, 'config')
 URDF_DIR = os.path.join(os.path.dirname(PKG_DIR), 'jetson_bot_description', 'urdf')
+WEB_DIR = os.path.join(os.path.dirname(PKG_DIR), 'jetson_bot_gui', 'web')
 NAV2_FILES = ('nav2_params.yaml', 'nav2_params_humble.yaml')
 COSTMAPS = ('local_costmap', 'global_costmap')
 
@@ -124,9 +126,51 @@ def test_foxy_and_humble_match():
         assert _costmap(foxy, name)['inflation_layer'] == _costmap(humble, name)['inflation_layer']
 
 
+def test_map_saver_keeps_unknown_cells_unknown():
+    """Verify that the map saver mapping mode runs writes maps that load unknown as unknown."""
+    # An unknown pixel (205) loads as occupancy 0.196, so Nav2's default free_thresh of 0.25
+    # loaded every unknown cell as free. The Web UI and robot.sh leave the thresholds to it.
+    foxy, humble = (_nav2(f)['map_saver']['ros__parameters'] for f in NAV2_FILES)
+    for saver in (foxy, humble):
+        assert 1 - 254 / 255 < saver['free_thresh_default'] < 1 - 205 / 255
+        assert 1 - 205 / 255 < saver['occupied_thresh_default'] < 1
+        assert saver['map_subscribe_transient_local'] is True
+    # Foxy reads the wait for /map in milliseconds, as an integer, and Humble in seconds. Its
+    # default of 2 s was shorter than the 3 s a new node took to find the others on the Jetson.
+    assert isinstance(foxy['save_map_timeout'], int)
+    assert isinstance(humble['save_map_timeout'], float)
+    assert foxy['save_map_timeout'] == humble['save_map_timeout'] * 1000 >= 10000
+
+
+def test_dashboard_teleop_starts_at_nav2_speeds():
+    """Verify that the Web UI's teleop starts at the speeds Nav2 drives at."""
+    # Teleop sends Max Linear and Max Angular Velocity times the speed sliders. Their defaults
+    # sent 0.5 m/s and 1 rad/s while the robot was mapped on 2026-11-24, where it had been
+    # checked at Nav2's 0.15 m/s and 0.5 rad/s.
+    with open(os.path.join(WEB_DIR, 'index.html'), 'r') as f:
+        html = f.read()
+    with open(os.path.join(WEB_DIR, 'js', 'app.js'), 'r') as f:
+        app = f.read()
+
+    def input_value(element_id):
+        tag = re.search(rf'<input [^>]*id="{element_id}"[^>]*>', html).group(0)
+        return float(re.search(r'\svalue="([0-9.]+)"', tag).group(1))
+
+    def starting_scale(name):
+        return float(re.search(rf'this\.{name}\s*=\s*([0-9.]+);', app).group(1))
+
+    dwb = _nav2('nav2_params_humble.yaml')['controller_server']['ros__parameters']['FollowPath']
+    for limit, slider, nav2 in (('maxLinearVel', 'linearScale', dwb['max_vel_x']),
+                                ('maxAngularVel', 'angularScale', dwb['max_vel_theta'])):
+        assert starting_scale(slider) == input_value(slider), slider  # the slider shows it
+        assert math.isclose(input_value(limit) * starting_scale(slider), nav2), limit
+
+
 if __name__ == '__main__':
     test_nav2_yaml_validity()
     test_footprint_covers_the_chassis()
     test_speed_limits_agree()
     test_goal_tolerances_agree()
     test_foxy_and_humble_match()
+    test_map_saver_keeps_unknown_cells_unknown()
+    test_dashboard_teleop_starts_at_nav2_speeds()

@@ -113,8 +113,8 @@ The full node graph, TF tree, serial protocol and launch modes are in [SYSTEM_AR
 | Simulation: driving in the Gazebo lab (June 2026, Foxy) | Simulation: Nav2 costmap (June 2026, Foxy) |
 | :---: | :---: |
 | <img src="assets/sim/gazebo_sim.gif" alt="Robot driving in the Gazebo lab world with lidar rays" width="420"> | <img src="assets/sim/nav2_costmap.jpg" alt="Nav2 global costmap with inflated walls" width="420"> |
-| **Real robot: map from the lidar** | **Web dashboard** |
-| <img src="assets/results/map_real_lidar_2026-08-21.png" alt="Occupancy grid built from the real lidar" width="300"> | <img src="assets/ui/web_dashboard.png" alt="Web dashboard with lidar view, teleop pad and robot metrics" width="420"> |
+| **Real robot: the room's map and the first Nav2 goal (November 2026)** | **Web dashboard** |
+| <img src="assets/results/map_real_lab_map_v3_2026-11-24.png" alt="The room's occupancy grid from the real lidar, with the mapping drive, the Nav2 path, the goal and where the robot stopped" width="420"> | <img src="assets/ui/web_dashboard.png" alt="Web dashboard with lidar view, teleop pad and robot metrics" width="420"> |
 
 <p align="center">
   <img src="assets/results/map_sim_slam_2026-11-09.png" alt="Occupancy grid that slam_toolbox built while the robot drove in the Gazebo lab world" width="360">

@@ -4,7 +4,7 @@ This document defines the physical connection between the **MPU6050 6-Axis IMU**
 
 ## 🔌 Pin Mapping
 
-The firmware on the board uses these pins: MOTOR-ESP32S3's `quadrature-speed-control` branch since 2026-11-10, which found the IMU at its first boot, and the `gyro-offset-learning`, `swapped-motor-plugs` and `stamp-encoder-lines` branches built on it. The older build it replaced used the same pins. **Ensure the robot is powered off before wiring.**
+The firmware on the board uses these pins: MOTOR-ESP32S3's `quadrature-speed-control` branch since 2026-11-10, which found the IMU at its first boot, and the `gyro-offset-learning`, `swapped-motor-plugs` and `stamp-encoder-lines` branches built on it. The older build it replaced used the same pins. **Ensure the robot is powered off before wiring:** all three switches, see [HARDWARE.md](HARDWARE.md#power).
 
 | MPU6050 Pin | ESP32-S3 Pin | Function | Wire Color (Typical) |
 | :--- | :--- | :--- | :--- |
@@ -15,6 +15,10 @@ The firmware on the board uses these pins: MOTOR-ESP32S3's `quadrature-speed-con
 
 > [!CAUTION]
 > Most MPU6050 modules (like the GY-521) have an onboard 3.3V regulator but are safer when powered by the ESP32's **3.3V** pin. Using 5V without a level shifter can damage the S3's I2C pins.
+
+## 📍 Mounting
+
+The module, a GY-521, plugs into the motor board chip side down. The motor board stands on the tray in the robot's right half, which puts the chip about 0.098 m ahead of the axle, 0.036 m right of the centre line and 0.027 m above the chassis floor (read from photos on 2026-11-26, good to about a centimetre). `imu.xacro` holds that place and turns `imu_link` upside down (roll π), so the frame's z points down as the chip's does. The EKF uses only the yaw rate, which depends on z alone. Which way the board's x and y point hasn't been checked.
 
 ---
 

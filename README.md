@@ -61,17 +61,20 @@ flowchart LR
 ## The Robot
 
 <p align="center">
-  <img src="assets/photos/robot_side.jpg" alt="Side view: RPLidar on standoffs, Wi-Fi antenna, wheel" width="32%">
-  <img src="assets/photos/robot_front_three_quarter.jpg" alt="Front three-quarter view of the enclosure and lidar" width="32%">
-  <img src="assets/photos/robot_undercarriage.jpg" alt="Undercarriage: two encoder gear motors and a caster" width="32%">
+  <img src="assets/photos/robot_front_cover.jpg" alt="Front: the cover's push door with the camera, the RPLidar on standoffs, a Wi-Fi antenna on each side" width="32%">
+  <img src="assets/photos/robot_rear_panel.jpg" alt="Rear: the DC jack, two switches and two USB-C charging sockets, above the two encoder gear motors and the caster" width="32%">
+  <img src="assets/photos/robot_tray.jpg" alt="The tray out of the box: the ESP32-S3 motor board beside the Jetson Xavier NX on its carrier board" width="32%">
+  <br>
+  <em>Front with the camera · rear with the power controls, numbered in <a href="docs/architecture/HARDWARE.md#power">HARDWARE.md</a> · the tray with the motor board and the Jetson</em>
 </p>
 
 | Part | Details |
 | :--- | :--- |
-| **Computer** | NVIDIA Jetson Xavier NX Developer Kit, 8 GB, running ROS 2 Humble in Docker |
+| **Computer** | NVIDIA Jetson Xavier NX, 8 GB, on a Waveshare carrier board, running ROS 2 Humble in Docker |
 | **Real-time controller** | ESP32-S3 with a TB6612FNG motor driver, on the Jetson's USB |
-| **Drive** | Differential drive, 2 × JGA25-370 gear motors with Hall encoders, 68 mm wheels, front caster |
+| **Drive** | Differential drive, 2 × JGA25-370 gear motors with Hall encoders, 68 mm wheels, swivel caster at the front |
 | **Sensors** | RPLidar A1 (360° lidar), MPU6050 (6-axis IMU), IMX219 CSI camera with a wide-angle lens |
+| **Power** | A battery for the Jetson and another for the motors, each with its own switch and USB-C charging, and a DC jack for the Jetson's mains adapter |
 | **Size** | 19.4 × 17.8 × 9.7 cm chassis, wheel separation 0.212 m |
 
 Parts, wiring, pin map and measurements are in [HARDWARE.md](docs/architecture/HARDWARE.md).

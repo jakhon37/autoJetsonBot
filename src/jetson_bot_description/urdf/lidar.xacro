@@ -5,27 +5,51 @@
     <!-- The lidar's 0 degree points straight ahead. It was remounted on 2026-11-23, and two straight
          drives on the floor then put the direction of travel at 0 to +1 degrees in the scan. Before
          that it pointed to the robot's right, and this yaw was -90 degrees. main.launch.py publishes
-         this joint again as a static transform, and the dashboard turns scans by the same yaw. -->
+         this joint again as a static transform, and the dashboard turns scans by the same yaw.
+
+         The frame is the scan plane on the head's axis. The RPLidar A1's data sheet puts that
+         plane 21 mm above the face its base is mounted by and 9 mm below the head's top, and the
+         base stands on four standoffs on the chassis top (z 0.097), read from photos on 2026-11-26
+         as 34 to 38 mm long. That gives z 0.154, within about 3 mm. Until then this joint held
+         0.161, about the height of the head's top. -->
     <joint name="laser_joint" type="fixed">
         <parent link="chassis"/>
         <child link="laser_frame"/>
-        <origin xyz="0.064 0 0.161" rpy="0 0 0"/>
+        <origin xyz="0.064 0 0.154" rpy="0 0 0"/>
     </joint>
 
+    <xacro:macro name="lidar_standoff" params="x y">
+        <visual>
+            <origin xyz="${x} ${y} -0.039" rpy="0 0 0"/>
+            <geometry>
+                <cylinder radius="0.003" length="0.036"/>
+            </geometry>
+            <material name="grey2"/>
+        </visual>
+    </xacro:macro>
+
     <link name="laser_frame">
+        <!-- The turning head, 70 mm across -->
         <visual>
+            <origin xyz="0 0 -0.001" rpy="0 0 0"/>
             <geometry>
-                <cylinder radius="0.05" length="0.04"/>
+                <cylinder radius="0.035" length="0.02"/>
             </geometry>
             <material name="black"/>
         </visual>
+        <!-- The base, whose motor end points ahead -->
         <visual>
-            <origin xyz="0 0 -0.05"/>
+            <origin xyz="0.0132 0 -0.016" rpy="0 0 0"/>
             <geometry>
-                <cylinder radius="0.01" length="0.1"/>
+                <box size="0.0967 0.0703 0.01"/>
             </geometry>
             <material name="black"/>
         </visual>
+        <xacro:lidar_standoff x="-0.028" y="0.028"/>
+        <xacro:lidar_standoff x="-0.028" y="-0.028"/>
+        <xacro:lidar_standoff x="0.042" y="0.020"/>
+        <xacro:lidar_standoff x="0.042" y="-0.020"/>
+        <!-- The collision and the inertia are one cylinder round the head, a little larger than it -->
         <collision>
             <geometry>
                 <cylinder radius="0.05" length="0.04"/>

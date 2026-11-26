@@ -1,10 +1,16 @@
 <?xml version="1.0"?>
 <robot xmlns:xacro="http://www.ros.org/wiki/xacro" >
 
+    <!-- The MPU6050, a GY-521 board, sits chip side down on the motor board, which stands on the
+         tray in the robot's right half since the body was rebuilt on 2026-11-15 to 17. Its
+         place was read from photos on 2026-11-26, good to about a centimetre, and has not been
+         checked with a ruler. Until then this joint held 0 0 0.1, a placeholder above the chassis
+         top. Roll pi turns the frame's z down, the way the chip faces. Which way the board's x
+         and y point has not been checked. The EKF fuses only the yaw rate, which needs z alone. -->
     <joint name="imu_joint" type="fixed">
         <parent link="base_link"/>
         <child link="imu_link"/>
-        <origin xyz="0 0 0.1" rpy="${pi} 0 0"/>
+        <origin xyz="0.098 -0.036 0.027" rpy="${pi} 0 0"/>
     </joint>
 
     <link name="imu_link"/>

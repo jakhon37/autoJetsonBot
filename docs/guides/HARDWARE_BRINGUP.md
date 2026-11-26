@@ -13,6 +13,7 @@ How to connect, start and check the real robot. The parts and wiring are in [HAR
 - **Use the ESP32-S3's native socket, not COM.** Its COM socket (a CH343, `1a86:55d3`) also shows up as `/dev/ttyACM0`, but the firmware doesn't talk there, so the bridge gets no wheel or IMU data. When the COM socket is all they find, launch's hardware audit and `./robot.sh status` say so.
 - **Plug in first, then start the container.** Docker only sees USB devices that exist when the container starts, so restart it after plugging anything in.
 - **Connect the camera with the power off, then boot.** The Jetson looks for a CSI camera only at boot, and plugging one in while powered can damage it. `journalctl -k -b | grep imx219` shows `subdev imx219 9-0010 bound` when it was found.
+- **Power.** The Jetson runs from its mains adapter, through the DC jack and the switch beside it, or from its battery, through the next switch. Have only one of those two switches on at a time. The motors run only with the switch on the right side wall on. "Power off" in this guide means all three switches off. [HARDWARE.md](../architecture/HARDWARE.md#power) lists the controls, numbered as on the rear photo at the top of that page.
 
 ## 2. Start and Check
 
@@ -39,7 +40,7 @@ If a topic shows 0 Hz while its node is active, it's almost always a name or int
 2. **Know the failsafe.** The ESP32-S3 stops the motors when no command arrives for 500 ms. Measured on 2026-11-10: the wheels stopped 0.75 s after the last command.
 3. **Check encoder direction.** Turn each wheel forward by hand and watch the counts in `./robot.sh status`. Counts that move the same way in both directions mean the encoder's B channel isn't connected.
 4. **Calibrate.** Mark a wheel, turn it 10 times, and set `encoder_cpr` to the count divided by 10. On 2026-11-10 that gave 1,497, which is set. Then measure the gyro's offsets with the robot still and set them as the firmware's `GYRO_BIAS_X/Y/Z`: it learns drifts from there, but only within 0.02 rad/s of them. Check that the front of the scan points to the front of the robot.
-5. **Check the IMU's axes.** The URDF mounts `imu_link` upside down (roll π). At rest the real MPU6050 reads about −10 m/s² on z, which agrees. Turn the robot left by hand and check that `/odom_filtered`'s yaw rises, or the EKF sees yaw rate with the wrong sign.
+5. **Check the IMU's axes.** The MPU6050 sits chip side down on the motor board, and the URDF mounts `imu_link` upside down to match (roll π). At rest it should read about −10 m/s² on z, as it did on 2026-11-09, before the rebuild moved it. Turn the robot left by hand and check that `/odom_filtered`'s yaw rises, or the EKF sees yaw rate with the wrong sign. On 2026-11-23, in the rebuilt body, the gyro read a turn on the floor within 1° of the wheels.
 
 ## 4. Stop
 

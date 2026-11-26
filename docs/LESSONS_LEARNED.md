@@ -116,12 +116,12 @@ If `robot.sh stop` fails to terminate Gazebo, it is usually because `gzserver` i
     *   **Wheel Separation:** 0.212m (Center-to-center)
     *   **Wheel Radius:** 0.034m (3.4cm)
     *   **Ground Clearance:** 0.056m (5.6cm floor-to-chassis)
-    *   **Total Weight:** 1.4 kg recorded. The URDF's link masses add up to 1.7 kg.
+    *   **Total Weight:** 1.4 kg recorded, before the rebuild of 2026-11-15 to 17. The URDF's link masses add up to 1.7 kg.
 *   **URDF Structural Standard:** 
     *   `base_footprint` is at floor level ($z=0$).
     *   `base_link` is on the axle line at the height of the chassis floor ($z=0.056$). The chassis box is centred 6.1 cm ahead of it.
     *   Children of `base_link` or `chassis` are placed by their height above the chassis floor, so don't add the ground clearance again.
-*   **Lidar Offset Logic:** The RPLidar A1 is positioned at `x=0.064` (forward of axle) and `z=0.161` above the chassis floor, which is 0.217 m above the ground. This accounts for the 9.7cm chassis height plus the 6.4cm mount height. Its 0° points straight ahead since it was remounted on 2026-11-23, so `laser_joint`'s yaw is 0. Before that it pointed to the robot's right, at −90°.
+*   **Lidar Offset Logic:** `laser_frame` is the RPLidar A1's scan plane, at `x=0.064` (forward of axle) and `z=0.154` above the chassis floor, which is 0.210 m above the ground: the 9.7 cm chassis, standoffs of about 3.6 cm, and 2.1 cm from the lidar's mounting face up to the plane. The 6.4 cm mount height measured in June matches the top of the head, 0.9 cm above the plane, and stood in the URDF as `z=0.161` until 2026-11-26. Its 0° points straight ahead since it was remounted on 2026-11-23, so `laser_joint`'s yaw is 0. Before that it pointed to the robot's right, at −90°.
 *   **Clearance Check:** With `wheel_separation: 0.212m` and a 17.8cm chassis, each chassis side is **1.7cm** from the wheel's centre plane, leaving a 0.4 cm gap to the inner face of the 2.6 cm wide wheel. This eliminates numerical jitter and "explosive" repulsion in Gazebo.
 *   **The Overlap Paradox:** Gazebo Classic can handle internal geometry overlaps IF stiffness (`kp`) is extremely high (1M+). If you lower `kp` to "optimize" performance, the collision energy is unlocked, causing sliding. Fix geometry FIRST before softening physics.
 *   **AMCL-Centric UI:** When visualizing paths or goals in a robot-relative UI, always transform from the Map frame using `/amcl_pose`, not `/odom`. Odometry drift will cause the path to "float" away from the Lidar walls; AMCL keeps them anchored.
@@ -156,7 +156,7 @@ If `robot.sh stop` fails to terminate Gazebo, it is usually because `gzserver` i
 ## 🔧 First Drive Lessons (Added 2026-11-10)
 
 *   **Silent ESP32-S3:** If the bridge connects but gets nothing, reset the board and read what it prints. `boot:0x2 (DOWNLOAD(USB/UART0))` and `waiting for download` mean it started in ROM download mode. On 2026-11-09 every reset through the USB control lines did that, until the USB cable was unplugged for 5 s. esptool still works in that state, which made it a good moment to back up the old firmware.
-*   **No Motor Power Looks Like a Dead Wheel:** The ESP32-S3 runs from the Jetson's USB, so it answers and reports a PWM even when the driver's VM has no battery. A non-zero PWM with no motion and `no_counts` means check the motor supply first.
+*   **No Motor Power Looks Like a Dead Wheel:** The ESP32-S3 runs from the Jetson's USB, so it answers and reports a PWM even when the driver's VM has no battery. A non-zero PWM with no motion and `no_counts` means check the motor supply first: since the rebuild of 2026-11-15 to 17, the switch on the right side wall and the motor battery's charge.
 *   **A Dead B Channel Zeroes a Quadrature Count:** Counting all 4 edges, each A pulse adds a count and then takes it away when B is stuck, so the total stays at 0 while A toggles. Counting one edge of A instead hides the same fault as a count that never reverses. Check each channel's activity on its own, with the firmware's `d` pin report, before blaming the counter.
 *   **Jumper Wires Fail at the Crimp:** Encoder signals carry about a milliamp, so thin wire is fine, but push-on jumpers break inside the crimp and loosen with vibration. The left encoder's green (B) wire had broken that way. Secure them, or use crimped JST-PH cables. Only the motor and battery wires need to be thick (20 to 22 AWG).
 *   **Mirrored Motors:** The left motor is mounted mirrored, so its encoder counted backwards and its sign had to flip. Only a direction test, with someone watching which way each wheel turns, settles it.

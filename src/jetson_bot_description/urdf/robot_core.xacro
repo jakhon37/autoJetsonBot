@@ -157,27 +157,64 @@
     </gazebo>   
 
     <!-- CASTER WHEEL -->
+    <!-- A swivel caster with a 26 mm wheel, on a plate hung by four bolts 16 mm under the chassis
+         floor since the body was rebuilt on 2026-11-15 to 17. Its swivel axis is 0.115 m ahead of
+         the axle, and when driving forward the wheel trails about 13 mm behind that axis. Here it
+         is a ball of the wheel's size under the swivel axis, nearly without friction, with its
+         lowest point on the ground, at z -0.056 in base_link. The swivel, the plate and the bolts
+         are drawn without collisions. The sizes were read from photos on 2026-11-26. Before, this
+         link was a 68 mm ball. -->
     <joint name="caster_wheel_joint" type="fixed">
-        <origin xyz="0.115 0 -0.022" rpy="0 0 0"/>
+        <origin xyz="0.115 0 -0.043" rpy="0 0 0"/>
         <parent link="base_link"/>
         <child link="caster_wheel"/>
     </joint>
+
+    <xacro:macro name="caster_bolt" params="x y">
+        <visual>
+            <origin xyz="${x} ${y} 0.03375" rpy="0 0 0"/>
+            <geometry>
+                <cylinder radius="0.0015" length="0.0185"/>
+            </geometry>
+            <material name="grey2"/>
+        </visual>
+    </xacro:macro>
 
     <link name="caster_wheel">
         <visual>
             <origin xyz="0 0 0" rpy="0 0 0"/>
             <geometry>
-                <sphere radius="0.034"/>
+                <sphere radius="0.013"/>
             </geometry>
             <material name="grey"/>
         </visual>
+        <!-- The swivel, from the wheel up to the plate -->
+        <visual>
+            <origin xyz="0 0 0.01875" rpy="0 0 0"/>
+            <geometry>
+                <cylinder radius="0.0125" length="0.0115"/>
+            </geometry>
+            <material name="grey2"/>
+        </visual>
+        <!-- The plate, and the bolts that hold it under the chassis floor -->
+        <visual>
+            <origin xyz="0 0 0.02575" rpy="0 0 0"/>
+            <geometry>
+                <box size="0.038 0.038 0.0025"/>
+            </geometry>
+            <material name="grey2"/>
+        </visual>
+        <xacro:caster_bolt x="0.0115" y="0.0145"/>
+        <xacro:caster_bolt x="0.0115" y="-0.0145"/>
+        <xacro:caster_bolt x="-0.0115" y="0.0145"/>
+        <xacro:caster_bolt x="-0.0115" y="-0.0145"/>
         <collision>
             <origin xyz="0 0 0" rpy="0 0 0"/>
             <geometry>
-                <sphere radius="0.034"/>
+                <sphere radius="0.013"/>
             </geometry>
         </collision>
-        <xacro:inertial_sphere mass="0.1" radius="0.034">
+        <xacro:inertial_sphere mass="0.1" radius="0.013">
             <origin xyz="0 0 0" rpy="0 0 0"/>
         </xacro:inertial_sphere>
     </link> 

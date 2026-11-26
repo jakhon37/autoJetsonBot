@@ -635,7 +635,65 @@ The robot weaved slightly left and right on the way, as in experiment 18: the wh
 | A pinhole model with the calibrated focal length | 12.8° | 24.2° | 34.0° | 41.9° |
 | The docking project's placeholder, a 62.2° pinhole field of view | 8.4° | 16.4° | 23.8° | 30.5° |
 
-**Result:** The lens is locked and kept its focus: with the brightness matched, the parts of the picture the iPad didn't cover lost at most 6% of their sharpness, less than an added blur of 0.5 px takes, and the camera had also moved. The calibration fits its views to a third of a pixel and is published as `camera_info` with every frame. It is provisional. Six views that reached only the middle of the picture leave its focal length known to 1% and its optical centre to 7 to 9 px. The rational model fits large, offsetting terms that only the middle constrains, and the two models' rays differ by 1 to 2°. In the middle, where docking wants its marker, it holds. Near the edges it is extrapolated, and pictures undistorted with either model bend near their borders. The camera sits 3.75 cm left of the centre line and 1.25 cm ahead of where the URDF had it, looking 7° down. The floor check failed. The camera is 10.6 cm above the floor, so the iPad lying flat ahead was seen almost edge on: its screen lost contrast and caught a bottle's reflection, the whole board was never found, and blocks of it gave tilts from 14 to 53° with fits 2 to 52 px off. The level rows of the standing iPad gave the tilt instead. A room picture agrees with it: looking 7° down, the floor 2 m away should show about 30 px above the picture's middle, and it shows in rows 280 to 300, where with no tilt it would be about 24 px below. For docking, bearings need the calibration: the old 62.2° placeholder reads a marker 13° off the axis as 8.4°. The colour correction wasn't checked in daylight.
+**Result:** The lens is locked and kept its focus: with the brightness matched, the parts of the picture the iPad didn't cover lost at most 6% of their sharpness, less than an added blur of 0.5 px takes, and the camera had also moved. The calibration fits its views to a third of a pixel and is published as `camera_info` with every frame. It is provisional, and experiment 22 replaced it and the tilt measured with it. Six views that reached only the middle of the picture leave its focal length known to 1% and its optical centre to 7 to 9 px. The rational model fits large, offsetting terms that only the middle constrains, and the two models' rays differ by 1 to 2°. In the middle, where docking wants its marker, it holds. Near the edges it is extrapolated, and pictures undistorted with either model bend near their borders. The camera sits 3.75 cm left of the centre line and 1.25 cm ahead of where the URDF had it, looking 7° down. The floor check failed. The camera is 10.6 cm above the floor, so the iPad lying flat ahead was seen almost edge on: its screen lost contrast and caught a bottle's reflection, the whole board was never found, and blocks of it gave tilts from 14 to 53° with fits 2 to 52 px off. The level rows of the standing iPad gave the tilt instead. A room picture agrees with it: looking 7° down, the floor 2 m away should show about 30 px above the picture's middle, and it shows in rows 280 to 300, where with no tilt it would be about 24 px below. For docking, bearings need the calibration: the old 62.2° placeholder reads a marker 13° off the axis as 8.4°. The colour correction wasn't checked in daylight.
+
+---
+
+## 22. The Camera's Lens Again, With Wider Views
+
+**Goal:** Replace experiment 21's provisional calibration with one whose views reach the corners of the picture, check the camera's tilt with it, check the colour correction in daylight and measure the camera's yaw.
+
+**Setup:** On the robot on 2026-11-24 from 16:57 to 17:30, with only the camera server running until the last check. A short cable held the robot on a foam mat, so the iPad moved.
+
+- **Board:** The ChArUco image went to the user, but the iPad showed another ChArUco board, 7 × 5 squares with 6×6 markers, and with the tool's 4×4 dictionary nothing was found. Detecting markers with each dictionary named it, and fitting the markers' corners to OpenCV's layouts gave its shape: 7 × 5 squares with markers half a square wide fitted within 0.6 px, where 5 × 7 was 86 px off. `camera_intrinsics.py` now takes such boards, here `--board charuco:7x5:DICT_6X6_50:0.5`. The square size only matters for the floor check, so it wasn't measured.
+- **Capture:** `capture --preview-port` serves the frames it looks at as MJPEG, with a 6 × 4 grid over the picture: red where no kept view has corners, yellow where they are fewer than 12, and a line saying hold still, kept or like a kept view. The user watched it through an ssh tunnel in the app's browser pane.
+- **Fit and tilt:** As in experiment 21, both lens models were fitted and each tested on views left out of its fit. Each calibration was also tested on the other's views, with each view's pose fitted. The tilt came from views of the iPad standing on its stand, whose rows of squares are level.
+- **Check:** The Jetson's checkout was updated to master, with `jetson_bot_camera` rebuilt. With the new calibration and tilt put in for one run, the whole stack ran in navigation mode while a subscriber read the camera's topics and `tf2_echo` read its frames. Then master's files went back.
+
+| Views | Result |
+| :--- | :--- |
+| Kept in about 10 minutes, before the user stopped | 16 views, 368 corners. Views 1 to 7 had the iPad on its stand on the floor, left, middle and right. In views 8 to 16 it was held close to the lens, filling most of the picture |
+| Corners per part of the picture, 6 × 4, top row first | 0 2 1 3 5 0, then 1 26 49 84 78 2, then 9 16 21 27 34 5, then 0 0 2 2 1 0 |
+| Reach | 73% of the half diagonal, where experiment 21 reached 62%: x 52 to 742 and y 138 to 475 of 820 × 616. The four corners got no corners, and a try at the top-left one wasn't found |
+
+| Calibration, 16 views | Rational model (used) | Fisheye model |
+| :--- | :--- | :--- |
+| fx, fy | 460.0, 457.1 px | 457.7, 453.4 px |
+| Optical centre | 418.2, 273.0 px | 419.0, 272.4 px |
+| Error on all views, and on views left out of the fit | 0.480 and 0.503 px | 0.481 and 0.521 px |
+| Rows and columns of corners, undistorted, off straight: median, and beyond 70% of the half diagonal | 0.186 and 0.53 px | 0.191 and 0.79 px |
+| One to one out to the picture's corners | Yes | No |
+| Field of view across and down | 103.7°, 78.0° | |
+| One standard deviation | fx 4.9, fy 5.6, centre 1.7 across and 4.0 down, in px | |
+
+| Each calibration on the other's views | On these 16 views | On experiment 21's 6 views |
+| :--- | :--- | :--- |
+| Experiment 21's, provisional | 2.43 px: 0.26 to 0.42 on views 1 to 8, up to 8.04 on the close ones | 0.347 px, its own |
+| This one | 0.480 px, its own | 0.381 px, the worst view 0.69 |
+
+| Tilt, from the iPad standing level | Pitch, looking down | Roll, left side up |
+| :--- | ---: | ---: |
+| Experiment 21's 6 views and calibration, in the URDF until now | 6.96° | 2.25° |
+| The same views with this calibration | 2.18° | 1.77° |
+| Without experiment 21's view 6, whose rows sat 3.6° off level | 2.08° | 0.89° |
+| This experiment's views 1 to 7 alone, none turned away from the camera, so the pitch isn't fixed | 4.46° | 0.82° |
+| Experiment 21's views 1 to 5 and these views 1 to 7, each within 0.5° of level (used) | 2.11° | 0.84° |
+| The same with any one view left out | 1.32 to 2.29°, the low one without the view turned 59° | 0.79 to 0.89° |
+
+| Whole stack, navigation mode, 17:28 | Result |
+| :--- | :--- |
+| `/camera/camera_info`, 20 s | 300 messages, 15.00 a second, with the new matrices. Each of the 298 compressed frames received had one with its stamp. One publisher |
+| `chassis` to `camera_link` | 0.158, 0.037, 0.049 m, roll 0.842°, pitch 2.114° |
+| `base_footprint` to `camera_optical_link` | 0.163, 0.037, 0.104 m |
+| `lab_map_v3` | Unchanged, by MD5 |
+
+| Angle off the axis of a point on the optical centre's row, to its right | 100 px | 200 px | 300 px | 400 px |
+| :--- | ---: | ---: | ---: | ---: |
+| From this calibration | 12.5° | 25.0° | 37.7° | 50.6° |
+| A pinhole model with its focal length, 460 px | 12.3° | 23.5° | 33.1° | 41.0° |
+| The docking project's placeholder, a 62.2° pinhole field of view | 8.4° | 16.4° | 23.8° | 30.5° |
+
+**Result:** The calibration is better, but its views still don't reach the corners. Sixteen views, nine of them held close to the lens, reached 73% of the half diagonal, all of the picture but its four corners. This fit explains experiment 21's views to 0.38 px, while the provisional one misses these by 2.4 px, and by up to 8 px on the close views. Undistorted with the provisional calibration, the iPad's edges and the board's rows still bow near the edges of the picture. With this one they come out straight. The provisional fit had put the optical centre 41 px too low. With views only in the middle, the centre traded against its eight distortion terms, and its two models already disagreed on it by 24 px, where these agree within 1 px. So its rays were about 5° off, 3.7 to 5.4° out to 70% of the half diagonal, and the camera's tilt measured with it was off too. With this calibration the same level rows give 2.1° down where they gave 7.0°, and `camera.xacro` now has that. The two errors had cancelled near the middle of the picture. Both pairs put the floor 2 m ahead at rows 280 and 283, where experiment 21's room picture shows it, but either calibration with the other's tilt would have been 5° off. The roll was also pulled up by a view whose iPad wasn't level, and is 0.8°. Toward the edges, bearings differ from a pinhole's by 4.6° at 38° off the axis and 10° at 51°. Bearings in the corners aren't reliable. There the model is extrapolated: the fisheye model folds back, and the rational one puts the corners 63 and 66° off the axis, 11 to 13° beyond the provisional one. A fit to both sets of views stayed within 0.5° of this one out to 85% of the half diagonal, but wasn't one to one in the corners, so it wasn't used. The pitch rests mostly on one view turned 59°: two views of the iPad turned 45° each way would pin it. The user stopped before the corners, the daylight colour check and the yaw.
 
 ---
 
@@ -644,4 +702,4 @@ The robot weaved slightly left and right on the way, as in experiment 18: the wh
 1. **Map saving:** Save maps with a wait long enough for the busy Jetson and with `free_thresh` 0.196, and have the Web UI report a failed save.
 2. **Longer goals:** Goals with turns and across more of the room, a tighter yaw tolerance, and the dashboard's goal button on the robot.
 3. **Calibration:** After the robot has been on for hours, check in the `d` line that the gyro's learned offsets have followed its drift. Counts per wheel turn haven't been measured again since the rewiring.
-4. **Camera:** Calibrate the lens again with views that reach the corners of the picture, check the colour correction in daylight, and measure the camera's yaw. Camera-based docking is developed in a separate project.
+4. **Camera:** Add views in the picture's four corners and fit again. For the top corners, hold the iPad close and let its board run off the corner. For the bottom ones, lay it flat on the floor just in front of the robot. Add two views of the iPad on its stand turned 45° each way, for the pitch. Check the colour correction in daylight, and measure the camera's yaw. Camera-based docking is developed in a separate project.

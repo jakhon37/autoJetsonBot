@@ -9,7 +9,9 @@ tools/csi_camera_server.py on the Jetson host, which the container reaches on 12
 Steps:
   target OUT.pdf      the ChArUco board to print on A4 at actual size
   focus               sharpness across the picture, on an average of frames
-  capture DIR         save still, varied views of the board as PNG files
+  capture DIR         save still, varied views of the board as PNG files; --preview-port
+                      serves what it sees as MJPEG, marked with the parts of the picture
+                      still short of corners, for whoever holds the board
   calibrate DIR       fit OpenCV's rational model and its fisheye model to the views, compare
                       them on views left out of each fit, and write the better one as a ROS
                       camera_info YAML
@@ -20,8 +22,10 @@ Steps:
 
 The board has 8 x 5 squares of 32 mm, with 24 mm markers from DICT_4X4_50, in OpenCV 4.5's
 layout: its origin is the board's bottom-left corner as printed, x to the right and y up. It
-can be shown on a screen instead of printed (assets/calibration). --board chessboard:8x6 takes a
-plain checkerboard with 8 x 6 inner corners instead, which must be wholly in view to be found.
+can be shown on a screen instead of printed (assets/calibration). --board takes others: another
+ChArUco board in OpenCV's layout, such as charuco:7x5:DICT_6X6_50:0.5 (7 x 5 squares, 6x6
+markers half a square wide), or chessboard:8x6 for a plain checkerboard with 8 x 6 inner corners,
+which must be wholly in view to be found. The square size only matters for the floor check.
 The lens model is fitted to frames as the camera server sends them, so it holds for that size
 and flip only (820x616 and flip 0 on the robot): calibrate again after changing either.
 """
@@ -178,13 +182,22 @@ def plane_candidates(board, gray):
 
 
 def make_board(spec, square_mm):
-    """Board from --board: 'charuco' (the printed board) or 'chessboard:COLSxROWS'."""
+    """
+    Board from --board: 'charuco' (the printed board), 'charuco:COLSxROWS:DICT:SHARE' for
+    another ChArUco board in OpenCV's layout, whose markers' sides are SHARE of a square's, or
+    'chessboard:COLSxROWS'.
+    """
     if spec == 'charuco':
         return Board(square_mm=square_mm, marker_mm=MARKER_MM * square_mm / SQUARE_MM)
-    kind, _, size = spec.partition(':')
-    if kind != 'chessboard' or 'x' not in size:
-        raise ValueError(f'--board takes charuco or chessboard:COLSxROWS, not {spec}')
-    cols, rows = (int(v) for v in size.split('x'))
+    kind, _, rest = spec.partition(':')
+    if kind == 'charuco' and rest.count(':') == 2:
+        size, dictionary, share = rest.split(':')
+        cols, rows = (int(v) for v in size.split('x'))
+        return Board((cols, rows), square_mm, float(share) * square_mm, dictionary)
+    if kind != 'chessboard' or 'x' not in rest:
+        raise ValueError(f'--board takes charuco, charuco:COLSxROWS:DICT:SHARE or '
+                         f'chessboard:COLSxROWS, not {spec}')
+    cols, rows = (int(v) for v in rest.split('x'))
     return Chessboard((cols, rows), square_mm)
 
 
@@ -358,8 +371,104 @@ def is_new_view(points, kept, size, min_distance=0.12, few=6, same=0.04):
     return bool(((before < few) & (after > before)).any())
 
 
-def capture(board, url, out_dir, views=30, minutes=15.0, log=print):
-    """Save still views of the board that differ from each other, until enough are kept."""
+FILLED = 12  # corners in a coverage cell for the preview to show it as covered
+
+
+class Preview:
+    """
+    Serve the frames capture() looks at as MJPEG on 127.0.0.1, marked up, for whoever holds
+    the board: the parts of the picture still short of corners, the corners found and why a
+    view was or wasn't kept. Any path gives the stream; open it in a browser.
+    """
+
+    def __init__(self, port):
+        import http.server
+        import threading
+        self.cond = threading.Condition()
+        self.jpeg, self.count, self.closed = None, 0, False
+        preview = self
+
+        class Handler(http.server.BaseHTTPRequestHandler):
+            def log_message(self, *args):
+                pass
+
+            def do_GET(self):
+                self.send_response(200)
+                self.send_header('Content-Type', 'multipart/x-mixed-replace; boundary=frame')
+                self.send_header('Cache-Control', 'no-store')
+                self.end_headers()
+                seen = 0
+                try:
+                    while True:
+                        with preview.cond:
+                            preview.cond.wait_for(
+                                lambda: preview.count != seen or preview.closed, 2.0)
+                            if preview.closed:
+                                return
+                            if preview.count == seen:
+                                continue
+                            jpeg, seen = preview.jpeg, preview.count
+                        self.wfile.write(b'--frame\r\nContent-Type: image/jpeg\r\nContent-Length: '
+                                         + str(len(jpeg)).encode() + b'\r\n\r\n' + jpeg + b'\r\n')
+                except (BrokenPipeError, ConnectionResetError):
+                    pass
+
+        self.server = http.server.ThreadingHTTPServer(('127.0.0.1', port), Handler)
+        self.server.daemon_threads = True
+        threading.Thread(target=self.server.serve_forever, daemon=True).start()
+
+    def show(self, frame):
+        ok, buf = cv2.imencode('.jpg', frame, [cv2.IMWRITE_JPEG_QUALITY, 80])
+        if ok:
+            with self.cond:
+                self.jpeg, self.count = buf.tobytes(), self.count + 1
+                self.cond.notify_all()
+
+    def close(self):
+        with self.cond:
+            self.closed = True
+            self.cond.notify_all()
+        self.server.shutdown()
+
+
+def mark_up(frame, kept, points, status, goal):
+    """
+    Draw the coverage grid over a frame: red where no kept view has corners, yellow where they
+    are few, nothing over cells that are done. Then the corners found now and a status line.
+    """
+    h, w = frame.shape[:2]
+    grid = coverage(kept, (w, h))
+    cells = []
+    for r in range(GRID[1]):
+        for c in range(GRID[0]):
+            cells.append((c * w // GRID[0], r * h // GRID[1], (c + 1) * w // GRID[0] - 1,
+                          (r + 1) * h // GRID[1] - 1, int(grid[r, c])))
+    tint = frame.copy()
+    for x0, y0, x1, y1, n in cells:
+        if n < FILLED:
+            colour = (0, 0, 230) if n == 0 else (0, 210, 255)
+            cv2.rectangle(tint, (x0, y0), (x1, y1), colour, -1)
+    out = cv2.addWeighted(tint, 0.35, frame, 0.65, 0)
+    for x0, y0, x1, y1, n in cells:
+        cv2.rectangle(out, (x0, y0), (x1, y1), (255, 255, 255), 1)
+        cv2.putText(out, str(n), (x0 + 6, y1 - 8), cv2.FONT_HERSHEY_SIMPLEX, 0.6,
+                    (255, 255, 255), 2, cv2.LINE_AA)
+    if points is not None:
+        for x, y in points:
+            cv2.circle(out, (int(round(x)), int(round(y))), 4, (0, 255, 0), -1, cv2.LINE_AA)
+    text = f'{len(kept)}/{goal} views   {status}'
+    cv2.rectangle(out, (0, 0), (w, 34), (0, 0, 0), -1)
+    cv2.putText(out, text, (8, 25), cv2.FONT_HERSHEY_SIMPLEX, 0.75, (255, 255, 255), 2,
+                cv2.LINE_AA)
+    return out
+
+
+def capture(board, url, out_dir, views=30, minutes=15.0, log=print, preview=None):
+    """
+    Save still views of the board that differ from each other, until enough are kept.
+
+    preview, a Preview, is shown each frame looked at, marked up by mark_up().
+    """
     os.makedirs(out_dir, exist_ok=True)
     kept, last, size = [], None, None
     deadline = time.time() + minutes * 60
@@ -378,6 +487,8 @@ def capture(board, url, out_dir, views=30, minutes=15.0, log=print):
             last = None
             if seen % 20 == 0:
                 log(f'{len(kept)} views kept; no board in sight')
+            if preview is not None:
+                preview.show(mark_up(frame, kept, None, 'no board in sight', views))
             time.sleep(0.15)
             continue
         points, ids = found
@@ -388,6 +499,10 @@ def capture(board, url, out_dir, views=30, minutes=15.0, log=print):
                 steady = float(np.abs(points[a] - last[0][b]).max()) < STILL_PX
         last = (points, ids)
         if not steady or not is_new_view(points, kept, size):
+            if preview is not None:
+                status = ('hold still' if not steady
+                          else 'like a kept view: move the board on')
+                preview.show(mark_up(frame, kept, points, status, views))
             time.sleep(0.1)
             continue
         kept.append((points, ids))
@@ -396,6 +511,9 @@ def capture(board, url, out_dir, views=30, minutes=15.0, log=print):
         grid = coverage(kept, size)
         log(f'kept {name}: {len(ids)} corners. Corners per part of the picture:\n'
             + '\n'.join('   ' + ' '.join(f'{v:3d}' for v in row) for row in grid))
+        if preview is not None:
+            preview.show(mark_up(frame, kept, points,
+                                 f'KEPT view {len(kept)}: move on', views))
         last = None  # wait for the board to move on
     return kept
 
@@ -640,6 +758,11 @@ def camera_info_yaml(model, K, D, size, name='imx219_wide', note=''):
             K, np.ravel(D).reshape(4, 1), size, np.eye(3), balance=0.0)
     else:
         P, _ = cv2.getOptimalNewCameraMatrix(K, D, size, 0.0)
+        # Square pixels for the rectified picture. With views reaching farther out, the
+        # rational model's corners flare, and the scales across and down came out 18% apart.
+        # The larger of the two keeps the rectified picture inside the camera's, as alpha 0
+        # asks.
+        P[0, 0] = P[1, 1] = max(P[0, 0], P[1, 1])
     proj = np.hstack([P, np.zeros((3, 1))])
 
     def row(values):
@@ -780,8 +903,11 @@ def main(argv=None):
     parser.add_argument('--square-mm', type=float, default=SQUARE_MM,
                         help='printed square size, if the print came out at another scale')
     parser.add_argument('--board', default='charuco',
-                        help='charuco (default), or chessboard:COLSxROWS for a plain '
-                        'checkerboard with that many inner corners, such as chessboard:8x6')
+                        help='charuco (default); charuco:COLSxROWS:DICT:SHARE for another '
+                        'ChArUco board in OpenCV\'s layout, such as charuco:7x5:DICT_6X6_50:0.5 '
+                        'for 7 x 5 squares with 6x6 markers half a square wide; or '
+                        'chessboard:COLSxROWS for a plain checkerboard with that many inner '
+                        'corners, such as chessboard:8x6')
     sub = parser.add_subparsers(dest='step', required=True)
     p = sub.add_parser('target', help='write the board as a PDF to print')
     p.add_argument('out')
@@ -792,6 +918,9 @@ def main(argv=None):
     p.add_argument('dir')
     p.add_argument('--views', type=int, default=30)
     p.add_argument('--minutes', type=float, default=15.0)
+    p.add_argument('--preview-port', type=int, default=0,
+                   help='serve the frames looked at, with the coverage marked, as MJPEG on '
+                   '127.0.0.1 at this port, for whoever holds the board (0, the default: off)')
     p = sub.add_parser('calibrate', help='fit and compare the lens models, write camera_info')
     p.add_argument('dir')
     p.add_argument('--out', help='write the chosen model here as camera_info YAML')
@@ -833,8 +962,15 @@ def main(argv=None):
         for row in cells:
             print('   ' + '  '.join(f'{v:6.3f}' for v in row))
     elif args.step == 'capture':
-        kept = capture(board, args.url, args.dir, args.views, args.minutes,
-                       log=lambda text: print(text, flush=True))
+        preview = Preview(args.preview_port) if args.preview_port else None
+        if preview is not None:
+            print(f'preview on http://127.0.0.1:{args.preview_port}/', flush=True)
+        try:
+            kept = capture(board, args.url, args.dir, args.views, args.minutes,
+                           log=lambda text: print(text, flush=True), preview=preview)
+        finally:
+            if preview is not None:
+                preview.close()
         print(f'{len(kept)} views in {args.dir}')
     elif args.step == 'calibrate':
         views, names, size = load_views(board, args.dir)

@@ -9,29 +9,51 @@ Publishes camera/image_raw/compressed with every JPEG as received, and camera/im
 to bgr8 only while something subscribes to it, which saves the CPU. Frames are stamped with the
 stream's X-Timestamp when it is close to this clock, else with the time they arrive.
 
+With a lens calibration (the camera_info_file parameter, by default this package's
+config/imx219_wide_820x616.yaml), it also publishes camera/camera_info with each frame, with the
+frame's own header. Only frames of the calibration's size get one: a calibration holds for one
+size and flip only.
+
 One thread reads the stream and keeps only the newest frame; another publishes it. If publishing
 falls behind, frames are skipped instead of piling up in the connection and arriving late.
 """
 
 import array
+import os
 import threading
 import time
 import urllib.request
 
+from ament_index_python.packages import get_package_share_directory
 from builtin_interfaces.msg import Time
 import cv2
-from jetson_bot_camera.mjpeg_stream import capture_time, MjpegParser
+from jetson_bot_camera import camera_info_file
+from jetson_bot_camera.mjpeg_stream import capture_time, jpeg_size, MjpegParser
 import numpy as np
 import rclpy
 from rclpy.node import Node
 from rclpy.qos import QoSProfile
-from sensor_msgs.msg import CompressedImage, Image
+from sensor_msgs.msg import CameraInfo, CompressedImage, Image
+
+CALIBRATION = 'imx219_wide_820x616.yaml'
 
 
 def to_time_msg(seconds):
     """Turn seconds since the epoch into a builtin_interfaces/Time."""
     sec = int(seconds)
     return Time(sec=sec, nanosec=int((seconds - sec) * 1e9))
+
+
+def camera_info_msg(calibration):
+    """Turn a calibration from camera_info_file.load() into a CameraInfo, header left empty."""
+    msg = CameraInfo()
+    msg.width, msg.height = calibration['width'], calibration['height']
+    msg.distortion_model = calibration['distortion_model']
+    msg.d = calibration['d']
+    msg.k = calibration['k']
+    msg.r = calibration['r']
+    msg.p = calibration['p']
+    return msg
 
 
 def as_uint8_array(data):
@@ -52,11 +74,14 @@ class MjpegCameraNode(Node):
         self.url = self.declare_parameter('url', 'http://127.0.0.1:8091/stream').value
         self.frame_id = self.declare_parameter('frame_id', 'camera_optical_link').value
         self.retry_s = float(self.declare_parameter('retry_s', 2.0).value)
+        info_file = self.declare_parameter('camera_info_file', '').value
         # Reliable, which suits reliable subscribers such as web_video_server and RViz.
         # Depth 2 keeps no backlog of old frames.
         qos = QoSProfile(depth=2)
         self.pub_jpeg = self.create_publisher(CompressedImage, 'camera/image_raw/compressed', qos)
         self.pub_raw = self.create_publisher(Image, 'camera/image_raw', qos)
+        self.info = self.load_calibration(info_file)
+        self.pub_info = self.create_publisher(CameraInfo, 'camera/camera_info', qos)
         self.stop = threading.Event()
         self.cond = threading.Condition()
         self.latest = None  # (jpeg, headers, arrival time), replaced by each new frame
@@ -65,6 +90,23 @@ class MjpegCameraNode(Node):
         self.sender = threading.Thread(target=self.publish_loop, daemon=True)
         self.reader.start()
         self.sender.start()
+
+    def load_calibration(self, path):
+        """Return the lens calibration as a CameraInfo, or None if there's none to use."""
+        if not path:
+            path = os.path.join(get_package_share_directory('jetson_bot_camera'), 'config',
+                                CALIBRATION)
+        if path == 'none':
+            return None
+        try:
+            calibration = camera_info_file.load(path)
+        except (OSError, ValueError) as exc:
+            self.get_logger().warn(f'No camera_info: {path} not used ({exc})')
+            return None
+        self.get_logger().info(
+            f'Publishing camera_info from {path}: {calibration["distortion_model"]}, '
+            f'{calibration["width"]}x{calibration["height"]}')
+        return camera_info_msg(calibration)
 
     def shutdown(self):
         """Stop both threads."""
@@ -115,6 +157,15 @@ class MjpegCameraNode(Node):
         msg.format = 'jpeg'
         msg.data = as_uint8_array(jpeg)
         self.pub_jpeg.publish(msg)
+        if self.info is not None:
+            size = jpeg_size(jpeg)
+            if size == (self.info.width, self.info.height):
+                self.info.header = msg.header
+                self.pub_info.publish(self.info)
+            else:
+                self.get_logger().warn(
+                    f'Frames are {size}, the calibration {self.info.width}x{self.info.height}: '
+                    'no camera_info for them', throttle_duration_sec=30.0)
         announce = self.announce
         if not announce and self.pub_raw.get_subscription_count() == 0:
             return

@@ -17,6 +17,28 @@ def parse_headers(block):
     return headers
 
 
+def jpeg_size(jpeg):
+    """Return a JPEG's (width, height) from its frame header, without decoding it, or None."""
+    i, n = 2, len(jpeg)
+    while i + 4 <= n:
+        if jpeg[i] != 0xFF:
+            return None
+        marker = jpeg[i + 1]
+        if marker == 0xFF:  # fill byte
+            i += 1
+            continue
+        if marker == 0x01 or 0xD0 <= marker <= 0xD8:  # markers without a length
+            i += 2
+            continue
+        # start of frame: C0 to CF, except C4 (Huffman tables), C8 and CC
+        if 0xC0 <= marker <= 0xCF and marker not in (0xC4, 0xC8, 0xCC):
+            if i + 9 > n:
+                return None
+            return (jpeg[i + 7] << 8 | jpeg[i + 8], jpeg[i + 5] << 8 | jpeg[i + 6])
+        i += 2 + (jpeg[i + 2] << 8 | jpeg[i + 3])
+    return None
+
+
 def capture_time(headers, now, max_skew=5.0):
     """Return the part's X-Timestamp in seconds, or None if it's missing or far from now."""
     try:

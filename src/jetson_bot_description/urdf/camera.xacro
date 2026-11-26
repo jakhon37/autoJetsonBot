@@ -2,8 +2,16 @@
 <!-- camera-->
 <robot xmlns:xacro="http://www.ros.org/wiki/xacro" >
 
+    <!-- The IMX219 sits on the chassis's front face, measured on 2026-11-24. It is 5 cm from
+         the robot's left side and 12.5 cm from its right, so 3.75 cm left of the centre line,
+         and halfway up the 9.7 cm face, which is 15.8 cm ahead of the axle (robot_core.xacro).
+         It looks 2.1 deg down with its left side 0.8 deg up, from the iPad standing level on
+         the floor in 12 calibration views, all within 0.5 deg of level, with the lens
+         calibration of experiment 22. The provisional calibration had given 7.0 and 2.3 deg.
+         Yaw wasn't measured. Before, this joint held the old ESP32-CAM's 0.1455 0 0.05 with
+         no tilt. Pitch is positive looking down. -->
     <joint name="camera_joint" type="fixed">
-        <origin xyz="0.1455 0 0.05" rpy="0 0 0"/>
+        <origin xyz="0.158 0.0375 0.0485" rpy="0.0147 0.0369 0"/>
         <parent link="chassis"/>
         <child link="camera_link"/>
     </joint>

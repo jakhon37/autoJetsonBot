@@ -38,7 +38,10 @@ test_suite/
 ├── hardware/
 │   └── test_hardware.py   # Real hardware tests
 └── unit/
-    └── test_robot_sh.py   # robot.sh commands, run with stub commands
+    ├── test_robot_sh.py   # robot.sh commands, run with stub commands
+    ├── test_camera_shading.py  # the camera's colour correction, on made-up frames
+    ├── test_camera_jpeg.py     # the camera's JPEG encoders; GStreamer parts run on the Jetson
+    └── test_camera_intrinsics.py  # the calibration tool on simulated views; needs OpenCV's ArUco
 ```
 
 ## Prerequisites

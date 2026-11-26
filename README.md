@@ -61,17 +61,20 @@ flowchart LR
 ## The Robot
 
 <p align="center">
-  <img src="assets/photos/robot_side.jpg" alt="Side view: RPLidar on standoffs, Wi-Fi antenna, wheel" width="32%">
-  <img src="assets/photos/robot_front_three_quarter.jpg" alt="Front three-quarter view of the enclosure and lidar" width="32%">
-  <img src="assets/photos/robot_undercarriage.jpg" alt="Undercarriage: two encoder gear motors and a caster" width="32%">
+  <img src="assets/photos/robot_front_cover.jpg" alt="Front: the cover's push door with the camera, the RPLidar on standoffs, a Wi-Fi antenna on each side" width="32%">
+  <img src="assets/photos/robot_rear_panel.jpg" alt="Rear: the DC jack, two switches and two USB-C charging sockets, above the two encoder gear motors and the caster" width="32%">
+  <img src="assets/photos/robot_tray.jpg" alt="The tray out of the box: the ESP32-S3 motor board beside the Jetson Xavier NX on its carrier board" width="32%">
+  <br>
+  <em>Front with the camera · rear with the power controls, numbered in <a href="docs/architecture/HARDWARE.md#power">HARDWARE.md</a> · the tray with the motor board and the Jetson</em>
 </p>
 
 | Part | Details |
 | :--- | :--- |
-| **Computer** | NVIDIA Jetson Xavier NX Developer Kit, 8 GB, running ROS 2 Humble in Docker |
+| **Computer** | NVIDIA Jetson Xavier NX, 8 GB, on a Waveshare carrier board, running ROS 2 Humble in Docker |
 | **Real-time controller** | ESP32-S3 with a TB6612FNG motor driver, on the Jetson's USB |
-| **Drive** | Differential drive, 2 × JGA25-370 gear motors with Hall encoders, 68 mm wheels, front caster |
+| **Drive** | Differential drive, 2 × JGA25-370 gear motors with Hall encoders, 68 mm wheels, swivel caster at the front |
 | **Sensors** | RPLidar A1 (360° lidar), MPU6050 (6-axis IMU), IMX219 CSI camera with a wide-angle lens |
+| **Power** | A battery for the Jetson and another for the motors, each with its own switch and USB-C charging, and a DC jack for the Jetson's mains adapter |
 | **Size** | 19.4 × 17.8 × 9.7 cm chassis, wheel separation 0.212 m |
 
 Parts, wiring, pin map and measurements are in [HARDWARE.md](docs/architecture/HARDWARE.md).
@@ -122,9 +125,9 @@ The full node graph, TF tree, serial protocol and launch modes are in [SYSTEM_AR
 - **Simulation:** Mapping and autonomous goals work with EKF-fused odometry, rechecked under Humble in November 2026 (map above).
 - **Robot:** Under Humble on the Xavier NX, the lidar runs at 6.46 Hz and `slam_toolbox` builds maps. Encoders and IMU stream at 50 Hz and the full TF chain is up. On 2026-11-24 the robot mapped its room and reached its first Nav2 goal, stopping 6.5 cm short of a goal 1.0 m ahead, inside Nav2's 10 cm tolerance.
 - **Motors:** A rebuilt closed-loop motor firmware holds requested wheel speeds from 0.02 to 0.25 m/s within 1 to 2%, with the wheels lifted. The encoders count 1,497 per wheel turn, and the motors stop 0.75 s after commands stop. Driven through ROS, `/odom` matches the commands within 3%. On the floor, with feed-forward set there, both wheels hold requests within 0.003 m/s.
-- **Camera:** The CSI camera reaches ROS at 15 fps, 820×616 over its full field of view, about 20 ms after capture. The container has no Argus, so the Jetson host reads the camera, corrects its colour from a measurement on white paper and serves JPEG, and a node in the container publishes the stream. White paper comes out neutral grey to within about 3% across the frame, where the camera alone gave it a magenta cast that turned pink at the edges.
+- **Camera:** The CSI camera reaches ROS at 15 fps, 820×616 over its full field of view, about 21 ms after capture with the whole stack running. The container has no Argus, so the Jetson host reads the camera, corrects its colour from a measurement on white paper and has the Jetson's JPEG engine encode it, which takes a third of a core where encoding in software took three quarters. A node in the container publishes the stream. White paper comes out neutral grey to within about 3% across the frame, where the camera alone gave it a magenta cast that turned pink at the edges. The lens is locked and calibrated from views across the picture, published as `camera_info` with every frame, and the camera's measured position and tilt are in the URDF, ready for camera-based docking.
 
-All twenty experiments, with method and numbers, are in [RESULTS.md](docs/experiments/RESULTS.md).
+All twenty-three experiments, with method and numbers, are in [RESULTS.md](docs/experiments/RESULTS.md).
 
 ## Project Status
 
@@ -136,7 +139,7 @@ All twenty experiments, with method and numbers, are in [RESULTS.md](docs/experi
 | IMU and EKF fusion | ✅ Working | ✅ Heading follows the wheels and gyro and holds at rest, and with Nav2 running its distance follows the wheels within 0.1% |
 | Motor control | ✅ Working | ✅ Closed-loop speed within 0.003 m/s on the floor |
 | Web dashboard | ✅ Working | ✅ Teleop, lidar and telemetry used on the robot under Foxy |
-| Camera | ✅ Simulated camera, 640×480 at 10 Hz | ✅ CSI camera on `/camera/image_raw` at 15 fps, shown in the dashboard |
+| Camera | ✅ Simulated camera, 640×480 at 10 Hz | ✅ CSI camera on `/camera/image_raw` at 15 fps, shown in the dashboard, with its lens calibration on `/camera/camera_info` |
 
 The live status board, with every open problem, is [PROJECT_ANALYSIS.md](docs/PROJECT_ANALYSIS.md).
 
